@@ -1,0 +1,22 @@
+[
+  {
+    "namespace": "iris",
+    "name": "explain",
+    "content": "---\ndescription: Explain selected text or concept\nicon: 💡\n---\n\nPlease explain the following in simple terms:\n\n!`selection`\n\nUse examples if helpful. Target audience: general reader with no specialized knowledge.\n"
+  },
+  {
+    "namespace": "iris",
+    "name": "extract",
+    "content": "---\ndescription: Extract specific information from page\nicon: 🔍\n---\n\nFrom the following page content, extract: $ARGUMENTS\n\n**!`title`**\nURL: !`url`\n\n---\n\n!`pageContent`\n\n---\n\nPresent the extracted information in a clear, structured format.\n"
+  },
+  {
+    "namespace": "iris",
+    "name": "summarize",
+    "content": "---\ndescription: Summarize current page content\nicon: 📝\n---\n\nPlease provide a concise summary of the following page:\n\n**!`title`**\nURL: !`url`\n\n---\n\n!`pageContent`\n\n---\n\nFocus on the key points and main ideas. Use bullet points for clarity.\n"
+  },
+  {
+    "namespace": "iris",
+    "name": "translate",
+    "content": "---\ndescription: Translate selected text\nicon: 🌐\n---\n\nTranslate the following text to $ARGUMENTS:\n\n!`selection`\n\nProvide only the translation, no explanations unless the target language is not specified.\n"
+  }
+]

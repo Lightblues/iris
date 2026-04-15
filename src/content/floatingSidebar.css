@@ -1,0 +1,420 @@
+/* Floating Sidebar - Push page content to left (Monica-style) */
+
+/* Iris Highlights */
+.iris-highlight {
+  background-color: rgba(187, 247, 208, 0.5) !important;
+  cursor: pointer !important;
+  border-radius: 2px !important;
+  transition: background-color 0.15s ease !important;
+}
+.iris-highlight:hover {
+  background-color: rgba(134, 239, 172, 0.6) !important;
+}
+
+.iris-highlight-tooltip {
+  position: absolute;
+  z-index: 2147483647;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.iris-highlight-tooltip-id {
+  opacity: 0.6;
+}
+.iris-highlight-tooltip-delete {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 0 2px;
+  line-height: 1;
+}
+.iris-highlight-tooltip-delete:hover {
+  color: #ff4444;
+}
+
+/* Selection Popup (Cubox-style) */
+.iris-selection-popup {
+  position: absolute;
+  z-index: 2147483647;
+  background: #1a1a2e;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  padding: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  animation: iris-popup-in 0.12s ease-out;
+}
+@keyframes iris-popup-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.iris-selection-popup-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.iris-selection-popup-btn:hover {
+  background: rgba(255, 213, 79, 0.2);
+  color: #ffd54f;
+}
+.iris-selection-popup-btn svg {
+  flex-shrink: 0;
+}
+
+/* FAB Container */
+#iris-floating-fab-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483646;
+  transition: right 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#iris-floating-fab-container.iris-floating-fab-open {
+  right: calc(var(--iris-sidebar-width, 400px) + 20px);
+}
+
+/* FAB Button */
+#iris-floating-fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+#iris-floating-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+#iris-floating-fab:active {
+  transform: scale(0.95);
+}
+
+#iris-floating-fab svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+}
+
+/* FAB Hide Button */
+#iris-floating-fab-hide {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 60, 60, 0.9);
+  color: white;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+#iris-floating-fab-hide svg {
+  width: 12px;
+  height: 12px;
+}
+
+#iris-floating-fab-container:hover #iris-floating-fab-hide {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#iris-floating-fab-hide:hover {
+  background: rgba(220, 38, 38, 0.9);
+}
+
+/* FAB Menu - appears on hover above the button */
+#iris-floating-fab-menu {
+  position: absolute;
+  bottom: 56px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#iris-floating-fab-container:hover #iris-floating-fab-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Hide menu when sidebar is open */
+#iris-floating-fab-container.iris-floating-fab-open #iris-floating-fab-menu {
+  display: none;
+}
+
+/* Menu header */
+.iris-fab-menu-header {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Menu divider */
+.iris-fab-menu-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 4px 0;
+}
+
+/* Menu item */
+.iris-fab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  text-decoration: none;
+  color: #333;
+  font-size: 13px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.iris-fab-menu-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #000;
+}
+
+.iris-fab-menu-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.iris-fab-menu-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+}
+
+/* Chat button highlight */
+.iris-fab-menu-chat {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.iris-fab-menu-chat:hover {
+  background: rgba(102, 126, 234, 0.1);
+  color: #5a67d8;
+}
+
+/* Sidebar Container - Fixed to right edge */
+#iris-floating-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: var(--iris-sidebar-width, 400px);
+  height: 100vh;
+  z-index: 2147483647;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-out;
+  background: var(--iris-sidebar-bg, #0f172a);
+  display: flex;
+  flex-direction: row;
+}
+
+#iris-floating-sidebar.iris-floating-sidebar-open {
+  transform: translateX(0);
+}
+
+/* Resize Handle - dedicated column on the left */
+#iris-floating-resize-handle {
+  width: 8px;
+  min-width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  background: rgba(30, 41, 59, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+#iris-floating-resize-handle:hover {
+  background: rgba(51, 65, 85, 1);
+}
+
+#iris-floating-resize-handle.iris-resizing {
+  background: rgba(102, 126, 234, 0.8);
+}
+
+/* Visual indicator dots */
+#iris-floating-resize-handle::before {
+  content: '';
+  width: 3px;
+  height: 40px;
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 2px;
+  transition: background 0.15s ease, height 0.15s ease;
+}
+
+#iris-floating-resize-handle:hover::before {
+  background: rgba(148, 163, 184, 0.8);
+  height: 60px;
+}
+
+#iris-floating-resize-handle.iris-resizing::before {
+  background: rgba(255, 255, 255, 0.9);
+  height: 80px;
+}
+
+/* iframe takes remaining space */
+#iris-floating-sidebar iframe {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+/* Page content push - applied to html element */
+html.iris-sidebar-active {
+  margin-right: var(--iris-sidebar-width, 400px) !important;
+  transition: margin-right 0.3s ease-out !important;
+}
+
+/* Ensure body doesn't overflow */
+html.iris-sidebar-active body {
+  overflow-x: hidden;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  #iris-floating-fab {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  #iris-floating-fab:hover {
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+  }
+
+  #iris-floating-fab-menu {
+    background: rgba(35, 35, 35, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .iris-fab-menu-header {
+    color: #666;
+  }
+
+  .iris-fab-menu-divider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .iris-fab-menu-item {
+    color: #ddd;
+  }
+
+  .iris-fab-menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .iris-fab-menu-chat {
+    color: #a5b4fc;
+  }
+
+  .iris-fab-menu-chat:hover {
+    background: rgba(102, 126, 234, 0.2);
+    color: #c7d2fe;
+  }
+
+  #iris-floating-sidebar {
+    --iris-sidebar-bg: #0f172a;
+    box-shadow: -2px 0 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  #iris-floating-sidebar {
+    --iris-sidebar-bg: #ffffff;
+    box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  #iris-floating-sidebar {
+    --iris-sidebar-width: 100vw !important;
+  }
+
+  html.iris-sidebar-active {
+    margin-right: 0 !important;
+  }
+
+  #iris-floating-fab-container.iris-floating-fab-open {
+    display: none;
+  }
+
+  #iris-floating-resize-handle {
+    display: none;
+  }
+}
+
+/* Disable transitions during resize for smooth dragging */
+html.iris-resizing,
+html.iris-resizing body,
+#iris-floating-sidebar.iris-resizing,
+#iris-floating-fab.iris-resizing,
+#iris-floating-fab-container.iris-resizing {
+  transition: none !important;
+}

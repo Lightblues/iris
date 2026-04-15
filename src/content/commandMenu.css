@@ -1,0 +1,155 @@
+/* Command Menu Overlay */
+#iris-command-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 15vh;
+  z-index: 2147483647;
+  animation: iris-fade-in 0.15s ease-out;
+}
+
+#iris-command-menu-overlay.iris-command-menu-closing {
+  animation: iris-fade-out 0.15s ease-out forwards;
+}
+
+@keyframes iris-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes iris-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Command Menu Container */
+.iris-command-menu {
+  width: 480px;
+  max-width: 90vw;
+  background: #1e1e1e;
+  border-radius: 12px;
+  box-shadow: 0 16px 70px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: iris-slide-down 0.2s ease-out;
+}
+
+@keyframes iris-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Search Input */
+.iris-command-input {
+  width: 100%;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: #fff;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.iris-command-input::placeholder {
+  color: #888;
+}
+
+/* Command List */
+.iris-command-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.iris-command-empty {
+  padding: 24px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 14px;
+}
+
+/* Command Item */
+.iris-command-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.iris-command-item:hover,
+.iris-command-item.iris-command-selected {
+  background: #2a2a2a;
+}
+
+.iris-command-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.iris-command-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.iris-command-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.iris-command-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* Toast Notifications */
+.iris-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 500;
+  z-index: 2147483647;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.iris-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.iris-toast-success {
+  background: #22c55e;
+  color: #fff;
+}
+
+.iris-toast-error {
+  background: #ef4444;
+  color: #fff;
+}

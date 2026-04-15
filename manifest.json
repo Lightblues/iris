@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "Iris",
+  "version": "0.1.3",
+  "description": "AI-powered browser assistant - analyze pages, chat with content",
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "96": "icon-96.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    },
+    "default_title": "Open Iris"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/index.ts"]
+    }
+  ],
+  "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "unlimitedStorage", "alarms", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "open-command-menu": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Open command menu"
+    },
+    "toggle-floating-sidebar": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Toggle Iris sidebar"
+    },
+    "save-highlight": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+H",
+        "mac": "Command+Shift+H"
+      },
+      "description": "Save selection as highlight"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/sidepanel/index.html", "assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
