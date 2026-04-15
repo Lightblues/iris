@@ -1,0 +1,7 @@
+name: iris
+category: app
+origin: original
+scope: personal
+status: active
+stack: [typescript, react, chrome-extension]
+description: Personal AIO Chrome extension — AI agent, knowledge capture, page enhancements

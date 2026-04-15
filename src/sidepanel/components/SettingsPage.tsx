@@ -3,8 +3,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle, CloudUpload, Unlink } from 'lucide-react'
-import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
+import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle, CloudUpload, Unlink, Star, Loader2 } from 'lucide-react'
+import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings, maskApiKey } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
 import { loadAllCommands, saveUserCommands } from '@/lib/commandStorage'
@@ -20,6 +20,8 @@ import {
 } from '@/lib/fileSystemAccess'
 import { getCommandDisplayName } from '@/lib/slashCommands'
 import { syncToVesta, getSyncState, type VestaSyncState } from '@/lib/vestaSync'
+import { fetchModels, clearModelCache } from '@/lib/modelRegistry'
+import type { ModelConfig } from '@/lib/sidepanelSettings'
 
 interface SettingsPageProps {
   settings: SidePanelSettings
@@ -32,9 +34,10 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: SettingsPageProps) {
-  const [showAddModel, setShowAddModel] = useState(false)
-  const [newModelName, setNewModelName] = useState('')
-  const [newModelId, setNewModelId] = useState('')
+  const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
+  const [modelsFetching, setModelsFetching] = useState(false)
+  const [modelsError, setModelsError] = useState<string | null>(null)
+  const [modelsQuery, setModelsQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [commandsError, setCommandsError] = useState<string | null>(null)
   const [commands, setCommands] = useState<SlashCommand[]>([])
@@ -62,26 +65,45 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   }, [])
 
   // --- Model handlers ---
-  const handleAddModel = () => {
-    if (!newModelName.trim() || !newModelId.trim()) {
-      setError('Both name and ID are required')
-      return
+  const handleFetchModels = async () => {
+    setModelsFetching(true)
+    setModelsError(null)
+    try {
+      const models = await fetchModels(
+        settings.baseUrl || 'https://openrouter.ai/api/v1',
+        settings.apiKey,
+        { force: true },
+      )
+      setAvailableModels(models)
+    } catch (err: any) {
+      setModelsError(err.message || 'Failed to fetch models')
+    } finally {
+      setModelsFetching(false)
     }
-    const newModel: ModelConfig = { id: newModelId.trim(), name: newModelName.trim() }
-    onSettingsChange({ models: [...settings.models, newModel] })
-    setShowAddModel(false)
-    setNewModelName('')
-    setNewModelId('')
-    setError(null)
   }
 
-  const handleDeleteModel = (modelId: string) => {
-    const updatedModels = settings.models.filter((m) => m.id !== modelId)
-    const updates: Partial<SidePanelSettings> = { models: updatedModels }
-    if (settings.model === modelId && updatedModels.length > 0) {
-      updates.model = updatedModels[0].id
+  const handleToggleFavourite = (modelId: string) => {
+    const favs = settings.favouriteModels ?? []
+    const isFav = favs.includes(modelId)
+    const updated = isFav
+      ? favs.filter(id => id !== modelId)
+      : [...favs, modelId]
+    onSettingsChange({ favouriteModels: updated })
+  }
+
+  const handleAddCustomModel = () => {
+    const id = modelsQuery.trim()
+    if (!id) return
+    // Add to favourites directly
+    const favs = settings.favouriteModels ?? []
+    if (!favs.includes(id)) {
+      onSettingsChange({ favouriteModels: [...favs, id] })
     }
-    onSettingsChange(updates)
+    // Also add to available models for display
+    if (!availableModels.find(m => m.id === id)) {
+      setAvailableModels(prev => [...prev, { id, name: id }])
+    }
+    setModelsQuery('')
   }
 
   // --- Import/Export ---
@@ -237,14 +259,29 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
 
         <div className="space-y-1">
           <label className="text-xs font-medium">Base URL</label>
-          <Input
-            type="text"
-            value={settings.baseUrl}
-            onChange={(e) => onSettingsChange({ baseUrl: e.target.value })}
-            placeholder="https://openrouter.ai/api/v1"
-            className="h-8 text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">OpenRouter, OpenAI, or any compatible API</p>
+          <div className="flex gap-1.5">
+            <Input
+              type="text"
+              value={settings.baseUrl}
+              onChange={(e) => { onSettingsChange({ baseUrl: e.target.value }); clearModelCache() }}
+              placeholder="https://openrouter.ai/api/v1"
+              className="h-8 text-sm font-mono flex-1"
+            />
+            <Button
+              variant="outline" size="sm"
+              onClick={handleFetchModels}
+              disabled={modelsFetching}
+              className="h-8 px-2 text-xs shrink-0"
+              title="Fetch available models from provider"
+            >
+              {modelsFetching ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            OpenRouter, OpenAI, or any compatible API
+            {availableModels.length > 0 && <span className="ml-1 text-primary">· {availableModels.length} models available</span>}
+          </p>
+          {modelsError && <p className="text-xs text-destructive">{modelsError}</p>}
         </div>
 
         <div className="space-y-1">
@@ -254,31 +291,86 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {settings.models.map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+              {(settings.favouriteModels ?? []).map((id) => (
+                <SelectItem key={id} value={id} className="text-xs font-mono">{id}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">Can be overridden per-chat in the chat header</p>
+          <p className="text-xs text-muted-foreground">Shows favourited models. Override per-chat in chat header.</p>
         </div>
 
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium">Models</label>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddModel(true)} className="h-6 px-2 text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add
-            </Button>
+            {availableModels.length === 0 && (
+              <Button variant="ghost" size="sm" onClick={handleFetchModels} disabled={modelsFetching} className="h-6 px-2 text-xs">
+                {modelsFetching ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                Fetch
+              </Button>
+            )}
           </div>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {settings.models.map((model) => (
-              <div key={model.id} className="flex items-center gap-2 bg-background p-1.5 rounded text-xs">
-                <span className="flex-1 truncate">{model.name}</span>
-                <span className="text-muted-foreground font-mono text-[10px] truncate max-w-[100px]">{model.id}</span>
-                <Button variant="ghost" size="sm" onClick={() => handleDeleteModel(model.id)} className="h-5 w-5 p-0" title="Delete model">
-                  <Trash2 className="h-3 w-3 text-destructive" />
-                </Button>
-              </div>
-            ))}
+
+          {/* Search / add custom */}
+          <div className="flex gap-1.5">
+            <Input
+              type="text"
+              value={modelsQuery}
+              onChange={(e) => setModelsQuery(e.target.value)}
+              placeholder="Filter or type custom model ID..."
+              className="h-7 text-xs font-mono flex-1"
+            />
+            {modelsQuery.trim() && !availableModels.find(m => m.id === modelsQuery.trim()) && (
+              <Button variant="outline" size="sm" onClick={handleAddCustomModel} className="h-7 px-2 text-xs shrink-0">
+                <Plus className="h-3 w-3 mr-1" /> Add
+              </Button>
+            )}
+          </div>
+
+          {/* Model list */}
+          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+            {(() => {
+              const favs = new Set(settings.favouriteModels ?? [])
+              const q = modelsQuery.toLowerCase()
+
+              // Build display list: favourites first (even if not in available), then available
+              const favModels = (settings.favouriteModels ?? [])
+                .filter(id => !q || id.toLowerCase().includes(q))
+                .map(id => ({ id, isFav: true, inList: !!availableModels.find(m => m.id === id) }))
+
+              const restModels = availableModels
+                .filter(m => !favs.has(m.id) && (!q || m.id.toLowerCase().includes(q)))
+                .map(m => ({ id: m.id, isFav: false, inList: true }))
+
+              const allModels = [...favModels, ...restModels]
+
+              if (allModels.length === 0) {
+                return (
+                  <div className="text-xs text-muted-foreground py-2 text-center">
+                    {availableModels.length === 0
+                      ? 'Click Fetch to load models from your provider'
+                      : 'No matches'}
+                  </div>
+                )
+              }
+
+              return allModels.map(({ id, isFav }) => (
+                <div key={id} className="flex items-center gap-1.5 bg-background p-1 rounded text-xs group">
+                  <button
+                    onClick={() => handleToggleFavourite(id)}
+                    className="shrink-0 p-0.5 rounded hover:bg-accent transition-colors"
+                    title={isFav ? 'Remove from favourites' : 'Add to favourites'}
+                  >
+                    <Star className={`h-3 w-3 ${isFav ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30 hover:text-muted-foreground'}`} />
+                  </button>
+                  <span className={`flex-1 font-mono text-[11px] truncate ${isFav ? '' : 'text-muted-foreground'}`}>
+                    {id}
+                  </span>
+                  {id === settings.model && (
+                    <span className="text-[10px] text-primary shrink-0">default</span>
+                  )}
+                </div>
+              ))
+            })()}
           </div>
         </div>
 
@@ -557,29 +649,6 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
       </section>
 
       {/* ===== Dialogs ===== */}
-      <Dialog open={showAddModel} onOpenChange={setShowAddModel}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add Custom Model</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Model Name</label>
-              <Input type="text" value={newModelName} onChange={(e) => setNewModelName(e.target.value)} placeholder="GPT-4, Claude 3 Opus, etc." className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium">Model ID</label>
-              <Input type="text" value={newModelId} onChange={(e) => setNewModelId(e.target.value)} placeholder="gpt-4, claude-3-opus, etc." className="h-8 text-sm font-mono" />
-              <p className="text-xs text-muted-foreground">The exact model identifier used by your API</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setShowAddModel(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleAddModel}>Add Model</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={showCommandPreview} onOpenChange={setShowCommandPreview}>
         <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>

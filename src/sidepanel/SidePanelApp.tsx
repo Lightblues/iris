@@ -8,7 +8,7 @@ import { NotesTab } from './components/NotesTab'
 import { AgentPanel } from './components/AgentPanel'
 import { AgentHistoryTab } from './components/AgentHistoryTab'
 import { type TabType } from './components/TabSwitcher'
-import { loadSettings, saveSettings, type SidePanelSettings, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
+import { loadSettings, saveSettings, type SidePanelSettings, type ModelConfig, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
 import {
   loadAllConversations as loadAgentConversations,
   setActiveConversation as setAgentActiveConversation,
@@ -19,6 +19,7 @@ import type { AgentMode as NewAgentMode } from '@/agent/types'
 import { initTelemetry, shutdownTelemetry } from '@/lib/telemetry'
 import { loadAllCommands } from '@/lib/commandStorage'
 import { disconnectMcp as disconnectAgentMcp } from '@/agent/useAgentChat'
+import { fetchModels } from '@/lib/modelRegistry'
 
 const TAB_STORAGE_KEY = 'sidepanel_active_tab'
 
@@ -29,6 +30,7 @@ export default function SidePanelApp() {
   const [activeTab, setActiveTab] = useState<TabType>('agent')
   const [settings, setSettings] = useState<SidePanelSettings>(DEFAULT_SETTINGS)
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
+  const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const previousTabRef = useRef<TabType>('agent')
 
   // Agent system state
@@ -49,6 +51,12 @@ export default function SidePanelApp() {
       console.log('[Iris] Settings loaded')
       setSettings(s)
       if (s.phoenixEndpoint) initTelemetry(s.phoenixEndpoint)
+      // Auto-fetch available models
+      if (s.baseUrl) {
+        fetchModels(s.baseUrl, s.apiKey)
+          .then(models => { setAvailableModels(models); console.log('[Iris] Fetched', models.length, 'models') })
+          .catch(err => console.warn('[Iris] Failed to fetch models:', err.message))
+      }
     })
     loadAgentActiveConversation()
     loadAllCommands().then((cmds) => {
@@ -174,6 +182,7 @@ export default function SidePanelApp() {
           key={`agent-${newAgentMode}-${agentSessionKey}`}
           agentMode={newAgentMode}
           settings={settings}
+          availableModels={availableModels}
           chatModel={agentChatModel}
           onChatModelChange={setAgentChatModel}
           conversation={agentConversation}

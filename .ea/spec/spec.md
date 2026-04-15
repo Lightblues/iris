@@ -66,14 +66,14 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 
 | Section | Key Fields |
 |---------|------------|
-| LLM / Agent | API Key, Base URL, Default Model, Models list, Temperature, Max Output Tokens, Max Steps |
+| LLM / Agent | API Key, Base URL, Default Model, Favourite Models (fetched from /v1/models), Temperature, Max Output Tokens, Max Steps |
 | MCP Server | Endpoint URL (for Paper Agent) |
 | Vesta Sync | Link directory, sync trigger |
 | Slash Commands | Link folder, command list |
 | Content Script | FAB site patterns |
 | Import / Export | Settings JSON |
 
-Per-chat model override is available in the chat header. New chats start with the default model.
+Per-chat model override via searchable combobox in the chat header. Models fetched from provider's /v1/models API; users star favourites for quick access.
 
 ## References
 

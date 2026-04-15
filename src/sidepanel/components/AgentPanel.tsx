@@ -6,13 +6,14 @@ import { ChatHeader } from './ChatHeader'
 import { useAgentTransport, useAgentChat } from '@/agent/useAgentChat'
 import { updateConversation } from '@/agent/history'
 import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
-import type { SidePanelSettings } from '@/lib/sidepanelSettings'
+import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
 import { createConversation } from '@/agent/history'
 
 export interface AgentPanelProps {
   agentMode: AgentMode
   settings: SidePanelSettings
+  availableModels: ModelConfig[]
   chatModel: string | null
   onChatModelChange: (model: string | null) => void
   conversation: Conversation | null
@@ -68,7 +69,8 @@ export function AgentPanel(props: AgentPanelProps) {
           agentMode={agentMode}
           onAgentModeChange={onAgentModeChange}
           messages={[]}
-          models={settings.models}
+          models={props.availableModels}
+          favourites={settings.favouriteModels ?? []}
           defaultModel={settings.model}
           chatModel={chatModel}
           onChatModelChange={onChatModelChange}
@@ -106,6 +108,7 @@ export function AgentPanel(props: AgentPanelProps) {
       transport={transport}
       agentMode={agentMode}
       settings={settings}
+      availableModels={props.availableModels}
       chatModel={chatModel}
       onChatModelChange={onChatModelChange}
       conversation={conversation}
@@ -248,7 +251,8 @@ function AgentPanelReady(props: AgentPanelProps & {
         agentMode={agentMode}
         onAgentModeChange={onAgentModeChange}
         messages={messages as IrisMessage[]}
-        models={settings.models}
+        models={props.availableModels}
+        favourites={settings.favouriteModels ?? []}
         defaultModel={settings.model}
         chatModel={chatModel}
         onChatModelChange={onChatModelChange}
