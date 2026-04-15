@@ -162,19 +162,7 @@ export interface ChatImageAttachment {
 export type IrisMessage = UIMessage<IrisMessageMetadata>
 export type IrisMessagePart = UIMessage<IrisMessageMetadata>['parts'][number]
 
-// Legacy types — kept for migration only (old ChatMessage format)
-export interface LegacyChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'context' | 'tool';
-  content: string;
-  timestamp: number;
-  metadata?: { pageUrl?: string; pageTitle?: string; contextType?: 'page' | 'selection' };
-  images?: { id: string; data: string; mimeType: string; size: number }[];
-  toolCalls?: { id: string; name: string; args: any; timestamp: number }[];
-  toolResults?: { id: string; name: string; result: any; timestamp: number }[];
-  contentBlocks?: { type: 'text' | 'tool'; text?: string; toolCall?: any; toolResult?: any }[];
-  responseMessages?: any[];
-}
+// Legacy types removed — migration code was in chatHistory.ts (deleted)
 
 // Tool UI part helper — extract tool name from part.type ('tool-query_tabs' → 'query_tabs')
 export function getToolNameFromPart(part: IrisMessagePart): string | null {
@@ -186,19 +174,7 @@ export function getToolNameFromPart(part: IrisMessagePart): string | null {
 
 export type AgentMode = 'general' | 'tab-agent' | 'automation' | 'paper'
 
-export interface Conversation {
-  id: string;
-  title: string;
-  messages: IrisMessage[];
-  agentMode?: AgentMode;
-  createdAt: number;
-  lastUpdated: number;
-}
-
-export interface ConversationStore {
-  conversations: Conversation[];
-  activeConversationId: string | null;
-}
+// Conversation types live in @/agent/types — single source of truth
 
 // Page context message types
 export interface GetPageContextMessage {
@@ -277,54 +253,9 @@ export interface TracingEvent {
   data: Record<string, any>
 }
 
-// Notes types (legacy — kept for reference, unused by new code)
-export type NoteSourceType = 'page' | 'selection' | 'assistant';
+// Legacy Notes types removed — replaced by Knowledge system (KnowledgeEntry etc. above)
 
-export interface NoteSource {
-  url: string;
-  title: string;
-  type: NoteSourceType;
-  extractedAt: number;
-  conversationId?: string;  // For assistant-generated notes
-}
-
-export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  source: NoteSource;
-  tags: string[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-export interface NotesStore {
-  notes: Note[];
-}
-
-export const NOTE_TAGS = [
-  'Research',
-  'Tutorial',
-  'Reference',
-  'Idea',
-  'Todo',
-  'Other'
-] as const;
-
-export type NoteTag = typeof NOTE_TAGS[number];
-
-// Notion Sync types
-export interface NotionSyncConfig {
-  token: string;
-  databaseId: string;
-  enabled: boolean;
-}
-
-export interface NotionSyncStatus {
-  lastSyncTime: number;
-  totalSynced: number;
-  lastError?: string;
-}
+// Notion Sync types live in lib/notionSync.ts
 
 // Slash Command types
 export type SlashCommandContextVar = 'pageContent' | 'selection' | 'url' | 'title' | 'ARGUMENTS';

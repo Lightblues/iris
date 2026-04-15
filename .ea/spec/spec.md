@@ -31,11 +31,10 @@ Chrome Extension (Manifest V3)
 │   ├── Command menu (Cmd+Shift+P)
 │   ├── Highlight injection & restore
 │   └── Context extraction (page/selection)
-└── SidePanel (React SPA)
+├── SidePanel (React SPA)
     ├── Agent tab (AgentPanel — chat with AI agent)
     ├── Agent History tab
-    ├── Chat tab (legacy ChatPanel)
-    ├── History / Bookmarks / Reading List / Notes tabs
+    ├── Tabs / Bookmarks / Reading List / Notes tabs
     └── Settings
 ```
 
@@ -58,8 +57,7 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 |-----|-----------|-------------|
 | Agent | `AgentPanel` | Primary chat interface — AI agent with tool calling |
 | Agent History | `AgentHistoryTab` | Agent conversation list with import/export |
-| Chat | `ChatPanel` | Legacy chat (older streaming engine) |
-| History | `HistoryTab` | Legacy conversation history |
+| Tabs | `TabsTab` | Open tabs viewer |
 | Bookmarks | `BookmarksTab` | Category-filtered bookmark manager |
 | Reading List | `ReadingListTab` | Chrome native reading list UI |
 | Notes | `NotesTab` | Knowledge entries (highlights, notes, chat saves) |

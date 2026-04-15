@@ -2,30 +2,22 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { SidebarHeader } from './components/SidebarHeader'
 import { SettingsPage } from './components/SettingsPage'
 import { BookmarksTab } from './components/BookmarksTab'
-import { HistoryTab } from './components/HistoryTab'
 import { ReadingListTab } from './components/ReadingListTab'
 import { TabsTab } from './components/TabsTab'
 import { NotesTab } from './components/NotesTab'
-import { ChatPanel } from './components/ChatPanel'
 import { AgentPanel } from './components/AgentPanel'
 import { AgentHistoryTab } from './components/AgentHistoryTab'
 import { type TabType } from './components/TabSwitcher'
 import { loadSettings, saveSettings, type SidePanelSettings, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
 import {
-  loadAllConversations as loadOldConversations,
-  setActiveConversation as setOldActiveConversation,
-} from '@/lib/chatHistory'
-import {
   loadAllConversations as loadAgentConversations,
   setActiveConversation as setAgentActiveConversation,
 } from '@/agent/history'
-import type { SlashCommand, AgentMode } from '@/lib/types'
-import type { Conversation } from '@/lib/types'
+import type { SlashCommand } from '@/lib/types'
 import type { Conversation as AgentConversation } from '@/agent/types'
 import type { AgentMode as NewAgentMode } from '@/agent/types'
 import { initTelemetry, shutdownTelemetry } from '@/lib/telemetry'
 import { loadAllCommands } from '@/lib/commandStorage'
-import { disconnectMcp } from '@/lib/mcpClient'
 import { disconnectMcp as disconnectAgentMcp } from '@/agent/useAgentChat'
 
 const TAB_STORAGE_KEY = 'sidepanel_active_tab'
@@ -35,14 +27,11 @@ const isFloatingMode = new URLSearchParams(window.location.search).get('mode') =
 
 export default function SidePanelApp() {
   const [activeTab, setActiveTab] = useState<TabType>('agent')
-  const [conversation, setConversation] = useState<Conversation | null>(null)
   const [settings, setSettings] = useState<SidePanelSettings>(DEFAULT_SETTINGS)
-  const [chatModel, setChatModel] = useState<string | null>(null)
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
-  const [agentMode, setAgentMode] = useState<AgentMode>('general')
   const previousTabRef = useRef<TabType>('agent')
 
-  // New Agent system state
+  // Agent system state
   const [agentConversation, setAgentConversation] = useState<AgentConversation | null>(null)
   const [agentChatModel, setAgentChatModel] = useState<string | null>(null)
   const [newAgentMode, setNewAgentMode] = useState<NewAgentMode>('general')
@@ -61,7 +50,6 @@ export default function SidePanelApp() {
       setSettings(s)
       if (s.phoenixEndpoint) initTelemetry(s.phoenixEndpoint)
     })
-    loadActiveConversation()
     loadAgentActiveConversation()
     loadAllCommands().then((cmds) => {
       console.log('[Iris] Loaded', cmds.length, 'slash commands')
@@ -72,20 +60,6 @@ export default function SidePanelApp() {
     })
     return () => { shutdownTelemetry() }
   }, [])
-
-  const loadActiveConversation = async () => {
-    const store = await loadOldConversations()
-    if (store.activeConversationId) {
-      const conv = store.conversations.find((c) => c.id === store.activeConversationId)
-      if (conv) {
-        setConversation(conv)
-        if (conv.agentMode) setAgentMode(conv.agentMode)
-        console.log('[Iris] Loaded active conversation:', conv.id)
-        return
-      }
-    }
-    setConversation(null)
-  }
 
   const loadAgentActiveConversation = async () => {
     const store = await loadAgentConversations()
@@ -117,42 +91,7 @@ export default function SidePanelApp() {
     setActiveTab(previousTabRef.current)
   }
 
-  // Old Chat conversation lifecycle
-  const handleSelectConversation = async (id: string) => {
-    const store = await loadOldConversations()
-    const conv = store.conversations.find((c) => c.id === id)
-    if (conv) {
-      setConversation(conv)
-      if (conv.agentMode) setAgentMode(conv.agentMode)
-      await setOldActiveConversation(id)
-      setActiveTab('chat')
-    }
-  }
-
-  const handleNewChat = async () => {
-    setConversation(null)
-    setChatModel(null)
-    setActiveTab('chat')
-    await setOldActiveConversation(null)
-  }
-
-  const handleConversationCreated = useCallback((conv: Conversation) => {
-    setConversation(conv)
-    setOldActiveConversation(conv.id).catch(() => {})
-  }, [])
-
-  // Agent mode switching (old Chat tab)
-  const handleAgentModeChange = useCallback(async (mode: AgentMode) => {
-    if (mode === agentMode) return
-    if (agentMode === 'paper') {
-      await disconnectMcp()
-    }
-    setAgentMode(mode)
-    setConversation(null)
-    await setOldActiveConversation(null)
-  }, [agentMode])
-
-  // New Agent system handlers
+  // Agent system handlers
   const handleAgentSelectConversation = async (id: string) => {
     const store = await loadAgentConversations()
     const conv = store.conversations.find((c) => c.id === id)
@@ -249,26 +188,6 @@ export default function SidePanelApp() {
           activeConversationId={agentConversation?.id || null}
           onSelectConversation={handleAgentSelectConversation}
           onNewChat={handleAgentNewChat}
-        />
-      ) : activeTab === 'chat' ? (
-        <ChatPanel
-          key={`${agentMode}-${conversation?.id ?? 'new'}`}
-          agentMode={agentMode}
-          settings={settings}
-          chatModel={chatModel}
-          onChatModelChange={setChatModel}
-          conversation={conversation}
-          onConversationCreated={handleConversationCreated}
-          onNewChat={handleNewChat}
-          onAgentModeChange={handleAgentModeChange}
-          slashCommands={slashCommands}
-          onOpenSettings={handleOpenSettings}
-        />
-      ) : activeTab === 'history' ? (
-        <HistoryTab
-          activeConversationId={conversation?.id || null}
-          onSelectConversation={handleSelectConversation}
-          onNewChat={handleNewChat}
         />
       ) : activeTab === 'tabs' ? (
         <TabsTab />
