@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ea-tools": {
+      "type": "stdio",
+      "command": "ea-tools",
+      "args": ["serve", "-k", "context7,deepwiki,sn_proxy,browser,memory"],
+      "env": {
+        "PATH": ".venv/bin:${PATH}"
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-export type TabType = 'agent' | 'agent-history' | 'chat' | 'tabs' | 'history' | 'bookmarks' | 'reading-list' | 'notes' | 'settings'
+export type TabType = 'agent' | 'agent-history' | 'tabs' | 'bookmarks' | 'reading-list' | 'notes' | 'settings'
 
 interface TabSwitcherProps {
   activeTab: TabType
@@ -10,7 +10,6 @@ interface TabSwitcherProps {
 const TABS: { id: TabType; label: string }[] = [
   { id: 'agent', label: 'Agent' },
   { id: 'agent-history', label: 'History' },
-  { id: 'chat', label: 'Chat' },
   { id: 'tabs', label: 'Tabs' },
   { id: 'bookmarks', label: 'Bookmarks' },
   { id: 'reading-list', label: 'Reading' },

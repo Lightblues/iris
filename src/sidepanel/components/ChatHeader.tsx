@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus } from 'lucide-react'
 import { AgentSelector, type AgentMode } from './AgentSelector'
+import { ModelCombobox } from './ModelCombobox'
 import type { IrisMessage } from '@/lib/types'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
 import type { McpStatus } from '@/lib/mcpClient'
@@ -13,6 +13,7 @@ interface ChatHeaderProps {
   onAgentModeChange: (mode: AgentMode) => void
   messages: IrisMessage[]
   models: ModelConfig[]
+  favourites: string[]
   defaultModel: string
   chatModel: string | null
   onChatModelChange: (model: string | null) => void
@@ -25,6 +26,7 @@ export function ChatHeader({
   onAgentModeChange,
   messages,
   models,
+  favourites,
   defaultModel,
   chatModel,
   onChatModelChange,
@@ -33,12 +35,6 @@ export function ChatHeader({
   const usage = getSessionUsage(messages)
   const hasUsage = usage.totalCost != null || usage.totalInputTokens > 0
   const activeModel = chatModel ?? defaultModel
-
-  // Build display name: show short name, append "(default)" marker for settings default
-  const getModelLabel = (m: ModelConfig) => {
-    const short = m.name.length > 16 ? m.name.slice(0, 14) + '..' : m.name
-    return m.id === defaultModel ? `${short} *` : short
-  }
 
   return (
     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30">
@@ -55,21 +51,12 @@ export function ChatHeader({
         />
       )}
 
-      <Select
+      <ModelCombobox
+        models={models}
+        favourites={favourites}
         value={activeModel}
-        onValueChange={(v) => onChatModelChange(v === defaultModel ? null : v)}
-      >
-        <SelectTrigger className="h-7 min-w-[90px] max-w-[130px] text-[11px] px-2">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {models.map((m) => (
-            <SelectItem key={m.id} value={m.id} className="text-xs">
-              {getModelLabel(m)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        onChange={(v) => onChatModelChange(v === defaultModel ? null : v)}
+      />
 
       {hasUsage && (
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60 ml-auto mr-1" title={`↗${formatTokenCount(usage.totalInputTokens)} in ↘${formatTokenCount(usage.totalOutputTokens)} out`}>

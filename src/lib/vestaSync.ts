@@ -1,7 +1,8 @@
-import type { KnowledgeEntry, TracingEvent, IrisMessage, IrisMessagePart, Conversation } from './types'
+import type { KnowledgeEntry, TracingEvent, IrisMessage, IrisMessagePart } from './types'
+import type { Conversation } from '@/agent/types'
 import { getVestaDirectoryHandle, verifyDirectoryPermission } from './fileSystemAccess'
 import { getAllEntries } from './knowledge'
-import { loadAllConversations } from './chatHistory'
+import { loadAllConversations } from '@/agent/history'
 
 const SYNC_STATE_KEY = 'iris_vesta_sync_state'
 const EVENTS_KEY_PREFIX = 'iris_events_'

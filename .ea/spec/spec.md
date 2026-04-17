@@ -31,11 +31,10 @@ Chrome Extension (Manifest V3)
 │   ├── Command menu (Cmd+Shift+P)
 │   ├── Highlight injection & restore
 │   └── Context extraction (page/selection)
-└── SidePanel (React SPA)
+├── SidePanel (React SPA)
     ├── Agent tab (AgentPanel — chat with AI agent)
     ├── Agent History tab
-    ├── Chat tab (legacy ChatPanel)
-    ├── History / Bookmarks / Reading List / Notes tabs
+    ├── Tabs / Bookmarks / Reading List / Notes tabs
     └── Settings
 ```
 
@@ -58,8 +57,7 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 |-----|-----------|-------------|
 | Agent | `AgentPanel` | Primary chat interface — AI agent with tool calling |
 | Agent History | `AgentHistoryTab` | Agent conversation list with import/export |
-| Chat | `ChatPanel` | Legacy chat (older streaming engine) |
-| History | `HistoryTab` | Legacy conversation history |
+| Tabs | `TabsTab` | Open tabs viewer |
 | Bookmarks | `BookmarksTab` | Category-filtered bookmark manager |
 | Reading List | `ReadingListTab` | Chrome native reading list UI |
 | Notes | `NotesTab` | Knowledge entries (highlights, notes, chat saves) |
@@ -68,14 +66,14 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 
 | Section | Key Fields |
 |---------|------------|
-| LLM / Agent | API Key, Base URL, Default Model, Models list, Temperature, Max Output Tokens, Max Steps |
+| LLM / Agent | API Key, Base URL, Default Model, Favourite Models (fetched from /v1/models), Temperature, Max Output Tokens, Max Steps |
 | MCP Server | Endpoint URL (for Paper Agent) |
 | Vesta Sync | Link directory, sync trigger |
 | Slash Commands | Link folder, command list |
 | Content Script | FAB site patterns |
 | Import / Export | Settings JSON |
 
-Per-chat model override is available in the chat header. New chats start with the default model.
+Per-chat model override via searchable combobox in the chat header. Models fetched from provider's /v1/models API; users star favourites for quick access.
 
 ## References
 

@@ -6,8 +6,9 @@ export interface ModelConfig {
 export interface SidePanelSettings {
   apiKey: string
   baseUrl: string
-  model: string // Selected model ID
-  models: ModelConfig[] // User-manageable model list
+  model: string // Default model ID
+  models: ModelConfig[] // @deprecated — kept for migration only, replaced by favouriteModels
+  favouriteModels: string[] // User's favourite model IDs (ordered)
   usePageContext: boolean
   temperature?: number // LLM temperature (0-2)
   maxOutputTokens?: number // Max output tokens
@@ -21,20 +22,20 @@ export interface SidePanelSettings {
   mcpEndpoint?: string // ea-tools MCP server URL (default: http://localhost:8000/sse)
 }
 
-const DEFAULT_MODELS: ModelConfig[] = [
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o' },
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini' },
-  { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro' },
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat' },
+const DEFAULT_FAVOURITE_MODELS = [
+  'anthropic/claude-sonnet-4',
+  'anthropic/claude-3.5-sonnet',
+  'openai/gpt-4o',
+  'google/gemini-2.5-flash',
+  'deepseek/deepseek-chat',
 ]
 
 export const DEFAULT_SETTINGS: SidePanelSettings = {
   apiKey: '',
   baseUrl: 'https://openrouter.ai/api/v1',
-  model: 'anthropic/claude-3.5-sonnet',
-  models: DEFAULT_MODELS,
+  model: 'anthropic/claude-sonnet-4',
+  models: [], // deprecated
+  favouriteModels: DEFAULT_FAVOURITE_MODELS,
   usePageContext: true,
   phoenixEndpoint: '',
   notionToken: '',
@@ -49,19 +50,28 @@ export async function loadSettings(): Promise<SidePanelSettings> {
   const result = await chrome.storage.sync.get(SETTINGS_KEY)
   const stored = result[SETTINGS_KEY] as Partial<SidePanelSettings> | undefined
 
-  // Migrate old format if needed
-  if (stored && !stored.models) {
+  if (!stored) return { ...DEFAULT_SETTINGS }
+
+  // Migration: old format had models[] but no favouriteModels
+  if (!stored.favouriteModels) {
+    const oldModels = stored.models
+    const favouriteModels = oldModels && oldModels.length > 0
+      ? oldModels.map(m => m.id)
+      : DEFAULT_FAVOURITE_MODELS
+
     const migrated: SidePanelSettings = {
       ...DEFAULT_SETTINGS,
       ...stored,
-      models: DEFAULT_MODELS,
+      favouriteModels,
     }
-    // If there was a customModel, add it to the list
+
+    // Also handle ancient customModel field
     const oldCustomModel = (stored as any).customModel
-    if (oldCustomModel && oldCustomModel.trim()) {
-      migrated.models = [...DEFAULT_MODELS, { id: oldCustomModel, name: oldCustomModel }]
-      migrated.model = 'custom' === stored.model ? oldCustomModel : stored.model || DEFAULT_SETTINGS.model
+    if (oldCustomModel && oldCustomModel.trim() && !favouriteModels.includes(oldCustomModel)) {
+      migrated.favouriteModels = [...favouriteModels, oldCustomModel]
+      if ('custom' === stored.model) migrated.model = oldCustomModel
     }
+
     await saveSettings(migrated)
     return migrated
   }
@@ -86,7 +96,6 @@ export function importSettings(jsonString: string): { success: true; settings: S
   try {
     const parsed = JSON.parse(jsonString)
 
-    // Validate structure
     if (typeof parsed !== 'object' || parsed === null) {
       return { success: false, error: 'Invalid JSON: not an object' }
     }
@@ -103,24 +112,31 @@ export function importSettings(jsonString: string): { success: true; settings: S
       return { success: false, error: 'Invalid settings: model must be a string' }
     }
 
-    if (!Array.isArray(parsed.models)) {
-      return { success: false, error: 'Invalid settings: models must be an array' }
-    }
+    // Build validated settings, handling both old and new formats
+    const favouriteModels = Array.isArray(parsed.favouriteModels)
+      ? parsed.favouriteModels
+      : Array.isArray(parsed.models)
+        ? parsed.models.map((m: any) => m.id)
+        : DEFAULT_FAVOURITE_MODELS
 
-    // Validate each model
-    for (const model of parsed.models) {
-      if (typeof model !== 'object' || !model.id || !model.name) {
-        return { success: false, error: 'Invalid settings: each model must have id and name' }
-      }
-    }
-
-    // Build validated settings
     const settings: SidePanelSettings = {
+      ...DEFAULT_SETTINGS,
       apiKey: parsed.apiKey,
       baseUrl: parsed.baseUrl,
       model: parsed.model,
-      models: parsed.models,
+      models: [], // deprecated
+      favouriteModels,
       usePageContext: typeof parsed.usePageContext === 'boolean' ? parsed.usePageContext : DEFAULT_SETTINGS.usePageContext,
+      temperature: parsed.temperature,
+      maxOutputTokens: parsed.maxOutputTokens,
+      maxSteps: parsed.maxSteps,
+      phoenixEndpoint: parsed.phoenixEndpoint,
+      notionToken: parsed.notionToken,
+      notionDatabaseId: parsed.notionDatabaseId,
+      notionSyncEnabled: parsed.notionSyncEnabled,
+      fabSitePatterns: parsed.fabSitePatterns,
+      tracingEnabled: parsed.tracingEnabled,
+      mcpEndpoint: parsed.mcpEndpoint,
     }
 
     return { success: true, settings }
