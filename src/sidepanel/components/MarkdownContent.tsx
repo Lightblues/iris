@@ -15,14 +15,14 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
       rehypePlugins={[rehypeKatex]}
       components={{
         pre: ({ children }) => (
-          <pre className="bg-background/50 rounded p-2 overflow-x-auto text-xs">
+          <pre className="bg-background/50 rounded p-2 overflow-x-auto text-[11px] leading-snug">
             {children}
           </pre>
         ),
         code: ({ className, children, ...props }) => {
           const isInline = !className
           return isInline ? (
-            <code className="bg-background/50 px-1 py-0.5 rounded text-xs" {...props}>
+            <code className="bg-background/50 px-1 py-0.5 rounded text-[11px]" {...props}>
               {children}
             </code>
           ) : (
@@ -31,10 +31,10 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
             </code>
           )
         },
-        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-        ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
-        li: ({ children }) => <li className="mb-1">{children}</li>,
+        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-snug">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-snug">{children}</li>,
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
             {children}

@@ -147,3 +147,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Radix ScrollArea Viewport wraps children in a div with inline
+   `display: table; min-width: 100%` — which lets children expand past the
+   viewport width (breaking `max-w-[xx%]` on chat bubbles). Force block so
+   the viewport width is the true upper bound. */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  min-width: 0 !important;
+}

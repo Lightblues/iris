@@ -186,7 +186,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="relative border-t p-3 bg-background space-y-2">
+    <div className="relative border-t p-2 bg-background space-y-1.5">
       {/* Slash command dropdown */}
       <SlashCommandDropdown
         commands={filteredCommands}
@@ -218,14 +218,14 @@ export function ChatInput({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1">
         <div className="flex shrink-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => fileInputRef.current?.click()}
             title="Upload image"
-            className="h-9 w-9"
+            className="h-8 w-8"
             disabled={disabled || isLoading}
           >
             <Paperclip className="h-4 w-4 text-muted-foreground" />
@@ -243,7 +243,7 @@ export function ChatInput({
             size="icon"
             onClick={onInjectContext}
             title="Inject full page content"
-            className="h-9 w-9"
+            className="h-8 w-8"
           >
             <FileText className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -252,7 +252,7 @@ export function ChatInput({
             size="icon"
             onClick={onInjectSelection}
             title="Inject selected text"
-            className="h-9 w-9"
+            className="h-8 w-8"
           >
             <Scissors className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -265,11 +265,11 @@ export function ChatInput({
           onPaste={handlePaste}
           placeholder={disabled ? 'Enter API key in settings...' : 'Type / for commands, or ask about this page...'}
           disabled={disabled || isLoading}
-          className="min-h-[40px] max-h-[150px] resize-none"
+          className="min-h-[36px] max-h-[150px] resize-none text-[13px] md:text-[13px] py-1.5 px-2.5"
           rows={1}
         />
         {isLoading ? (
-          <Button variant="destructive" size="icon" onClick={onStop} title="Stop" className="h-9 w-9 shrink-0">
+          <Button variant="destructive" size="icon" onClick={onStop} title="Stop" className="h-8 w-8 shrink-0">
             <Square className="h-4 w-4" />
           </Button>
         ) : (
@@ -278,13 +278,13 @@ export function ChatInput({
             onClick={handleSend}
             disabled={(!value.trim() && images.length === 0) || disabled}
             title="Send"
-            className="h-9 w-9 shrink-0"
+            className="h-8 w-8 shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[10px] text-muted-foreground">
         Enter for new line, Cmd+Enter to send · Type <kbd className="px-1 rounded bg-muted">/</kbd> for commands
       </p>
     </div>

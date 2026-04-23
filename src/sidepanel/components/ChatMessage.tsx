@@ -182,10 +182,10 @@ export function ChatMessage({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      <div className="relative max-w-[85%] min-w-0">
+      <div className={cn('relative min-w-0', isUser ? 'max-w-[92%]' : 'max-w-[95%]')}>
         <div
           className={cn(
-            'rounded-lg px-3 py-2 text-sm',
+            'rounded-lg px-2.5 py-1.5 text-[13px] leading-snug',
             isUser
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted text-foreground'
@@ -206,7 +206,7 @@ export function ChatMessage({
           )}
 
           {isUser ? (
-            <div className="whitespace-pre-wrap break-words">
+            <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
               {messageText || (isStreaming && <TypingIndicator />)}
             </div>
           ) : (
@@ -215,7 +215,7 @@ export function ChatMessage({
                 message.parts.map((part, idx) => {
                   if (part.type === 'text' && 'text' in part) {
                     return (
-                      <div key={`text-${idx}`} className="prose prose-sm dark:prose-invert max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                      <div key={`text-${idx}`} className="prose prose-sm dark:prose-invert max-w-none [overflow-wrap:anywhere] prose-p:my-1 prose-p:leading-snug prose-headings:my-1.5 prose-headings:leading-tight prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-li:leading-snug prose-pre:my-1.5 prose-code:text-[12px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:text-[13px] [&_li]:text-[13px] [&_h1]:text-[15px] [&_h2]:text-[14px] [&_h3]:text-[13px]">
                         <Suspense fallback={<MarkdownFallback />}>
                           <MarkdownContent content={(part as any).text} />
                         </Suspense>

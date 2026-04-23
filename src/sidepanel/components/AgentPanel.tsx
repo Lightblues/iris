@@ -259,12 +259,12 @@ function AgentPanelReady(props: AgentPanelProps & {
         mcpStatus={mcpStatus}
       />
 
-      <ScrollArea className="flex-1 p-4" viewportRef={scrollViewportRef}>
-        <div className="space-y-4">
+      <ScrollArea className="flex-1 px-3 py-2" viewportRef={scrollViewportRef}>
+        <div className="space-y-3">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
-              <p className="text-sm">Start a conversation</p>
-              <p className="text-xs mt-2">Click the page icon to inject page content</p>
+              <p className="text-xs">Start a conversation</p>
+              <p className="text-[11px] mt-1">Click the page icon to inject page content</p>
             </div>
           )}
           {messages.map((message: IrisMessage) => (
