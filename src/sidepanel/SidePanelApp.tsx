@@ -45,9 +45,6 @@ function TabFallback() {
 
 const TAB_STORAGE_KEY = 'sidepanel_active_tab'
 
-// Detect if running inside floating sidebar iframe
-const isFloatingMode = new URLSearchParams(window.location.search).get('mode') === 'floating'
-
 export default function SidePanelApp() {
   const [activeTab, setActiveTab] = useState<TabType>('agent')
   const [settings, setSettings] = useState<SidePanelSettings>(DEFAULT_SETTINGS)
@@ -173,12 +170,6 @@ export default function SidePanelApp() {
     }
   }
 
-  const handleClose = useCallback(() => {
-    if (isFloatingMode) {
-      window.parent.postMessage({ type: 'iris-sidebar-close' }, '*')
-    }
-  }, [])
-
   const handleCommandsChanged = useCallback(() => {
     loadAllCommands().then((cmds) => {
       console.log('[Iris] Commands reloaded:', cmds.length)
@@ -193,8 +184,6 @@ export default function SidePanelApp() {
         onTabChange={handleTabChange}
         onToggleSettings={handleOpenSettings}
         onSettingsBack={handleSettingsBack}
-        isFloatingMode={isFloatingMode}
-        onClose={handleClose}
       />
 
       {activeTab === 'settings' ? (

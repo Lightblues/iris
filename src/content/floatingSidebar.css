@@ -86,12 +86,7 @@
   bottom: 20px;
   right: 20px;
   z-index: 2147483646;
-  transition: right 0.3s ease;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-#iris-floating-fab-container.iris-floating-fab-open {
-  right: calc(var(--iris-sidebar-width, 400px) + 20px);
 }
 
 /* FAB Button */
@@ -187,11 +182,6 @@
   transform: translateY(0);
 }
 
-/* Hide menu when sidebar is open */
-#iris-floating-fab-container.iris-floating-fab-open #iris-floating-fab-menu {
-  display: none;
-}
-
 /* Menu header */
 .iris-fab-menu-header {
   padding: 6px 10px 4px;
@@ -257,86 +247,6 @@
   color: #5a67d8;
 }
 
-/* Sidebar Container - Fixed to right edge */
-#iris-floating-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: var(--iris-sidebar-width, 400px);
-  height: 100vh;
-  z-index: 2147483647;
-  transform: translateX(100%);
-  transition: transform 0.3s ease-out;
-  background: var(--iris-sidebar-bg, #0f172a);
-  display: flex;
-  flex-direction: row;
-}
-
-#iris-floating-sidebar.iris-floating-sidebar-open {
-  transform: translateX(0);
-}
-
-/* Resize Handle - dedicated column on the left */
-#iris-floating-resize-handle {
-  width: 8px;
-  min-width: 8px;
-  height: 100%;
-  cursor: ew-resize;
-  background: rgba(30, 41, 59, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s ease;
-}
-
-#iris-floating-resize-handle:hover {
-  background: rgba(51, 65, 85, 1);
-}
-
-#iris-floating-resize-handle.iris-resizing {
-  background: rgba(102, 126, 234, 0.8);
-}
-
-/* Visual indicator dots */
-#iris-floating-resize-handle::before {
-  content: '';
-  width: 3px;
-  height: 40px;
-  background: rgba(148, 163, 184, 0.4);
-  border-radius: 2px;
-  transition: background 0.15s ease, height 0.15s ease;
-}
-
-#iris-floating-resize-handle:hover::before {
-  background: rgba(148, 163, 184, 0.8);
-  height: 60px;
-}
-
-#iris-floating-resize-handle.iris-resizing::before {
-  background: rgba(255, 255, 255, 0.9);
-  height: 80px;
-}
-
-/* iframe takes remaining space */
-#iris-floating-sidebar iframe {
-  flex: 1;
-  height: 100%;
-  border: none;
-  background: transparent;
-}
-
-/* Page content push - applied to html element */
-html.iris-sidebar-active {
-  margin-right: var(--iris-sidebar-width, 400px) !important;
-  transition: margin-right 0.3s ease-out !important;
-}
-
-/* Ensure body doesn't overflow */
-html.iris-sidebar-active body {
-  overflow-x: hidden;
-}
-
 /* Dark mode adjustments */
 @media (prefers-color-scheme: dark) {
   #iris-floating-fab {
@@ -377,44 +287,4 @@ html.iris-sidebar-active body {
     background: rgba(102, 126, 234, 0.2);
     color: #c7d2fe;
   }
-
-  #iris-floating-sidebar {
-    --iris-sidebar-bg: #0f172a;
-    box-shadow: -2px 0 20px rgba(0, 0, 0, 0.3);
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  #iris-floating-sidebar {
-    --iris-sidebar-bg: #ffffff;
-    box-shadow: -2px 0 20px rgba(0, 0, 0, 0.1);
-  }
-}
-
-/* Responsive adjustments for smaller screens */
-@media (max-width: 768px) {
-  #iris-floating-sidebar {
-    --iris-sidebar-width: 100vw !important;
-  }
-
-  html.iris-sidebar-active {
-    margin-right: 0 !important;
-  }
-
-  #iris-floating-fab-container.iris-floating-fab-open {
-    display: none;
-  }
-
-  #iris-floating-resize-handle {
-    display: none;
-  }
-}
-
-/* Disable transitions during resize for smooth dragging */
-html.iris-resizing,
-html.iris-resizing body,
-#iris-floating-sidebar.iris-resizing,
-#iris-floating-fab.iris-resizing,
-#iris-floating-fab-container.iris-resizing {
-  transition: none !important;
 }

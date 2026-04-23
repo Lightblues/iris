@@ -123,10 +123,12 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
+    // Kept command name for backwards-compat with user keybindings; now opens
+    // the native side panel instead of injecting an iframe.
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'toggle-floating-sidebar' });
+      await chrome.sidePanel.open({ tabId: tab.id });
     } catch (error) {
-      console.log('[Iris] Could not toggle floating sidebar:', error);
+      console.log('[Iris] Could not open side panel:', error);
     }
   } else if (command === 'save-highlight') {
     try {
@@ -236,8 +238,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 // Handle messages from content scripts, popup, or sidepanel
-chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
+
+  // Open native side panel on user gesture from content script (FAB click, shortcut, etc.)
+  // chrome.sidePanel.open must be called inside the gesture; the message round-trip
+  // from content → background preserves the gesture.
+  if (message.type === 'open-side-panel') {
+    const tabId = sender.tab?.id;
+    if (tabId == null) {
+      sendResponse({ success: false, error: 'No tab id on sender' });
+      return true;
+    }
+    chrome.sidePanel.open({ tabId })
+      .then(() => sendResponse({ success: true }))
+      .catch((err) => {
+        console.warn('[Iris] sidePanel.open failed:', err);
+        sendResponse({ success: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
 
   if (message.type === 'execute-command') {
     handleExecuteCommand(message as ExecuteCommandMessage)

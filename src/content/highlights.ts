@@ -206,7 +206,7 @@ function onMouseDown(e: MouseEvent): void {
 function onMouseUp(e: MouseEvent): void {
   // Don't show popup if clicking inside iris elements
   const target = e.target as HTMLElement
-  if (target.closest('#iris-floating-fab-container, #iris-floating-sidebar, .iris-highlight-tooltip, .iris-selection-popup')) return
+  if (target.closest('#iris-floating-fab-container, .iris-highlight-tooltip, .iris-selection-popup')) return
 
   // Small delay to let selection stabilize
   setTimeout(() => {

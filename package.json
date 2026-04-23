@@ -7,6 +7,8 @@
     "dev": "npm run bundle-commands && vite",
     "build": "npm run bundle-commands && tsc -b && vite build",
     "bundle-commands": "tsx scripts/bundle-commands.ts",
+    "sync-manifest-version": "tsx scripts/sync-manifest-version.ts",
+    "version": "tsx scripts/sync-manifest-version.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
