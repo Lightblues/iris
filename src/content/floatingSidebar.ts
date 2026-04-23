@@ -45,13 +45,17 @@ export async function initFloatingSidebar(enhancements: EnhancementResult[] = []
   // Load settings & hidden flag in parallel
   const SETTINGS_KEY = 'sidepanel_settings'
   const empty: Record<string, unknown> = {}
-  const [hiddenResult, settingsResult] = await Promise.all([
+  const [hiddenResult, localSettings, syncSettings] = await Promise.all([
     chrome.storage.local.get(FAB_HIDDEN_KEY).catch(() => empty),
+    chrome.storage.local.get(SETTINGS_KEY).catch(() => empty),
+    // Fallback only — sync is the old storage location. Don't block on a slow
+    // sync read; if it wins the race after local already returned, we just
+    // ignore it. Users who haven't triggered a side-panel migration yet still
+    // get their site patterns honoured.
     chrome.storage.sync.get(SETTINGS_KEY).catch(() => empty),
   ])
 
-  // Check site patterns — remove FAB on blocked sites
-  const settings = settingsResult[SETTINGS_KEY] as any
+  const settings = (localSettings[SETTINGS_KEY] ?? syncSettings[SETTINGS_KEY]) as any
   const patterns: string[] = settings?.fabSitePatterns || []
   if (patterns.length > 0 && matchesSitePatterns(window.location.href, patterns)) {
     removeFab()
