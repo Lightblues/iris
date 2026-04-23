@@ -1,12 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { SidebarHeader } from './components/SidebarHeader'
-import { SettingsPage } from './components/SettingsPage'
-import { BookmarksTab } from './components/BookmarksTab'
-import { ReadingListTab } from './components/ReadingListTab'
-import { TabsTab } from './components/TabsTab'
-import { NotesTab } from './components/NotesTab'
 import { AgentPanel } from './components/AgentPanel'
-import { AgentHistoryTab } from './components/AgentHistoryTab'
 import { type TabType } from './components/TabSwitcher'
 import { loadSettings, saveSettings, type SidePanelSettings, type ModelConfig, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
 import {
@@ -16,10 +10,38 @@ import {
 import type { SlashCommand } from '@/lib/types'
 import type { Conversation as AgentConversation } from '@/agent/types'
 import type { AgentMode as NewAgentMode } from '@/agent/types'
-import { initTelemetry, shutdownTelemetry } from '@/lib/telemetry'
 import { loadAllCommands } from '@/lib/commandStorage'
 import { disconnectMcp as disconnectAgentMcp } from '@/agent/useAgentChat'
 import { fetchModels } from '@/lib/modelRegistry'
+
+// Lazy-loaded tabs — only fetched when user navigates to them
+const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const BookmarksTab = lazy(() => import('./components/BookmarksTab').then(m => ({ default: m.BookmarksTab })))
+const ReadingListTab = lazy(() => import('./components/ReadingListTab').then(m => ({ default: m.ReadingListTab })))
+const TabsTab = lazy(() => import('./components/TabsTab').then(m => ({ default: m.TabsTab })))
+const NotesTab = lazy(() => import('./components/NotesTab').then(m => ({ default: m.NotesTab })))
+const AgentHistoryTab = lazy(() => import('./components/AgentHistoryTab').then(m => ({ default: m.AgentHistoryTab })))
+
+// Lazy telemetry — only loaded when a Phoenix endpoint is configured
+async function initTelemetryIfNeeded(endpoint: string | undefined) {
+  if (!endpoint) return
+  const { initTelemetry } = await import('@/lib/telemetry')
+  initTelemetry(endpoint)
+}
+async function shutdownTelemetryIfLoaded() {
+  try {
+    const { shutdownTelemetry } = await import('@/lib/telemetry')
+    shutdownTelemetry()
+  } catch {}
+}
+
+function TabFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">
+      Loading…
+    </div>
+  )
+}
 
 const TAB_STORAGE_KEY = 'sidepanel_active_tab'
 
@@ -50,13 +72,17 @@ export default function SidePanelApp() {
     loadSettings().then((s) => {
       console.log('[Iris] Settings loaded')
       setSettings(s)
-      if (s.phoenixEndpoint) initTelemetry(s.phoenixEndpoint)
-      // Auto-fetch available models
-      if (s.baseUrl) {
-        fetchModels(s.baseUrl, s.apiKey)
-          .then(models => { setAvailableModels(models); console.log('[Iris] Fetched', models.length, 'models') })
-          .catch(err => console.warn('[Iris] Failed to fetch models:', err.message))
-      }
+      // Defer heavy side-effects to after first paint so the Agent UI mounts fast.
+      const idle = (cb: () => void) =>
+        (window as any).requestIdleCallback?.(cb, { timeout: 1500 }) ?? setTimeout(cb, 200)
+      idle(() => {
+        if (s.phoenixEndpoint) initTelemetryIfNeeded(s.phoenixEndpoint)
+        if (s.baseUrl) {
+          fetchModels(s.baseUrl, s.apiKey)
+            .then(models => { setAvailableModels(models); console.log('[Iris] Fetched', models.length, 'models') })
+            .catch(err => console.warn('[Iris] Failed to fetch models:', err.message))
+        }
+      })
     })
     loadAgentActiveConversation()
     loadAllCommands().then((cmds) => {
@@ -66,7 +92,7 @@ export default function SidePanelApp() {
     chrome.storage.local.get(TAB_STORAGE_KEY).then((result) => {
       if (result[TAB_STORAGE_KEY]) setActiveTab(result[TAB_STORAGE_KEY] as TabType)
     })
-    return () => { shutdownTelemetry() }
+    return () => { shutdownTelemetryIfLoaded() }
   }, [])
 
   const loadAgentActiveConversation = async () => {
@@ -142,8 +168,8 @@ export default function SidePanelApp() {
     setSettings(updated)
     await saveSettings(updated)
     if ('phoenixEndpoint' in newSettings) {
-      shutdownTelemetry()
-      if (updated.phoenixEndpoint) initTelemetry(updated.phoenixEndpoint)
+      await shutdownTelemetryIfLoaded()
+      if (updated.phoenixEndpoint) await initTelemetryIfNeeded(updated.phoenixEndpoint)
     }
   }
 
@@ -172,11 +198,13 @@ export default function SidePanelApp() {
       />
 
       {activeTab === 'settings' ? (
-        <SettingsPage
-          settings={settings}
-          onSettingsChange={handleSettingsChange}
-          onCommandsChanged={handleCommandsChanged}
-        />
+        <Suspense fallback={<TabFallback />}>
+          <SettingsPage
+            settings={settings}
+            onSettingsChange={handleSettingsChange}
+            onCommandsChanged={handleCommandsChanged}
+          />
+        </Suspense>
       ) : activeTab === 'agent' ? (
         <AgentPanel
           key={`agent-${newAgentMode}-${agentSessionKey}`}
@@ -193,19 +221,21 @@ export default function SidePanelApp() {
           onOpenSettings={handleOpenSettings}
         />
       ) : activeTab === 'agent-history' ? (
-        <AgentHistoryTab
-          activeConversationId={agentConversation?.id || null}
-          onSelectConversation={handleAgentSelectConversation}
-          onNewChat={handleAgentNewChat}
-        />
+        <Suspense fallback={<TabFallback />}>
+          <AgentHistoryTab
+            activeConversationId={agentConversation?.id || null}
+            onSelectConversation={handleAgentSelectConversation}
+            onNewChat={handleAgentNewChat}
+          />
+        </Suspense>
       ) : activeTab === 'tabs' ? (
-        <TabsTab />
+        <Suspense fallback={<TabFallback />}><TabsTab /></Suspense>
       ) : activeTab === 'bookmarks' ? (
-        <BookmarksTab />
+        <Suspense fallback={<TabFallback />}><BookmarksTab /></Suspense>
       ) : activeTab === 'reading-list' ? (
-        <ReadingListTab />
+        <Suspense fallback={<TabFallback />}><ReadingListTab /></Suspense>
       ) : (
-        <NotesTab />
+        <Suspense fallback={<TabFallback />}><NotesTab /></Suspense>
       )}
     </div>
   )

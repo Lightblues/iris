@@ -5,6 +5,7 @@ import {
   OpenInferenceSimpleSpanProcessor,
 } from '@arizeai/openinference-vercel'
 import { SEMRESATTRS_PROJECT_NAME } from '@arizeai/openinference-semantic-conventions'
+import { setTelemetryEnabled } from './telemetryState'
 
 const PROJECT_NAME = 'iris-chrome-extension'
 
@@ -55,6 +56,7 @@ export function initTelemetry(phoenixEndpoint: string): boolean {
     provider.register()
 
     isInitialized = true
+    setTelemetryEnabled(true)
     console.log('[Iris Telemetry] Phoenix tracing initialized successfully')
     return true
   } catch (error) {
@@ -74,9 +76,8 @@ export function shutdownTelemetry(): void {
     }
     provider = null
     isInitialized = false
+    setTelemetryEnabled(false)
   }
 }
 
-export function isTelemetryEnabled(): boolean {
-  return isInitialized
-}
+export { isTelemetryEnabled } from './telemetryState'
