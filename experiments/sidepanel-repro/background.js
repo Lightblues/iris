@@ -33,23 +33,123 @@ async function snapshotWindow(tab) {
   }
 }
 
-// --- A) Baseline: async handler, sidePanel.open({tabId}) called synchronously
-//     (no await before open → preserves user gesture, matches iris today) ---
+// --- A) Baseline: single sidePanel.open({ tabId }) ------------------------
+//     Matches iris today. Slow path, ~4s gap between open → panel connect.
 chrome.action.onClicked.addListener((tab) => {
   if (tab?.id == null) return
-  // Kick open FIRST — never let a microtask sneak in before open().
+  const t0 = Date.now()
   chrome.sidePanel
     .open({ tabId: tab.id })
-    .then(() => log('A sidePanel.open resolved'))
+    .then(() => log(`A sidePanel.open resolved (+${Date.now() - t0}ms)`))
     .catch((err) => log('A sidePanel.open threw', err))
-  // Log diagnostics AFTER open — won't affect gesture.
   snapshotWindow(tab).then((snap) => log('A action.onClicked', snap))
+})
+
+// --- E) Spam-open: call sidePanel.open three times back-to-back -----------
+//     Hypothesis: a second/third open while the first is still pending
+//     triggers Chrome's "rush" path that commits the panel frame quickly.
+//     Trigger: Cmd+Shift+L  (L for 'Loud'/spam)
+chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === 'variant-e-spam-open') {
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('E commands.onCommand: spamming 3 open calls')
+    for (let i = 0; i < 3; i++) {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`E open #${i} resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log(`E open #${i} threw`, err))
+    }
+  } else if (command === 'variant-f-delayed-nudge') {
+    // VARIANT F: open once (with gesture), then after 1s auto-nudge a 2nd
+    // open from setTimeout (WITHOUT user gesture). Hypothesis:
+    //   1st call  — creates WebContents, renderer loads, stays hidden
+    //   2nd call  — after renderer is ready, triggers visibility commit
+    // Question: does 2nd call throw "user gesture required" since panel is
+    // already "opening" for this tab?
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('F commands.onCommand: open now + nudge in 1000ms')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`F open #0 resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('F open #0 threw', err))
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`F nudge resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('F nudge threw', err))
+    }, 1000)
+  } else if (command === 'variant-g-double-nudge') {
+    // VARIANT G: open + nudge at 700ms + nudge at 1500ms. If F's single
+    // nudge is too early sometimes, spacing two nudges may catch more cases.
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('G commands.onCommand: open + 2 nudges')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`G open #0 resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('G open #0 threw', err))
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`G nudge#1 resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('G nudge#1 threw', err))
+    }, 700)
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`G nudge#2 resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('G nudge#2 threw', err))
+    }, 1500)
+  } else if (command === 'variant-f-delayed-nudge') {
+    // VARIANT F: open once (with gesture), then after 1s auto-nudge a 2nd
+    // open from setTimeout (WITHOUT user gesture). Hypothesis:
+    //   1st call  — creates WebContents, renderer loads, stays hidden
+    //   2nd call  — after renderer is ready, triggers visibility commit
+    // Question: does 2nd call throw "user gesture required" since panel is
+    // already "opening" for this tab?
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('F commands.onCommand: open now + nudge in 1000ms')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`F open #0 resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('F open #0 threw', err))
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`F nudge resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('F nudge threw', err))
+    }, 1000)
+  } else if (command === 'variant-g-double-nudge') {
+    // VARIANT G: open + nudge at 700ms + nudge at 1500ms. If F's single
+    // nudge is too early sometimes, spacing two nudges may catch more cases.
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('G commands.onCommand: open + 2 nudges')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`G open #0 resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('G open #0 threw', err))
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`G nudge#1 resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('G nudge#1 threw', err))
+    }, 700)
+    setTimeout(() => {
+      chrome.sidePanel
+        .open({ tabId: tab.id })
+        .then(() => log(`G nudge#2 resolved (+${Date.now() - t0}ms)`))
+        .catch((err) => log('G nudge#2 threw', err))
+    }, 1500)
+  }
 })
 
 // --- B & C via keyboard commands ---
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command === 'variant-b-focus-then-open') {
-    // VARIANT B: windows.update({ focused: true }) BEFORE open, all synchronous.
     // Hypothesis: multi-monitor may hand us a non-foreground windowId; forcing
     // focus first should "promote" the target window so the side panel mounts
     // into a visible BrowserView.

@@ -16,19 +16,26 @@
     "default_path": "sidepanel.html"
   },
   "commands": {
-    "variant-b-focus-then-open": {
+    "variant-e-spam-open": {
       "suggested_key": {
-        "default": "Ctrl+Shift+U",
-        "mac": "Command+Shift+U"
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
       },
-      "description": "B) windows.update({focused}) then sidePanel.open({tabId})"
+      "description": "E) spam sidePanel.open x3 back-to-back"
     },
-    "variant-c-window-id": {
+    "variant-f-delayed-nudge": {
       "suggested_key": {
-        "default": "Ctrl+Shift+J",
-        "mac": "Command+Shift+J"
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
       },
-      "description": "C) sidePanel.open({windowId})"
+      "description": "F) open + 1s delayed nudge"
+    },
+    "variant-g-double-nudge": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+H",
+        "mac": "Command+Shift+H"
+      },
+      "description": "G) open + 700ms + 1500ms double nudge"
     }
   },
   "content_scripts": [
