@@ -21,6 +21,26 @@ function mark(label) {
 
 mark('script start')
 
+// Open a port to the SW so it can tell when we actually became visible.
+// This is a real signal — if the renderer is frozen, the port never opens.
+let swPort = null
+try {
+  swPort = chrome.runtime.connect({ name: 'repro-panel-alive' })
+} catch (e) {
+  mark('connect failed ' + e)
+}
+
+function notifyVisibleOnce() {
+  if (!swPort || notifyVisibleOnce._sent) return
+  notifyVisibleOnce._sent = true
+  try {
+    swPort.postMessage({ type: 'visible', t: performance.now() })
+    mark('sent "visible" to SW')
+  } catch (e) {
+    mark('postMessage failed ' + e)
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => mark('DOMContentLoaded'))
 window.addEventListener('load', () => mark('window load'))
 
@@ -29,6 +49,7 @@ setTimeout(() => mark('first setTimeout(0)'), 0)
 requestAnimationFrame(() => {
   mark('first rAF (=== first commit!)')
   if (statusEl()) statusEl().textContent = '✅ painted'
+  notifyVisibleOnce()
 })
 
 document.addEventListener('visibilitychange', () => {

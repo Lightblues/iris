@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SidePanel Repro (baseline)",
-  "version": "0.1.0",
-  "description": "Minimal MV3 to reproduce Chrome side panel blank-render bug. Phase 1 = baseline (async handler, sidePanel.open({tabId})).",
+  "name": "SidePanel Repro (multi-variant)",
+  "version": "0.2.0",
+  "description": "Minimal MV3 to reproduce Chrome side panel blank-render bug. Multi-variant phase: A baseline, B windows.update+focus, C windowId, D FAB control.",
   "permissions": ["sidePanel", "scripting", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -10,18 +10,25 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Open SidePanel Repro"
+    "default_title": "A) baseline action click"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
   },
   "commands": {
-    "open-via-command": {
+    "variant-b-focus-then-open": {
       "suggested_key": {
         "default": "Ctrl+Shift+U",
         "mac": "Command+Shift+U"
       },
-      "description": "Open repro side panel via keyboard"
+      "description": "B) windows.update({focused}) then sidePanel.open({tabId})"
+    },
+    "variant-c-window-id": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "Command+Shift+J"
+      },
+      "description": "C) sidePanel.open({windowId})"
     }
   },
   "content_scripts": [
