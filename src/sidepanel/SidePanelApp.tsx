@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { SidebarHeader } from './components/SidebarHeader'
-import { AgentPanel } from './components/AgentPanel'
 import { type TabType } from './components/TabSwitcher'
 import { loadSettings, saveSettings, type SidePanelSettings, type ModelConfig, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
 import {
@@ -11,7 +10,6 @@ import type { SlashCommand } from '@/lib/types'
 import type { Conversation as AgentConversation } from '@/agent/types'
 import type { AgentMode as NewAgentMode } from '@/agent/types'
 import { loadAllCommands } from '@/lib/commandStorage'
-import { disconnectMcp as disconnectAgentMcp } from '@/agent/useAgentChat'
 import { fetchModels } from '@/lib/modelRegistry'
 
 // Lazy-loaded tabs — only fetched when user navigates to them
@@ -21,6 +19,7 @@ const ReadingListTab = lazy(() => import('./components/ReadingListTab').then(m =
 const TabsTab = lazy(() => import('./components/TabsTab').then(m => ({ default: m.TabsTab })))
 const NotesTab = lazy(() => import('./components/NotesTab').then(m => ({ default: m.NotesTab })))
 const AgentHistoryTab = lazy(() => import('./components/AgentHistoryTab').then(m => ({ default: m.AgentHistoryTab })))
+const AgentPanel = lazy(() => import('./components/AgentPanel').then(m => ({ default: m.AgentPanel })))
 
 // Lazy telemetry — only loaded when a Phoenix endpoint is configured
 async function initTelemetryIfNeeded(endpoint: string | undefined) {
@@ -151,7 +150,8 @@ export default function SidePanelApp() {
   const handleNewAgentModeChange = useCallback(async (mode: NewAgentMode) => {
     if (mode === newAgentMode) return
     if (newAgentMode === 'paper') {
-      await disconnectAgentMcp()
+      const { disconnectMcp } = await import('@/agent/useAgentChat')
+      await disconnectMcp()
     }
     setNewAgentMode(mode)
     setAgentConversation(null)
@@ -195,20 +195,22 @@ export default function SidePanelApp() {
           />
         </Suspense>
       ) : activeTab === 'agent' ? (
-        <AgentPanel
-          key={`agent-${newAgentMode}-${agentSessionKey}`}
-          agentMode={newAgentMode}
-          settings={settings}
-          availableModels={availableModels}
-          chatModel={agentChatModel}
-          onChatModelChange={setAgentChatModel}
-          conversation={agentConversation}
-          onConversationCreated={handleAgentConversationCreated}
-          onNewChat={handleAgentNewChat}
-          onAgentModeChange={handleNewAgentModeChange}
-          slashCommands={slashCommands}
-          onOpenSettings={handleOpenSettings}
-        />
+        <Suspense fallback={<TabFallback />}>
+          <AgentPanel
+            key={`agent-${newAgentMode}-${agentSessionKey}`}
+            agentMode={newAgentMode}
+            settings={settings}
+            availableModels={availableModels}
+            chatModel={agentChatModel}
+            onChatModelChange={setAgentChatModel}
+            conversation={agentConversation}
+            onConversationCreated={handleAgentConversationCreated}
+            onNewChat={handleAgentNewChat}
+            onAgentModeChange={handleNewAgentModeChange}
+            slashCommands={slashCommands}
+            onOpenSettings={handleOpenSettings}
+          />
+        </Suspense>
       ) : activeTab === 'agent-history' ? (
         <Suspense fallback={<TabFallback />}>
           <AgentHistoryTab
