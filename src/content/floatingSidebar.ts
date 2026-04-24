@@ -175,9 +175,8 @@ export function showFab(): void {
 
 /**
  * Ask the background script to open the native Chrome side panel.
- * chrome.sidePanel.open() must be called during a user gesture — the
- * click handler here is a valid gesture, and Chrome preserves it
- * through the runtime.sendMessage round-trip to the background.
+ * The content script keeps the page-level entry point, while the background
+ * owns the actual `chrome.sidePanel.open()` call.
  */
 async function openSidePanel(): Promise<void> {
   try {
@@ -188,10 +187,8 @@ async function openSidePanel(): Promise<void> {
 }
 
 /**
- * Back-compat: background still sends `toggle-floating-sidebar` for the
- * Cmd+Shift+Y shortcut on older installs. New background routes the command
- * directly to chrome.sidePanel.open, but we keep this exported so the content
- * script message handler stays trivial.
+ * Keep the legacy command/message name so existing shortcut wiring keeps
+ * routing to the same side-panel open path.
  */
 export function toggleFloatingSidebar(): void {
   openSidePanel()

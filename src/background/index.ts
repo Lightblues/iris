@@ -12,17 +12,8 @@ import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPage
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Side panel opening strategy:
-// We deliberately DO NOT use `setPanelBehavior({ openPanelOnActionClick: true })`.
-// That setting delegates action-icon clicks to Chrome's internal handler, which
-// in some environments (multi-monitor, non-stable Chrome builds, busy GPU) can
-// defer the side-panel renderer's first-paint indefinitely — the panel opens
-// but stays blank until some unrelated UI event kicks it.
-//
-// Instead, we listen to action clicks ourselves and call `sidePanel.open()`
-// explicitly. Empirically this path commits the first frame promptly — it's
-// the same path the FAB → content-script → background flow uses, which was
-// always reliable.
+// Open the side panel explicitly from our own listeners so toolbar clicks,
+// keyboard shortcuts, and content-script requests all share the same code path.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -142,8 +133,7 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
-    // Kept command name for backwards-compat with user keybindings; now opens
-    // the native side panel instead of injecting an iframe.
+    // Keep the existing command id so current user keybindings keep working.
     try {
       await chrome.sidePanel.open({ tabId: tab.id });
     } catch (error) {
@@ -260,9 +250,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
 
-  // Open native side panel on user gesture from content script (FAB click, shortcut, etc.)
-  // chrome.sidePanel.open must be called inside the gesture; the message round-trip
-  // from content → background preserves the gesture.
+  // Open native side panel for in-page entry points such as the FAB.
+  // `chrome.sidePanel.open()` still needs the originating user gesture, so the
+  // content script forwards the click and the background performs the open.
   if (message.type === 'open-side-panel') {
     const tabId = sender.tab?.id;
     if (tabId == null) {
