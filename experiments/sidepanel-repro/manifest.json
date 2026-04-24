@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "SidePanel Repro (baseline)",
+  "version": "0.1.0",
+  "description": "Minimal MV3 to reproduce Chrome side panel blank-render bug. Phase 1 = baseline (async handler, sidePanel.open({tabId})).",
+  "permissions": ["sidePanel", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open SidePanel Repro"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "open-via-command": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U",
+        "mac": "Command+Shift+U"
+      },
+      "description": "Open repro side panel via keyboard"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
