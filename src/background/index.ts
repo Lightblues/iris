@@ -12,8 +12,27 @@ import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPage
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Configure side panel to open on action click
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+// Side panel opening strategy:
+// We deliberately DO NOT use `setPanelBehavior({ openPanelOnActionClick: true })`.
+// That setting delegates action-icon clicks to Chrome's internal handler, which
+// in some environments (multi-monitor, non-stable Chrome builds, busy GPU) can
+// defer the side-panel renderer's first-paint indefinitely — the panel opens
+// but stays blank until some unrelated UI event kicks it.
+//
+// Instead, we listen to action clicks ourselves and call `sidePanel.open()`
+// explicitly. Empirically this path commits the first frame promptly — it's
+// the same path the FAB → content-script → background flow uses, which was
+// always reliable.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (tab?.id == null) return;
+  try {
+    await chrome.sidePanel.open({ tabId: tab.id });
+  } catch (err) {
+    console.warn('[Iris] sidePanel.open from action click failed:', err);
+  }
+});
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
