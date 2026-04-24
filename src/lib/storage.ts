@@ -1,13 +1,33 @@
 import type { BookmarkLink } from './types';
 import { STORAGE_KEY } from './types';
 
+// One-time lazy migration sync → local (see sidepanelSettings.ts for rationale)
+let migratedFromSync = false
+
+async function ensureMigrated(): Promise<void> {
+  if (migratedFromSync) return
+  migratedFromSync = true
+  try {
+    const localResult = await chrome.storage.local.get(STORAGE_KEY)
+    if (localResult[STORAGE_KEY] != null) return
+    const syncResult = await chrome.storage.sync.get(STORAGE_KEY)
+    const syncValue = syncResult[STORAGE_KEY]
+    if (syncValue != null) {
+      await chrome.storage.local.set({ [STORAGE_KEY]: syncValue })
+    }
+  } catch {
+    // best-effort; fall through to defaults
+  }
+}
+
 export async function getBookmarks(): Promise<BookmarkLink[]> {
-  const result = await chrome.storage.sync.get(STORAGE_KEY);
+  await ensureMigrated()
+  const result = await chrome.storage.local.get(STORAGE_KEY);
   return (result[STORAGE_KEY] || []) as BookmarkLink[];
 }
 
 export async function saveBookmarks(bookmarks: BookmarkLink[]): Promise<void> {
-  await chrome.storage.sync.set({ [STORAGE_KEY]: bookmarks });
+  await chrome.storage.local.set({ [STORAGE_KEY]: bookmarks });
 }
 
 export async function addBookmark(bookmark: BookmarkLink): Promise<void> {

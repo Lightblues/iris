@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Settings, X, ArrowLeft } from 'lucide-react'
+import { Settings, ArrowLeft } from 'lucide-react'
 import { TabSwitcher, type TabType } from './TabSwitcher'
 
 interface SidebarHeaderProps {
@@ -7,8 +7,6 @@ interface SidebarHeaderProps {
   onTabChange: (tab: TabType) => void
   onToggleSettings: () => void
   onSettingsBack?: () => void
-  isFloatingMode?: boolean
-  onClose?: () => void
 }
 
 export function SidebarHeader({
@@ -16,8 +14,6 @@ export function SidebarHeader({
   onTabChange,
   onToggleSettings,
   onSettingsBack,
-  isFloatingMode,
-  onClose,
 }: SidebarHeaderProps) {
   const isSettings = activeTab === 'settings'
 
@@ -45,17 +41,6 @@ export function SidebarHeader({
             className="h-7 w-7"
           >
             <Settings className="h-4 w-4" />
-          </Button>
-        )}
-        {isFloatingMode && onClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            title="Close sidebar"
-            className="h-7 w-7"
-          >
-            <X className="h-4 w-4" />
           </Button>
         )}
       </div>

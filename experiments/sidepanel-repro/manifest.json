@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "SidePanel Repro (multi-variant)",
+  "version": "0.2.0",
+  "description": "Minimal MV3 to reproduce Chrome side panel blank-render bug. Multi-variant phase: A baseline, B windows.update+focus, C windowId, D FAB control.",
+  "permissions": ["sidePanel", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "A) baseline action click"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "commands": {
+    "variant-e-spam-open": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "E) spam sidePanel.open x3 back-to-back"
+    },
+    "variant-h-compositor-wake": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "H) open + content script compositor wake rAF loop"
+    },
+    "variant-g-double-nudge": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+H",
+        "mac": "Command+Shift+H"
+      },
+      "description": "G) open + 700ms + 1500ms double nudge"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

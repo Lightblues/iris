@@ -3,10 +3,184 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EA AI Sidebar</title>
+    <title>Iris</title>
+    <style>
+      /* Inline theme tokens so skeleton matches both light and dark before CSS loads */
+      :root {
+        --sk-bg: #ffffff;
+        --sk-fg: #0a0f1a;
+        --sk-muted: #f1f5f9;
+        --sk-muted-fg: #64748b;
+        --sk-border: #e2e8f0;
+        --sk-primary: #0f172a;
+        --sk-primary-fg: #f8fafc;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --sk-bg: #020817;
+          --sk-fg: #f8fafc;
+          --sk-muted: #1e293b;
+          --sk-muted-fg: #94a3b8;
+          --sk-border: #1e293b;
+          --sk-primary: #f8fafc;
+          --sk-primary-fg: #0f172a;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background: var(--sk-bg);
+        color: var(--sk-fg);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px;
+        -webkit-font-smoothing: antialiased;
+      }
+      /* Skeleton container — hidden as soon as React mounts (replaces #root children) */
+      #iris-skeleton {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      .sk-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px;
+        border-bottom: 1px solid var(--sk-border);
+      }
+      .sk-tabs {
+        display: flex;
+        gap: 2px;
+        background: var(--sk-muted);
+        border-radius: 6px;
+        padding: 2px;
+      }
+      .sk-tab {
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 4px;
+        color: var(--sk-muted-fg);
+      }
+      .sk-tab.active {
+        background: var(--sk-bg);
+        color: var(--sk-fg);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      }
+      .sk-gear {
+        width: 28px; height: 28px;
+        border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--sk-muted-fg);
+      }
+      .sk-chatbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--sk-border);
+        background: color-mix(in srgb, var(--sk-muted) 30%, transparent);
+      }
+      .sk-pill {
+        height: 28px;
+        border: 1px solid var(--sk-border);
+        border-radius: 6px;
+        background: var(--sk-bg);
+      }
+      .sk-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--sk-muted-fg);
+        font-size: 12px;
+      }
+      .sk-dots {
+        display: inline-flex;
+        gap: 4px;
+      }
+      .sk-dots span {
+        width: 6px; height: 6px; border-radius: 999px;
+        background: currentColor;
+        opacity: 0.5;
+        animation: sk-bounce 1s infinite ease-in-out;
+      }
+      .sk-dots span:nth-child(2) { animation-delay: 0.15s; }
+      .sk-dots span:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes sk-bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+        40% { transform: translateY(-4px); opacity: 1; }
+      }
+      .sk-input {
+        border-top: 1px solid var(--sk-border);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .sk-input-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .sk-icon {
+        width: 32px; height: 32px;
+        border-radius: 6px;
+        color: var(--sk-muted-fg);
+      }
+      .sk-textarea {
+        flex: 1;
+        height: 36px;
+        border: 1px solid var(--sk-border);
+        border-radius: 6px;
+        background: var(--sk-bg);
+      }
+      .sk-send {
+        width: 32px; height: 32px;
+        border-radius: 6px;
+        background: var(--sk-primary);
+        opacity: 0.4;
+      }
+      .sk-hint {
+        font-size: 10px;
+        color: var(--sk-muted-fg);
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static skeleton: rendered instantly on side-panel open, removed as soon as React mounts. -->
+      <div id="iris-skeleton" aria-hidden="true">
+        <div class="sk-header">
+          <div class="sk-tabs">
+            <div class="sk-tab active">Agent</div>
+            <div class="sk-tab">History</div>
+            <div class="sk-tab">Tabs</div>
+            <div class="sk-tab">Bookmarks</div>
+            <div class="sk-tab">Reading</div>
+            <div class="sk-tab">Notes</div>
+          </div>
+          <div class="sk-gear">⚙</div>
+        </div>
+        <div class="sk-chatbar">
+          <div class="sk-pill" style="width:120px"></div>
+          <div class="sk-pill" style="width:110px"></div>
+        </div>
+        <div class="sk-body">
+          <span class="sk-dots"><span></span><span></span><span></span></span>
+        </div>
+        <div class="sk-input">
+          <div class="sk-input-row">
+            <div class="sk-icon"></div>
+            <div class="sk-icon"></div>
+            <div class="sk-icon"></div>
+            <div class="sk-textarea"></div>
+            <div class="sk-send"></div>
+          </div>
+          <div class="sk-hint">Loading…</div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>

@@ -12,8 +12,18 @@ import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPage
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Configure side panel to open on action click
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+// Open the side panel explicitly from our own listeners so toolbar clicks,
+// keyboard shortcuts, and content-script requests all share the same code path.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (tab?.id == null) return;
+  try {
+    await chrome.sidePanel.open({ tabId: tab.id });
+  } catch (err) {
+    console.warn('[Iris] sidePanel.open from action click failed:', err);
+  }
+});
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -123,10 +133,11 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
+    // Keep the existing command id so current user keybindings keep working.
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'toggle-floating-sidebar' });
+      await chrome.sidePanel.open({ tabId: tab.id });
     } catch (error) {
-      console.log('[Iris] Could not toggle floating sidebar:', error);
+      console.log('[Iris] Could not open side panel:', error);
     }
   } else if (command === 'save-highlight') {
     try {
@@ -236,8 +247,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 // Handle messages from content scripts, popup, or sidepanel
-chrome.runtime.onMessage.addListener((message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
+
+  // Open native side panel for in-page entry points such as the FAB.
+  // `chrome.sidePanel.open()` still needs the originating user gesture, so the
+  // content script forwards the click and the background performs the open.
+  if (message.type === 'open-side-panel') {
+    const tabId = sender.tab?.id;
+    if (tabId == null) {
+      sendResponse({ success: false, error: 'No tab id on sender' });
+      return true;
+    }
+    chrome.sidePanel.open({ tabId })
+      .then(() => sendResponse({ success: true }))
+      .catch((err) => {
+        console.warn('[Iris] sidePanel.open failed:', err);
+        sendResponse({ success: false, error: err?.message || String(err) });
+      });
+    return true;
+  }
 
   if (message.type === 'execute-command') {
     handleExecuteCommand(message as ExecuteCommandMessage)

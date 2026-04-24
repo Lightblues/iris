@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SidePanel Repro</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
+        margin: 0;
+        padding: 12px;
+        background: Canvas;
+        color: CanvasText;
+      }
+      h1 { font-size: 14px; margin: 0 0 8px; }
+      #status {
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: SelectedItem;
+        color: SelectedItemText;
+        margin-bottom: 10px;
+      }
+      pre {
+        background: rgba(128,128,128,0.12);
+        padding: 8px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 11px;
+        max-height: 70vh;
+        overflow: auto;
+      }
+      /* Pulsing square so you can SEE if paint is happening. */
+      .pulse {
+        display: inline-block;
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: #4ade80;
+        margin-right: 6px;
+        animation: pulse 1s ease-in-out infinite;
+        vertical-align: middle;
+      }
+      @keyframes pulse {
+        0%,100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.6); opacity: 0.5; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1><span class="pulse"></span>SidePanel Repro</h1>
+    <div id="status">booting…</div>
+    <pre id="log"></pre>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

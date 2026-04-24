@@ -46,9 +46,39 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
 
 const SETTINGS_KEY = 'sidepanel_settings'
 
+// One-time migration from chrome.storage.sync → chrome.storage.local.
+// We moved off storage.sync because cold-start reads would occasionally hang
+// for seconds (possibly blocking on Chrome Sync reconciliation), freezing the
+// side panel at mount time. storage.local is synchronous-enough to be
+// reliable on the critical startup path.
+let migratedFromSync = false
+
+async function migrateFromSyncOnce(): Promise<Partial<SidePanelSettings> | undefined> {
+  if (migratedFromSync) return
+  migratedFromSync = true
+  try {
+    const syncResult = await chrome.storage.sync.get(SETTINGS_KEY)
+    const syncValue = syncResult[SETTINGS_KEY] as Partial<SidePanelSettings> | undefined
+    if (syncValue) {
+      await chrome.storage.local.set({ [SETTINGS_KEY]: syncValue })
+      console.log('[Iris] Migrated settings from storage.sync → storage.local')
+      return syncValue
+    }
+  } catch (err) {
+    console.warn('[Iris] storage.sync migration failed (non-fatal):', err)
+  }
+  return
+}
+
 export async function loadSettings(): Promise<SidePanelSettings> {
-  const result = await chrome.storage.sync.get(SETTINGS_KEY)
-  const stored = result[SETTINGS_KEY] as Partial<SidePanelSettings> | undefined
+  const result = await chrome.storage.local.get(SETTINGS_KEY)
+  let stored = result[SETTINGS_KEY] as Partial<SidePanelSettings> | undefined
+
+  // Back-compat: first run after upgrade — nothing in local yet, check sync.
+  // This call is best-effort; if sync hangs, we fall back to defaults.
+  if (!stored) {
+    stored = await migrateFromSyncOnce()
+  }
 
   if (!stored) return { ...DEFAULT_SETTINGS }
 
@@ -80,7 +110,7 @@ export async function loadSettings(): Promise<SidePanelSettings> {
 }
 
 export async function saveSettings(settings: SidePanelSettings): Promise<void> {
-  await chrome.storage.sync.set({ [SETTINGS_KEY]: settings })
+  await chrome.storage.local.set({ [SETTINGS_KEY]: settings })
 }
 
 export function maskApiKey(key: string): string {

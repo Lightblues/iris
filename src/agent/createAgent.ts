@@ -4,7 +4,7 @@ import type { AgentConfig } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { connectMcp } from './mcp'
 import { recordEvent } from '@/lib/tracing'
-import { isTelemetryEnabled } from '@/lib/telemetry'
+import { isTelemetryEnabled } from '@/lib/telemetryState'
 
 export interface ProviderMetadataRef {
   current: any
