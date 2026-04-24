@@ -60,13 +60,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
         .then(() => log(`E open #${i} resolved (+${Date.now() - t0}ms)`))
         .catch((err) => log(`E open #${i} threw`, err))
     }
+  } else if (command === 'variant-h-compositor-wake') {
+    // VARIANT H: open + tell content script to run a tight rAF loop
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('H commands.onCommand: open + compositor wake')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`H open resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('H open threw', err))
+    chrome.tabs.sendMessage(tab.id, { type: 'repro-wake-compositor' }).catch(() => {})
   } else if (command === 'variant-f-delayed-nudge') {
     // VARIANT F: open once (with gesture), then after 1s auto-nudge a 2nd
-    // open from setTimeout (WITHOUT user gesture). Hypothesis:
-    //   1st call  — creates WebContents, renderer loads, stays hidden
-    //   2nd call  — after renderer is ready, triggers visibility commit
-    // Question: does 2nd call throw "user gesture required" since panel is
-    // already "opening" for this tab?
+    // open from setTimeout (WITHOUT user gesture).
     if (tab?.id == null) return
     const t0 = Date.now()
     log('F commands.onCommand: open now + nudge in 1000ms')
@@ -102,13 +108,19 @@ chrome.commands.onCommand.addListener((command, tab) => {
         .then(() => log(`G nudge#2 resolved (+${Date.now() - t0}ms)`))
         .catch((err) => log('G nudge#2 threw', err))
     }, 1500)
+  } else if (command === 'variant-h-compositor-wake') {
+    // VARIANT H: open + tell content script to run a tight rAF loop
+    if (tab?.id == null) return
+    const t0 = Date.now()
+    log('H commands.onCommand: open + compositor wake')
+    chrome.sidePanel
+      .open({ tabId: tab.id })
+      .then(() => log(`H open resolved (+${Date.now() - t0}ms)`))
+      .catch((err) => log('H open threw', err))
+    chrome.tabs.sendMessage(tab.id, { type: 'repro-wake-compositor' }).catch(() => {})
   } else if (command === 'variant-f-delayed-nudge') {
     // VARIANT F: open once (with gesture), then after 1s auto-nudge a 2nd
-    // open from setTimeout (WITHOUT user gesture). Hypothesis:
-    //   1st call  — creates WebContents, renderer loads, stays hidden
-    //   2nd call  — after renderer is ready, triggers visibility commit
-    // Question: does 2nd call throw "user gesture required" since panel is
-    // already "opening" for this tab?
+    // open from setTimeout (WITHOUT user gesture).
     if (tab?.id == null) return
     const t0 = Date.now()
     log('F commands.onCommand: open now + nudge in 1000ms')

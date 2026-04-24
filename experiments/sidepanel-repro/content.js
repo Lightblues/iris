@@ -41,6 +41,45 @@
     console.log('[repro content] prewarm iframe mounted')
   }
 
+  // --- Compositor wake: keep the page compositor alive after sidePanel.open ---
+  // When the SW tells us, run a tight rAF loop with minimal DOM mutation for ~2s
+  // so the browser window's compositor stays active and commits the side panel's
+  // pending first frame.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type !== 'repro-wake-compositor') return
+    const el = document.createElement('div')
+    Object.assign(el.style, {
+      position: 'fixed',
+      left: '-1px',
+      top: '-1px',
+      width: '1px',
+      height: '1px',
+      pointerEvents: 'none',
+      zIndex: -1,
+      opacity: '0.01',
+    })
+    document.documentElement.appendChild(el)
+    let frame = 0
+    const DURATION = 6000
+    const t0 = performance.now()
+    const origTitle = document.title
+    console.log('[repro content] compositor wake START (6s)')
+    function tick() {
+      if (performance.now() - t0 > DURATION) {
+        el.remove()
+        document.title = origTitle
+        console.log(`[repro content] compositor wake END after ${frame} frames`)
+        return
+      }
+      el.style.transform = `translateX(${frame % 2}px)`
+      // Also toggle title to poke the browser process UI compositor:
+      document.title = frame % 2 === 0 ? origTitle : origTitle + '\u200B'
+      frame++
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+
   const mountFab = () => {
     const btn = document.createElement('button')
     btn.id = '__repro_fab__'

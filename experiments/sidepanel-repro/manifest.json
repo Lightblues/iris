@@ -23,12 +23,12 @@
       },
       "description": "E) spam sidePanel.open x3 back-to-back"
     },
-    "variant-f-delayed-nudge": {
+    "variant-h-compositor-wake": {
       "suggested_key": {
         "default": "Ctrl+Shift+K",
         "mac": "Command+Shift+K"
       },
-      "description": "F) open + 1s delayed nudge"
+      "description": "H) open + content script compositor wake rAF loop"
     },
     "variant-g-double-nudge": {
       "suggested_key": {
