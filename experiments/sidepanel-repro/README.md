@@ -57,9 +57,48 @@ Repeat each row ≥3 times with the side panel closed first:
 Record the SW log's `tabId`/`windowId` for each row — if the window you're
 opening from ≠ the foreground window, that's our smoking gun.
 
-## Next phases
+## Prewarm iframe experiment (current)
 
-Phase 2+ will flip one variable at a time (`async` → sync handler; add
-`windows.update({ focused: true })`; swap `{ tabId }` → `{ windowId }`). Edit
-`background.js` in-place; leave these phases as comments/annotations so the
-diff is legible later.
+A hidden 1×1 iframe in the page content script points at
+`sidepanel.html?prewarm=1`, which keeps the extension renderer process hot
+and primes V8 code cache + HTTP cache. Hypothesis: the next
+`chrome.sidePanel.open()` reuses this and renders instantly instead of
+showing a blank panel.
+
+**Toggle** (reload page after changing):
+
+```js
+// turn prewarm ON
+localStorage.setItem('__repro_prewarm__', '1'); location.reload()
+// turn prewarm OFF
+localStorage.setItem('__repro_prewarm__', '0'); location.reload()
+```
+
+The FAB turns **green when prewarm is on**, red when off, so you can tell at
+a glance.
+
+### Measurement
+
+For each condition, trigger by clicking the FAB (fastest, most reliable),
+and record the wall-clock gap between:
+
+- **bg log**: `D sidePanel.open resolved` at `+XXXms`
+- **panel log**: `first rAF` with its `+Yms` offset from `script start`
+- **bg log**: `panel reports visible` at `+Zms`
+
+The key number is **`panel reports visible` minus `sidePanel.open resolved`**
+on the bg-side clock — that's how long Chrome took from the API call to the
+first committed frame. Everything in between happens while the user sees a
+blank panel.
+
+| condition | open→visible gap | notes |
+| --- | --- | --- |
+| prewarm OFF, cold SW, 1st open | | |
+| prewarm OFF, warm SW, 2nd open | | |
+| prewarm OFF, cold SW, 3rd open (reload page first) | | |
+| prewarm ON, cold SW, 1st open (after iframe mount) | | |
+| prewarm ON, warm SW, 2nd open | | |
+| prewarm ON, 3rd open | | |
+
+If prewarm ON is consistently <500ms while prewarm OFF is multi-second, the
+hypothesis is confirmed and we port a prewarm iframe to iris.

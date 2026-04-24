@@ -4,43 +4,94 @@
   if (window.top !== window) return
   if (document.getElementById('__repro_fab__')) return
 
-  const btn = document.createElement('button')
-  btn.id = '__repro_fab__'
-  btn.textContent = 'R'
-  btn.title = 'Repro: open side panel (known-good FAB path)'
-  Object.assign(btn.style, {
-    position: 'fixed',
-    right: '16px',
-    bottom: '16px',
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    border: '0',
-    background: '#ef4444',
-    color: '#fff',
-    fontSize: '16px',
-    fontWeight: '700',
-    cursor: 'pointer',
-    zIndex: 2147483647,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-  })
-  btn.addEventListener('click', async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    console.log('[repro fab] clicked, sending message')
-    try {
-      const resp = await chrome.runtime.sendMessage({
-        type: 'repro-open-side-panel',
-      })
-      console.log('[repro fab] bg responded', resp)
-    } catch (err) {
-      console.warn('[repro fab] sendMessage failed', err)
-    }
-  })
-
-  const mount = () => {
-    if (document.body) document.body.appendChild(btn)
-    else document.addEventListener('DOMContentLoaded', () => document.body.appendChild(btn))
+  // --- Prewarm iframe experiment ------------------------------------------
+  // Hypothesis: a hidden iframe pointing at the sidepanel URL keeps the
+  // extension renderer process hot and primes V8 code cache + HTTP cache,
+  // so the *next* chrome.sidePanel.open() reuses it and renders instantly.
+  //
+  // Controlled via:
+  //   - localStorage.__repro_prewarm__ = '1' / '0'   (persists across reloads)
+  //   - window.__REPRO_PREWARM__ = true / false      (per-tab override)
+  //
+  // Default: OFF. Turn it on in devtools console:
+  //   localStorage.setItem('__repro_prewarm__', '1'); location.reload()
+  // and off with '0' + reload.
+  function prewarmEnabled() {
+    if (window.__REPRO_PREWARM__ === true) return true
+    if (window.__REPRO_PREWARM__ === false) return false
+    return localStorage.getItem('__repro_prewarm__') === '1'
   }
-  mount()
+
+  function mountPrewarm() {
+    if (document.getElementById('__repro_prewarm__')) return
+    const iframe = document.createElement('iframe')
+    iframe.id = '__repro_prewarm__'
+    iframe.src = chrome.runtime.getURL('sidepanel.html?prewarm=1')
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      left: '-9999px',
+      top: '-9999px',
+      width: '1px',
+      height: '1px',
+      border: '0',
+      pointerEvents: 'none',
+      opacity: '0',
+    })
+    ;(document.body || document.documentElement).appendChild(iframe)
+    console.log('[repro content] prewarm iframe mounted')
+  }
+
+  const mountFab = () => {
+    const btn = document.createElement('button')
+    btn.id = '__repro_fab__'
+    btn.textContent = 'R'
+    btn.title = 'Repro: open side panel'
+    Object.assign(btn.style, {
+      position: 'fixed',
+      right: '16px',
+      bottom: '16px',
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      border: '0',
+      background: prewarmEnabled() ? '#16a34a' : '#ef4444',
+      color: '#fff',
+      fontSize: '16px',
+      fontWeight: '700',
+      cursor: 'pointer',
+      zIndex: 2147483647,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+    })
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const tReq = performance.now()
+      console.log('[repro fab] click → sendMessage', { tReq })
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'repro-open-side-panel',
+        })
+        console.log('[repro fab] bg responded', resp, {
+          roundtripMs: Math.round(performance.now() - tReq),
+        })
+      } catch (err) {
+        console.warn('[repro fab] sendMessage failed', err)
+      }
+    })
+    ;(document.body || document.documentElement).appendChild(btn)
+  }
+
+  const whenReady = (fn) => {
+    if (document.body) fn()
+    else document.addEventListener('DOMContentLoaded', fn, { once: true })
+  }
+
+  whenReady(() => {
+    if (prewarmEnabled()) mountPrewarm()
+    mountFab()
+    console.log(
+      `[repro content] loaded. prewarm=${prewarmEnabled()}. ` +
+        `Toggle: localStorage.setItem('__repro_prewarm__','1'|'0'); location.reload()`,
+    )
+  })
 })()
