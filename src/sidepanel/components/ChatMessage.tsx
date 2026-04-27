@@ -57,7 +57,6 @@ export function ChatMessage({
   pageTitle,
 }: ChatMessageProps) {
   const [expanded, setExpanded] = useState(false)
-  const [showActions, setShowActions] = useState(false)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -178,9 +177,7 @@ export function ChatMessage({
 
   return (
     <div
-      className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      className={cn('flex group', isUser ? 'justify-end' : 'justify-start')}
     >
       <div className={cn('relative min-w-0', isUser ? 'max-w-[92%]' : 'max-w-[95%]')}>
         <div
@@ -252,12 +249,12 @@ export function ChatMessage({
             )}
           </div>
         )}
-        {/* Action buttons */}
-        {showActions && !isStreaming && (
+        {/* Action buttons — inside bubble, CSS-only hover */}
+        {!isStreaming && (
           <div
             className={cn(
-              'absolute top-0 flex gap-0.5',
-              isUser ? '-left-20' : '-right-24'
+              'absolute top-1 right-1 flex gap-0.5 rounded bg-background/80 backdrop-blur-sm',
+              'opacity-0 group-hover:opacity-100 transition-opacity z-10'
             )}
           >
             <Button
