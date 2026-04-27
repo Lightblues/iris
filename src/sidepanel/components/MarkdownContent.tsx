@@ -176,8 +176,23 @@ function domToMarkdown(fragment: DocumentFragment): string {
       return
     }
 
-    // Paragraph and other block-level elements — collect inline content as one line
-    if (tag === 'p' || tag === 'div') {
+    // Paragraph — always inline content
+    if (tag === 'p') {
+      const text = inlineToMd(el).trim()
+      if (text) lines.push(text)
+      return
+    }
+
+    // Div — check if it contains block-level children (e.g. wrapper around <pre>/<table>)
+    // If so, recurse with walk; otherwise treat as inline
+    if (tag === 'div') {
+      const hasBlockChild = Array.from(el.children).some(c =>
+        BLOCK_TAGS.has(c.tagName.toLowerCase())
+      )
+      if (hasBlockChild) {
+        el.childNodes.forEach(child => walk(child, ctx))
+        return
+      }
       const text = inlineToMd(el).trim()
       if (text) lines.push(text)
       return
