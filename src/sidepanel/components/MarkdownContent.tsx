@@ -61,11 +61,36 @@ interface MarkdownContentProps {
   content: string
 }
 
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'table', 'ul', 'ol', 'li', 'hr', 'br', 'section', 'article'])
+
+/** Serialize a node tree to inline markdown (no trailing newline) */
+function inlineToMd(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+  const el = node as HTMLElement
+  const tag = el.tagName?.toLowerCase()
+  if (tag === 'button') return ''
+  if (tag === 'br') return '\n'
+  if (tag === 'code') return '`' + (el.textContent ?? '') + '`'
+
+  // Recurse children
+  let inner = ''
+  el.childNodes.forEach(c => { inner += inlineToMd(c) })
+
+  if (tag === 'strong' || tag === 'b') return '**' + inner + '**'
+  if (tag === 'em' || tag === 'i') return '*' + inner + '*'
+  if (tag === 'del' || tag === 's') return '~~' + inner + '~~'
+  if (tag === 'a') {
+    const href = el.getAttribute('href') ?? ''
+    return href ? `[${inner}](${href})` : inner
+  }
+  return inner
+}
+
 /** Walk DOM fragment and rebuild markdown-style text */
 function domToMarkdown(fragment: DocumentFragment): string {
   const lines: string[] = []
 
-  function walk(node: Node, ctx: { listType?: 'ul' | 'ol'; listIndex?: number; depth?: number }) {
+  function walk(node: Node, ctx: { listType?: 'ul' | 'ol'; listIndex?: number }) {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent ?? ''
       if (text.trim()) lines.push(text)
@@ -96,7 +121,7 @@ function domToMarkdown(fragment: DocumentFragment): string {
         const childTag = (child as HTMLElement).tagName?.toLowerCase()
         if (childTag === 'li') {
           idx++
-          walk(child, { listType: tag as 'ul' | 'ol', listIndex: idx, depth: (ctx.depth ?? 0) })
+          walk(child, { listType: tag as 'ul' | 'ol', listIndex: idx })
         } else {
           walk(child, ctx)
         }
@@ -106,21 +131,19 @@ function domToMarkdown(fragment: DocumentFragment): string {
 
     if (tag === 'li') {
       const prefix = ctx.listType === 'ol' ? `${ctx.listIndex}. ` : '- '
-      // Collect inline text, but recurse for nested lists
       const inlineParts: string[] = []
       const nestedBlocks: string[] = []
       el.childNodes.forEach(child => {
         const childTag = (child as HTMLElement).tagName?.toLowerCase()
         if (childTag === 'ul' || childTag === 'ol') {
-          // Nested list — collect separately
           let subIdx = 0
           ;(child as HTMLElement).querySelectorAll(':scope > li').forEach(li => {
             subIdx++
             const subPrefix = childTag === 'ol' ? `${subIdx}. ` : '- '
-            nestedBlocks.push('  ' + subPrefix + (li as HTMLElement).textContent?.trim())
+            nestedBlocks.push('  ' + subPrefix + inlineToMd(li))
           })
         } else {
-          inlineParts.push(child.textContent ?? '')
+          inlineParts.push(inlineToMd(child))
         }
       })
       lines.push(prefix + inlineParts.join('').trim())
@@ -131,20 +154,36 @@ function domToMarkdown(fragment: DocumentFragment): string {
     // Headings
     if (tag && /^h([1-6])$/.test(tag)) {
       const level = parseInt(tag[1])
-      const text = el.textContent?.trim() ?? ''
-      lines.push('#'.repeat(level) + ' ' + text)
+      lines.push('#'.repeat(level) + ' ' + inlineToMd(el))
       return
     }
 
     // Blockquote
     if (tag === 'blockquote') {
-      const text = el.textContent?.trim() ?? ''
-      lines.push('> ' + text)
+      // Collect children as markdown, prefix each line with >
+      const inner: string[] = []
+      el.childNodes.forEach(child => {
+        const childTag = (child as HTMLElement).tagName?.toLowerCase()
+        if (childTag && BLOCK_TAGS.has(childTag)) {
+          // Block child inside blockquote — recurse and collect
+          inner.push(inlineToMd(child))
+        } else {
+          inner.push(inlineToMd(child))
+        }
+      })
+      const text = inner.join('').trim()
+      text.split('\n').forEach(line => lines.push('> ' + line))
       return
     }
 
-    // Skip wrapper divs that hold copy buttons (group/copy containers)
-    // Just recurse into children
+    // Paragraph and other block-level elements — collect inline content as one line
+    if (tag === 'p' || tag === 'div') {
+      const text = inlineToMd(el).trim()
+      if (text) lines.push(text)
+      return
+    }
+
+    // Default: recurse children
     el.childNodes.forEach(child => walk(child, ctx))
   }
 
