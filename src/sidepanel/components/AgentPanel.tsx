@@ -22,7 +22,6 @@ export interface AgentPanelProps {
   onAgentModeChange: (mode: AgentMode) => void
   slashCommands: SlashCommand[]
   onOpenSettings: () => void
-  onStreamingChange?: (streaming: boolean) => void
 }
 
 /**
@@ -118,7 +117,6 @@ export function AgentPanel(props: AgentPanelProps) {
       onAgentModeChange={onAgentModeChange}
       slashCommands={slashCommands}
       onOpenSettings={onOpenSettings}
-      onStreamingChange={props.onStreamingChange}
       mcpStatus={mcpStatus}
       pendingMessage={pendingRef.current}
     />
@@ -162,11 +160,6 @@ function AgentPanelReady(props: AgentPanelProps & {
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
-
-  // Report streaming state to parent so tab-switch can avoid interrupting
-  useEffect(() => {
-    props.onStreamingChange?.(isLoading)
-  }, [isLoading])
 
   // Flush pending message once (queued before transport was ready)
   useEffect(() => {
