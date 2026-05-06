@@ -66,6 +66,12 @@ export default function SidePanelApp() {
   const currentTabIdRef = useRef<number | null>(null)
   const tabConvMapRef = useRef<Map<number, string | null>>(new Map())
 
+  // Track whether agent is streaming — skip tab-swap if so
+  const isStreamingRef = useRef(false)
+  const handleStreamingChange = useCallback((streaming: boolean) => {
+    isStreamingRef.current = streaming
+  }, [])
+
   // Load settings and active conversation on mount
   useEffect(() => {
     console.log('[Iris] Initializing...')
@@ -112,6 +118,13 @@ export default function SidePanelApp() {
       const oldTabId = currentTabIdRef.current
       const newTabId = activeInfo.tabId
       if (oldTabId === newTabId) return
+
+      // Don't swap conversation if agent is streaming — avoid interrupting
+      if (isStreamingRef.current) {
+        // Still update the tab tracking so next idle switch works
+        currentTabIdRef.current = newTabId
+        return
+      }
 
       // Save current conversation for the old tab
       if (oldTabId != null) {
@@ -290,6 +303,7 @@ export default function SidePanelApp() {
             onAgentModeChange={handleNewAgentModeChange}
             slashCommands={slashCommands}
             onOpenSettings={handleOpenSettings}
+            onStreamingChange={handleStreamingChange}
           />
         </Suspense>
       ) : activeTab === 'agent-history' ? (
