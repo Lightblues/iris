@@ -95,8 +95,8 @@ export default function SidePanelApp() {
     chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
       if (tab?.id) {
         currentTabIdRef.current = tab.id
-        // Signal background that panel is open on this tab
-        chrome.runtime.sendMessage({ type: 'sidepanel-opened', tabId: tab.id }).catch(() => {})
+        // Signal background that panel is open on this window
+        chrome.runtime.sendMessage({ type: 'sidepanel-opened', windowId: tab.windowId }).catch(() => {})
         // Load conversation for this tab if we've seen it before, otherwise fresh
         const existingConvId = tabConvMapRef.current.get(tab.id)
         if (existingConvId) {
@@ -136,21 +136,23 @@ export default function SidePanelApp() {
     }
     chrome.tabs.onRemoved.addListener(onTabRemoved)
 
-    // Signal background on close
+    // Signal background on close — use windowId for toggle tracking
     const signalClose = () => {
-      const tabId = currentTabIdRef.current
-      if (tabId != null) {
-        chrome.runtime.sendMessage({ type: 'sidepanel-closed', tabId }).catch(() => {})
-      }
+      chrome.windows.getCurrent().then((win) => {
+        if (win?.id != null) {
+          chrome.runtime.sendMessage({ type: 'sidepanel-closed', windowId: win.id }).catch(() => {})
+        }
+      }).catch(() => {})
     }
     window.addEventListener('beforeunload', signalClose)
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') signalClose()
       else {
-        const tabId = currentTabIdRef.current
-        if (tabId != null) {
-          chrome.runtime.sendMessage({ type: 'sidepanel-opened', tabId }).catch(() => {})
-        }
+        chrome.windows.getCurrent().then((win) => {
+          if (win?.id != null) {
+            chrome.runtime.sendMessage({ type: 'sidepanel-opened', windowId: win.id }).catch(() => {})
+          }
+        }).catch(() => {})
       }
     })
 
