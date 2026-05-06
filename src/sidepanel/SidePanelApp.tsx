@@ -62,13 +62,16 @@ export default function SidePanelApp() {
     setAgentSessionKey(agentSessionRef.current)
   }, [])
 
+  // Per-tab chat binding: maps tabId → conversationId (or null for fresh chat)
+  const currentTabIdRef = useRef<number | null>(null)
+  const tabConvMapRef = useRef<Map<number, string | null>>(new Map())
+
   // Load settings and active conversation on mount
   useEffect(() => {
     console.log('[Iris] Initializing...')
     loadSettings().then((s) => {
       console.log('[Iris] Settings loaded')
       setSettings(s)
-      // Defer heavy side-effects to after first paint so the Agent UI mounts fast.
       const idle = (cb: () => void) =>
         (window as any).requestIdleCallback?.(cb, { timeout: 1500 }) ?? setTimeout(cb, 200)
       idle(() => {
@@ -80,7 +83,6 @@ export default function SidePanelApp() {
         }
       })
     })
-    loadAgentActiveConversation()
     loadAllCommands().then((cmds) => {
       console.log('[Iris] Loaded', cmds.length, 'slash commands')
       setSlashCommands(cmds)
@@ -88,21 +90,95 @@ export default function SidePanelApp() {
     chrome.storage.local.get(TAB_STORAGE_KEY).then((result) => {
       if (result[TAB_STORAGE_KEY]) setActiveTab(result[TAB_STORAGE_KEY] as TabType)
     })
-    return () => { shutdownTelemetryIfLoaded() }
-  }, [])
 
-  const loadAgentActiveConversation = async () => {
-    const store = await loadAgentConversations()
-    if (store.activeConversationId) {
-      const conv = store.conversations.find((c) => c.id === store.activeConversationId)
-      if (conv) {
-        setAgentConversation(conv)
-        if (conv.agentMode) setNewAgentMode(conv.agentMode)
-        console.log('[Iris] Loaded active agent conversation:', conv.id)
-        return
+    // Per-tab: identify which tab we're opened on, start fresh chat
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.id) {
+        currentTabIdRef.current = tab.id
+        // Signal background that panel is open on this tab
+        chrome.runtime.sendMessage({ type: 'sidepanel-opened', tabId: tab.id }).catch(() => {})
+        // Load conversation for this tab if we've seen it before, otherwise fresh
+        const existingConvId = tabConvMapRef.current.get(tab.id)
+        if (existingConvId) {
+          loadConversationById(existingConvId)
+        } else {
+          setAgentConversation(null) // fresh chat for new tab
+        }
+      }
+    })
+
+    // Listen for tab switches to swap conversations
+    const onTabActivated = (activeInfo: { tabId: number; windowId: number }) => {
+      const oldTabId = currentTabIdRef.current
+      const newTabId = activeInfo.tabId
+      if (oldTabId === newTabId) return
+
+      // Save current conversation for the old tab
+      if (oldTabId != null) {
+        tabConvMapRef.current.set(oldTabId, agentConversationRef.current?.id ?? null)
+      }
+      currentTabIdRef.current = newTabId
+
+      // Load conversation for the new tab
+      const existingConvId = tabConvMapRef.current.get(newTabId)
+      if (existingConvId) {
+        loadConversationById(existingConvId)
+      } else {
+        setAgentConversation(null)
+        bumpAgentSession()
       }
     }
-    setAgentConversation(null)
+    chrome.tabs.onActivated.addListener(onTabActivated)
+
+    // Cleanup tab mapping on tab close
+    const onTabRemoved = (tabId: number) => {
+      tabConvMapRef.current.delete(tabId)
+    }
+    chrome.tabs.onRemoved.addListener(onTabRemoved)
+
+    // Signal background on close
+    const signalClose = () => {
+      const tabId = currentTabIdRef.current
+      if (tabId != null) {
+        chrome.runtime.sendMessage({ type: 'sidepanel-closed', tabId }).catch(() => {})
+      }
+    }
+    window.addEventListener('beforeunload', signalClose)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') signalClose()
+      else {
+        const tabId = currentTabIdRef.current
+        if (tabId != null) {
+          chrome.runtime.sendMessage({ type: 'sidepanel-opened', tabId }).catch(() => {})
+        }
+      }
+    })
+
+    return () => {
+      shutdownTelemetryIfLoaded()
+      chrome.tabs.onActivated.removeListener(onTabActivated)
+      chrome.tabs.onRemoved.removeListener(onTabRemoved)
+      window.removeEventListener('beforeunload', signalClose)
+      signalClose()
+    }
+  }, [])
+
+  // Ref to track current conversation for the tab-switch closure
+  const agentConversationRef = useRef(agentConversation)
+  useEffect(() => { agentConversationRef.current = agentConversation }, [agentConversation])
+
+  // Helper: load a conversation by ID from storage
+  const loadConversationById = async (convId: string) => {
+    const store = await loadAgentConversations()
+    const conv = store.conversations.find((c) => c.id === convId)
+    if (conv) {
+      setAgentConversation(conv)
+      if (conv.agentMode) setNewAgentMode(conv.agentMode)
+      bumpAgentSession()
+    } else {
+      setAgentConversation(null)
+      bumpAgentSession()
+    }
   }
 
   // Tab navigation
@@ -145,6 +221,9 @@ export default function SidePanelApp() {
   const handleAgentConversationCreated = useCallback((conv: AgentConversation) => {
     setAgentConversation(conv)
     setAgentActiveConversation(conv.id).catch(() => {})
+    // Track in per-tab map
+    const tabId = currentTabIdRef.current
+    if (tabId != null) tabConvMapRef.current.set(tabId, conv.id)
   }, [])
 
   const handleNewAgentModeChange = useCallback(async (mode: NewAgentMode) => {

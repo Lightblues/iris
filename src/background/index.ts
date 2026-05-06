@@ -12,18 +12,11 @@ import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPage
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Open the side panel explicitly from our own listeners so toolbar clicks,
-// keyboard shortcuts, and content-script requests all share the same code path.
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
+// Let Chrome natively toggle the side panel on toolbar icon click.
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
-chrome.action.onClicked.addListener(async (tab) => {
-  if (tab?.id == null) return;
-  try {
-    await chrome.sidePanel.open({ tabId: tab.id });
-  } catch (err) {
-    console.warn('[Iris] sidePanel.open from action click failed:', err);
-  }
-});
+// Track which tabs have the panel open so keyboard shortcut can toggle.
+const panelOpenTabs = new Set<number>();
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -133,11 +126,15 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
-    // Keep the existing command id so current user keybindings keep working.
+    // Toggle: close if open, open if closed.
     try {
-      await chrome.sidePanel.open({ tabId: tab.id });
+      if (panelOpenTabs.has(tab.id!)) {
+        await chrome.sidePanel.close({ tabId: tab.id! });
+      } else {
+        await chrome.sidePanel.open({ tabId: tab.id! });
+      }
     } catch (error) {
-      console.log('[Iris] Could not open side panel:', error);
+      console.log('[Iris] Could not toggle side panel:', error);
     }
   } else if (command === 'save-highlight') {
     try {
@@ -246,6 +243,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Clean up panel tracking when a tab is closed.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  panelOpenTabs.delete(tabId);
+});
+
 // Handle messages from content scripts, popup, or sidepanel
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
@@ -265,6 +267,20 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
         console.warn('[Iris] sidePanel.open failed:', err);
         sendResponse({ success: false, error: err?.message || String(err) });
       });
+    return true;
+  }
+
+  // Track sidepanel open/close state per tab (for keyboard toggle)
+  if (message.type === 'sidepanel-opened') {
+    const tabId = message.tabId as number | undefined;
+    if (tabId != null) panelOpenTabs.add(tabId);
+    sendResponse({ success: true });
+    return true;
+  }
+  if (message.type === 'sidepanel-closed') {
+    const tabId = message.tabId as number | undefined;
+    if (tabId != null) panelOpenTabs.delete(tabId);
+    sendResponse({ success: true });
     return true;
   }
 
