@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react'
 import { cn } from '@/lib/utils'
-import { FileText, Scissors, ChevronDown, ChevronUp, X, Pencil, GitFork, StickyNote, Copy, Check } from 'lucide-react'
+import { FileText, Scissors, ChevronDown, ChevronUp, X, Pencil, GitFork, StickyNote, Copy, Check, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { IrisMessage } from '@/lib/types'
 import { createEntry } from '@/lib/knowledge'
@@ -18,6 +18,7 @@ interface ChatMessageProps {
   onDelete?: (id: string) => void
   onEdit?: (id: string, content: string) => void
   onFork?: (id: string) => void
+  onRerun?: (id: string) => void
   conversationId?: string
   pageUrl?: string
   pageTitle?: string
@@ -52,6 +53,7 @@ export function ChatMessage({
   onDelete,
   onEdit,
   onFork,
+  onRerun,
   conversationId,
   pageUrl,
   pageTitle,
@@ -275,6 +277,17 @@ export function ChatMessage({
                 title="Edit message"
               >
                 <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+            {onRerun && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => onRerun(message.id)}
+                title="Rerun from here"
+              >
+                <RotateCcw className="h-3 w-3" />
               </Button>
             )}
             {!isUser && (

@@ -226,6 +226,24 @@ function AgentPanelReady(props: AgentPanelProps & {
     setError(null)
   }, [messages, setMessages, onConversationCreated, agentMode])
 
+  const handleRerunFromMessage = useCallback((id: string) => {
+    const idx = messages.findIndex((m: IrisMessage) => m.id === id)
+    if (idx === -1) return
+    // Find the last user message at or before this index
+    let userMsgIdx = -1
+    for (let i = idx; i >= 0; i--) {
+      if (messages[i].role === 'user') { userMsgIdx = i; break }
+    }
+    if (userMsgIdx === -1) return
+    const userMsg = messages[userMsgIdx]
+    const textPart = userMsg.parts.find((p: any) => p.type === 'text')
+    const content = textPart?.type === 'text' ? textPart.text : ''
+    if (!content) return
+    // Truncate to just before the user message, then resend
+    setMessages(messages.slice(0, userMsgIdx) as IrisMessage[])
+    setTimeout(() => sendMessage(content), 0)
+  }, [messages, setMessages, sendMessage])
+
   const handleSendMessage = useCallback(async (
     content: string,
     attachedImages?: { id: string; data: string; mimeType: string; size: number }[],
@@ -279,6 +297,7 @@ function AgentPanelReady(props: AgentPanelProps & {
               onDelete={handleDeleteMessage}
               onEdit={handleEditMessage}
               onFork={handleForkMessage}
+              onRerun={handleRerunFromMessage}
               conversationId={conversation?.id}
             />
           ))}
