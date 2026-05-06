@@ -12,16 +12,26 @@ import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPage
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Open the side panel explicitly from our own listeners so toolbar clicks,
-// keyboard shortcuts, and content-script requests all share the same code path.
+// Disable auto-open so we handle toggle manually per-tab.
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
 
+// Track which windows have the panel open so we can toggle.
+// Chrome's sidePanel is per-window (not per-tab) — opening on tabId just sets
+// which tab triggered it, but close must target the windowId.
+const panelOpenWindows = new Set<number>();
+
+// Handle toolbar icon click — toggle.
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab?.id == null) return;
+  if (tab?.id == null || tab.windowId == null) return;
   try {
-    await chrome.sidePanel.open({ tabId: tab.id });
+    if (panelOpenWindows.has(tab.windowId)) {
+      await chrome.sidePanel.close({ windowId: tab.windowId });
+      panelOpenWindows.delete(tab.windowId);
+    } else {
+      await chrome.sidePanel.open({ tabId: tab.id });
+    }
   } catch (err) {
-    console.warn('[Iris] sidePanel.open from action click failed:', err);
+    console.warn('[Iris] sidePanel toggle from action click failed:', err);
   }
 });
 
@@ -133,11 +143,17 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
-    // Keep the existing command id so current user keybindings keep working.
+    // Toggle: close if open, open if closed.
     try {
-      await chrome.sidePanel.open({ tabId: tab.id });
+      const windowId = tab.windowId!;
+      if (panelOpenWindows.has(windowId)) {
+        await chrome.sidePanel.close({ windowId });
+        panelOpenWindows.delete(windowId);
+      } else {
+        await chrome.sidePanel.open({ tabId: tab.id! });
+      }
     } catch (error) {
-      console.log('[Iris] Could not open side panel:', error);
+      console.log('[Iris] Could not toggle side panel:', error);
     }
   } else if (command === 'save-highlight') {
     try {
@@ -246,6 +262,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+// Clean up panel tracking when a tab is closed.
+chrome.tabs.onRemoved.addListener((_tabId, removeInfo) => {
+  // If no more tabs in this window, remove tracking.
+  // (Chrome auto-closes the panel when the last tab closes anyway.)
+  if (removeInfo.isWindowClosing) {
+    panelOpenWindows.delete(removeInfo.windowId);
+  }
+});
+
 // Handle messages from content scripts, popup, or sidepanel
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
@@ -265,6 +290,20 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
         console.warn('[Iris] sidePanel.open failed:', err);
         sendResponse({ success: false, error: err?.message || String(err) });
       });
+    return true;
+  }
+
+  // Track sidepanel open/close state per window (for toggle)
+  if (message.type === 'sidepanel-opened') {
+    const windowId = message.windowId as number | undefined;
+    if (windowId != null) panelOpenWindows.add(windowId);
+    sendResponse({ success: true });
+    return true;
+  }
+  if (message.type === 'sidepanel-closed') {
+    const windowId = message.windowId as number | undefined;
+    if (windowId != null) panelOpenWindows.delete(windowId);
+    sendResponse({ success: true });
     return true;
   }
 

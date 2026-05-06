@@ -51,6 +51,25 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 
 `storage`, `activeTab`, `readingList`, `contextMenus`, `clipboardWrite`, `sidePanel`, `tabs`, `tabGroups`, `unlimitedStorage`, `alarms`, `scripting` + `host_permissions: <all_urls>`
 
+### SidePanel Lifecycle & Per-Tab Chat
+
+**Toggle:** Toolbar icon click and keyboard shortcut (`Cmd+Shift+Y`) toggle the sidepanel open/closed per-window. `openPanelOnActionClick: false` + manual `chrome.sidePanel.open/close({ windowId })`.
+
+**Per-tab conversation binding:** The sidepanel is a **single React instance per window** (Chrome limitation). On tab switch (`chrome.tabs.onActivated`), the app swaps the active conversation:
+- Save current conversation ID to an in-memory `Map<tabId, conversationId>`
+- Load the new tab's conversation (or start fresh if first visit)
+- Component remount via `key` bump
+
+**Architectural constraints:**
+| Constraint | Implication |
+|------------|-------------|
+| Single sidepanel instance per window | All tabs share one React app; "per-tab" is simulated via state swap |
+| Closing sidepanel = unmount | Streaming responses are terminated; no background survival |
+| Tab switch during streaming | Stream is interrupted, partial response saved |
+| No background AI processing | `useChat` runs in sidepanel process only |
+
+**Future:** To support background agent execution (survive tab-switch / panel-close), AI streaming must move to the background service worker with sidepanel as display-only subscriber. This is a major architecture change.
+
 ## SidePanel Tabs
 
 | Tab | Component | Description |
