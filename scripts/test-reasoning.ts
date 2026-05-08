@@ -2,14 +2,13 @@
  * Test script: Verify reasoning/thinking output from LLM providers via OpenRouter.
  *
  * Run: OPENROUTER_API_KEY=... npx tsx scripts/test-reasoning.ts
- * Optional: MODEL=anthropic/claude-sonnet-4 npx tsx scripts/test-reasoning.ts
+ * Optional: MODEL=deepseek/deepseek-r1 npx tsx scripts/test-reasoning.ts
  *
  * Notes:
- * - OpenRouter returns reasoningTokens count but may not stream reasoning text
- *   for all models (depends on provider support).
- * - AI SDK fullStream emits: reasoning-start → reasoning-delta → reasoning-end
- *   when provider streams reasoning text.
- * - UI message parts use: { type: 'reasoning', text: string }
+ * - OpenRouter uses `"reasoning": { "enabled": true }` in request body
+ * - Response streams `delta.reasoning` field alongside `delta.content`
+ * - @ai-sdk/openai doesn't natively parse OpenRouter's reasoning format,
+ *   so we inject the field via custom fetch wrapper.
  */
 import { streamText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -20,25 +19,35 @@ if (!API_KEY) {
   process.exit(1)
 }
 
-const MODEL = process.env.MODEL || 'anthropic/claude-sonnet-4'
+const MODEL = process.env.MODEL || 'deepseek/deepseek-v4-flash'
 const PROMPT = process.env.PROMPT || 'What is 27 * 453? Think step by step.'
 
 console.log(`[test-reasoning] Model: ${MODEL}`)
 console.log(`[test-reasoning] Prompt: ${PROMPT}`)
 console.log('---')
 
+// Custom fetch that injects `reasoning` into the request body
+const reasoningFetch: typeof globalThis.fetch = async (url, init) => {
+  if (init?.body && typeof init.body === 'string') {
+    try {
+      const body = JSON.parse(init.body)
+      body.reasoning = { enabled: true }
+      init = { ...init, body: JSON.stringify(body) }
+    } catch {}
+  }
+  return globalThis.fetch(url, init)
+}
+
 const provider = createOpenAI({
   apiKey: API_KEY,
   baseURL: 'https://openrouter.ai/api/v1',
+  fetch: reasoningFetch,
 })
 
 async function main() {
   const result = streamText({
     model: provider.chat(MODEL),
     prompt: PROMPT,
-    providerOptions: {
-      openai: { reasoningEffort: 'high' },
-    },
   })
 
   let reasoningText = ''
