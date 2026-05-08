@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import type { IrisMessage } from '@/lib/types'
 import { createEntry } from '@/lib/knowledge'
 import { ToolCallDisplay, type ToolPartProps } from './ToolCallDisplay'
+import { ReasoningDisplay } from './ReasoningDisplay'
 import { formatTokenCount, formatCost } from '@/lib/tokenUtils'
 
 // Lazy load the heavy markdown component
@@ -229,7 +230,16 @@ export function ChatMessage({
                       />
                     )
                   }
-                  // step-start, reasoning, etc. — skip silently
+                  if (part.type === 'reasoning' && 'text' in part) {
+                    return (
+                      <ReasoningDisplay
+                        key={`reasoning-${idx}`}
+                        text={(part as any).text}
+                        isStreaming={isStreaming}
+                      />
+                    )
+                  }
+                  // step-start, etc. — skip silently
                   return null
                 })
               ) : (

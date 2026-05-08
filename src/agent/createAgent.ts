@@ -52,6 +52,9 @@ export async function createAgent(
     stopWhen: stepCountIs(maxSteps),
     temperature: settings.temperature,
     maxOutputTokens: settings.maxOutputTokens,
+    providerOptions: {
+      openai: { reasoningEffort: 'high' },
+    },
     experimental_telemetry: { isEnabled: isTelemetryEnabled() },
     onStepFinish({ providerMetadata }) {
       if (providerMetadata) providerMetadataRef.current = providerMetadata
