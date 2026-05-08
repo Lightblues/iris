@@ -1,7 +1,7 @@
 ---
 id: iris-007
 title: Show full page content in context message expand view
-status: todo
+status: done
 priority: medium
 estimate: S
 ---
@@ -24,10 +24,11 @@ container so users can verify exactly what was sent to the LLM.
 - [ ] Keep the `max-h-40 overflow-y-auto` container (fixed height + scroll is the desired UX)
 
 ## Acceptance
-- [ ] Expanded view shows complete page content, scrollable
-- [ ] No artificial truncation or "..." suffix
-- [ ] Container height stays fixed (~160px / max-h-40), user scrolls to see more
-- [ ] Collapsed state unchanged (still shows title + token count only)
+- [x] Expanded view shows complete page content, scrollable
+- [x] No artificial truncation or "..." suffix
+- [x] Container height stays fixed (~160px / max-h-40), user scrolls to see more
+- [x] Collapsed state unchanged (still shows title + token count only)
+- [x] `pnpm build` compiles without errors (no unused imports/variables)
 
 ## Boundaries
 - Always: Keep the existing expand/collapse UX — only change what's rendered inside

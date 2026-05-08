@@ -1,7 +1,7 @@
 ---
 id: iris-006
 title: Show raw model ID without abbreviation in model selector
-status: todo
+status: done
 priority: medium
 estimate: S
 ---
@@ -23,9 +23,10 @@ Show the full raw model ID instead — prioritize visibility and control over co
 - [ ] Keep `truncate` class as safety net for extremely long IDs
 
 ## Acceptance
-- [ ] Closed selector shows full model ID (e.g. `anthropic/claude-sonnet-4-20250514`, not `claude-sonnet-4-20250514`)
-- [ ] No layout overflow — trigger widens gracefully within the header bar
-- [ ] Dropdown list behavior unchanged
+- [x] Closed selector shows full model ID (e.g. `anthropic/claude-sonnet-4-20250514`, not `claude-sonnet-4-20250514`)
+- [x] No layout overflow — trigger widens gracefully within the header bar
+- [x] Dropdown list behavior unchanged
+- [x] `pnpm build` compiles without errors (no unused imports/variables)
 
 ## Boundaries
 - Always: Minimal change — only touch the display layer, not model fetching or storage
