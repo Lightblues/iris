@@ -112,7 +112,6 @@ export function ChatMessage({
   if (isContext) {
     const title = message.metadata?.pageTitle || 'Page Content'
     const truncatedTitle = title.length > 40 ? title.slice(0, 40) + '...' : title
-    const contentPreview = messageText.slice(0, 200)
     const isSelection = message.metadata?.contextType === 'selection'
     const Icon = isSelection ? Scissors : FileText
     const iconColor = isSelection ? 'text-orange-500' : 'text-blue-500'
@@ -164,7 +163,7 @@ export function ChatMessage({
           </div>
           {expanded && (
             <div className="mt-2 pt-2 border-t border-muted-foreground/20 text-xs text-muted-foreground max-h-40 overflow-y-auto">
-              <pre className="whitespace-pre-wrap font-mono">{contentPreview}...</pre>
+              <pre className="whitespace-pre-wrap font-mono">{messageText}</pre>
             </div>
           )}
         </div>
