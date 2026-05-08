@@ -93,16 +93,14 @@ export function ModelCombobox({ models, favourites, value, onChange, className }
 
   // Display label for the current value
   const activeModel = models.find(m => m.id === value)
-  const displayLabel = activeModel
-    ? formatModelShort(activeModel.id)
-    : formatModelShort(value)
+  const displayLabel = activeModel ? activeModel.id : value
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       {/* Trigger / Search input */}
       <div
         className={cn(
-          'flex items-center h-7 min-w-[90px] max-w-[160px] border rounded px-2 text-[11px] cursor-pointer bg-background hover:bg-accent/50 transition-colors',
+          'flex items-center h-7 min-w-[90px] max-w-[260px] border rounded px-2 text-[11px] cursor-pointer bg-background hover:bg-accent/50 transition-colors',
           open && 'ring-1 ring-ring',
         )}
         onClick={() => {
@@ -191,7 +189,7 @@ function getFilteredModels(
 }
 
 /** Shorten model ID for display: 'anthropic/claude-3.5-sonnet' → 'claude-3.5-sonnet' */
-function formatModelShort(id: string): string {
+export function formatModelShort(id: string): string {
   const parts = id.split('/')
   return parts.length > 1 ? parts.slice(1).join('/') : id
 }
