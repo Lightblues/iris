@@ -3,7 +3,7 @@ import type { ChatPlatformAdapter, FetchedConversation } from './types'
 // DeepSeek has no official export API; these are its internal web endpoints,
 // verified against a live session:
 //   GET /api/v0/chat/history_messages?chat_session_id=<id>  → one conversation
-//   GET /api/v0/chat_session/fetch_page?count=N[&before=<seq_id>] → session list
+//   GET /api/v0/chat_session/fetch_page?count=N[&before_seq_id=<seq_id>] → list
 // Auth is a Bearer token in localStorage (key `userToken`), not cookies.
 // The list response is { data: { biz_data: { chat_sessions[], has_more } } };
 // sessions are ordered by seq_id desc and carry no `total`.
@@ -87,8 +87,10 @@ export const deepseekAdapter: ChatPlatformAdapter = {
 
     // Page backwards from the smallest seq_id seen so far; `has_more` terminates.
     for (let page = 0; page < 500; page++) {
-      const qs = new URLSearchParams({ count: String(count) })
-      if (before !== undefined) qs.set('before', String(before))
+ const qs = new URLSearchParams({ count: String(count) })
+      // Verified param name: `before_seq_id` (strictly-less-than on seq_id).
+      // `before` / `offset` / `cursor` etc. are silently ignored by the server.
+  if (before !== undefined) qs.set('before_seq_id', String(before))
       const json = await apiGet(`/api/v0/chat_session/fetch_page?${qs}`)
 
       const bd = json?.data?.biz_data
