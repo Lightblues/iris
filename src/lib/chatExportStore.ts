@@ -1,5 +1,5 @@
 import type { ChatExportSaveMessage, ChatExportSaveResponse } from './types'
-import { getChatExportDirectoryHandle, verifyDirectoryPermission } from './fileSystemAccess'
+import { getChatExportDirectoryHandle, queryDirectoryPermission } from './fileSystemAccess'
 import {
   ensureSubdirectory,
   writeFile,
@@ -19,9 +19,15 @@ export async function saveChatExport(
     return { success: false, error: 'Chat export directory not configured (Settings → Chat Export)' }
   }
 
-  const hasPermission = await verifyDirectoryPermission(root)
-  if (!hasPermission) {
-    return { success: false, error: 'Permission denied for chat export directory' }
+  // A service worker has no user activation, so it can only *query*. After an
+  // extension reload Chrome downgrades the handle to 'prompt', which must be
+  // re-granted from the sidepanel (Settings → Chat Export → Reconnect).
+  const perm = await queryDirectoryPermission(root)
+  if (perm !== 'granted') {
+    return {
+      success: false,
+    error: `Export directory needs re-authorization (${root.name}/). Open Iris Settings → Chat Export → Reconnect.`,
+    }
   }
 
   try {

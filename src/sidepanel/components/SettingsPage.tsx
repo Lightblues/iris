@@ -20,6 +20,7 @@ import {
   getChatExportDirectoryHandle,
   requestChatExportDirectoryAccess,
   clearChatExportDirectoryHandle,
+  queryDirectoryPermission,
 } from '@/lib/fileSystemAccess'
 import { getCommandDisplayName } from '@/lib/slashCommands'
 import { syncToVesta, getSyncState, type VestaSyncState } from '@/lib/vestaSync'
@@ -54,6 +55,7 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   const [vestaSyncing, setVestaSyncing] = useState(false)
   const [vestaSyncResult, setVestaSyncResult] = useState<string | null>(null)
   const [chatExportDirName, setChatExportDirName] = useState<string | null>(null)
+  const [chatExportNeedsGrant, setChatExportNeedsGrant] = useState(false)
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -65,8 +67,11 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
     getVestaDirectoryHandle().then(handle => {
       if (handle) setVestaDirName(handle.name)
     })
-    getChatExportDirectoryHandle().then(handle => {
-      if (handle) setChatExportDirName(handle.name)
+    getChatExportDirectoryHandle().then(async handle => {
+      if (!handle) return
+      setChatExportDirName(handle.name)
+      // Chrome downgrades handles to 'prompt' after an extension reload.
+      setChatExportNeedsGrant((await queryDirectoryPermission(handle)) !== 'granted')
     })
     getSyncState().then(setVestaSyncState)
   }, [])
@@ -219,9 +224,25 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   const handleLinkChatExport = async () => {
     try {
       const handle = await requestChatExportDirectoryAccess()
-      if (handle) setChatExportDirName(handle.name)
+      if (handle) {
+   setChatExportDirName(handle.name)
+setChatExportNeedsGrant(false)
+      }
     } catch (err: any) {
  setError(err.message || 'Failed to link chat export directory')
+    }
+  }
+
+  // Re-grant permission on the SAVED handle — no need to re-pick the folder.
+  const handleReconnectChatExport = async () => {
+    const handle = await getChatExportDirectoryHandle()
+    if (!handle) return
+    try {
+      const ok = await verifyDirectoryPermission(handle)
+      setChatExportNeedsGrant(!ok)
+      if (!ok) setError('Permission was not granted for the export directory')
+    } catch (err: any) {
+    setError(err.message || 'Failed to reconnect export directory')
     }
   }
 
@@ -554,7 +575,19 @@ const handleUnlinkChatExport = async () => {
 )}
         </div>
 
+        {chatExportNeedsGrant && chatExportDirName && (
+     <div className="text-xs p-2 rounded text-amber-600 bg-amber-500/10">
+            Access expired after extension reload - click Reconnect to restore it.
+    </div>
+        )}
+
      <div className="flex gap-2">
+          {chatExportNeedsGrant && chatExportDirName && (
+            <Button variant="outline" size="sm" onClick={handleReconnectChatExport} className="h-7 text-xs flex-1" title="Re-grant access to the saved directory">
+    <RefreshCw className="h-3 w-3 mr-1" />
+    Reconnect
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleLinkChatExport} className="h-7 text-xs flex-1" title="Pick the directory to export online AI chats into">
         <FolderOpen className="h-3 w-3 mr-1" />
          {chatExportDirName ? 'Re-link' : 'Choose Directory'}

@@ -53,19 +53,26 @@ export const chatgptAdapter: ChatPlatformAdapter = {
 
   async listConversationIds(): Promise<string[]> {
     const ids: string[] = []
-    const limit = 28
+    const seen = new Set<string>()
+  const limit = 28
     let offset = 0
+    let total: number | undefined
     // Guard against runaway pagination.
     for (let page = 0; page < 400; page++) {
    const data = await apiGet(`/conversations?offset=${offset}&limit=${limit}&order=updated`)
       const items: any[] = data?.items || []
       if (items.length === 0) break
- for (const it of items) if (it?.id) ids.push(it.id)
+      if (typeof data?.total === 'number') total = data.total
+  const sizeBefore = seen.size
+      for (const it of items) {
+        if (it?.id && !seen.has(it.id)) { seen.add(it.id); ids.push(it.id) }
+      }
+      if (seen.size === sizeBefore) break // no new ids → stop
       offset += items.length
-      const total = typeof data?.total === 'number' ? data.total : undefined
-   if (total !== undefined && offset >= total) break
+      if (total !== undefined && ids.length >= total) break
       if (items.length < limit) break
     }
+    console.log(`[Iris] ChatGPT: ${ids.length} conversations${total !== undefined ? ` (server total: ${total})` : ''}`)
     return ids
   },
 }

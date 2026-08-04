@@ -1,30 +1,29 @@
 import type { ChatPlatformAdapter, FetchedConversation } from './types'
 
-// DeepSeek has no official export API; these are its internal web endpoints.
-// Verified working: /api/v0/chat/history_messages (single conversation).
-// /api/v0/chat_session/fetch_page returns 40002 "Missing Token" without auth,
-// confirming the path — it needs the same Bearer token as history_messages.
+// DeepSeek has no official export API; these are its internal web endpoints,
+// verified against a live session:
+//   GET /api/v0/chat/history_messages?chat_session_id=<id>  → one conversation
+//   GET /api/v0/chat_session/fetch_page?count=N[&before=<seq_id>] → session list
+// Auth is a Bearer token in localStorage (key `userToken`), not cookies.
+// The list response is { data: { biz_data: { chat_sessions[], has_more } } };
+// sessions are ordered by seq_id desc and carry no `total`.
 
 const CONV_RE = /\/a\/chat\/s\/([0-9a-f-]{36})/i
 const NO_TOKEN =
   'DeepSeek auth token not found — make sure you are logged in at chat.deepseek.com.'
 
-// Bearer token lives in localStorage; the key name has changed across versions,
-// so probe known keys first, then fall back to scanning for a token-shaped value.
+// Probe known keys first, then scan for a token-shaped value. Values may be a
+// JSON envelope or a bare string, so both forms are handled.
 function findToken(): string | null {
-  const candidates = ['userToken', 'DeepSeekToken', 'token']
-  for (const k of candidates) {
+  for (const k of ['userToken', 'DeepSeekToken', 'token']) {
     const t = extractToken(localStorage.getItem(k))
-    if (t) return t
+  if (t) return t
   }
-  // Fallback: scan all keys for an object holding a `token` field.
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (!key) continue
-    const raw = localStorage.getItem(key)
-    if (!raw || !raw.includes('token')) continue
-    const t = extractToken(raw)
- if (t) return t
+    const t = extractToken(localStorage.getItem(key))
+  if (t) return t
   }
   return null
 }
@@ -50,7 +49,7 @@ async function apiGet(path: string): Promise<any> {
   if (!res.ok) throw new Error(`DeepSeek API ${path} failed (${res.status})`)
   const json = await res.json()
   if (json?.code && json.code !== 0) {
-    throw new Error(`DeepSeek API ${path} error: ${json.msg || json.code}`)
+    throw new Error(`DeepSeek API error: ${json.msg || json.code}`)
   }
   return json
 }
@@ -69,12 +68,12 @@ export const deepseekAdapter: ChatPlatformAdapter = {
   },
 
   async fetchConversation(id: string): Promise<FetchedConversation> {
- const raw = await apiGet(
-      `/api/v0/chat/history_messages?chat_session_id=${encodeURIComponent(id)}`,
+    const raw = await apiGet(
+    `/api/v0/chat/history_messages?chat_session_id=${encodeURIComponent(id)}`,
     )
     const meta = raw?.data?.biz_data?.chat_session
     return {
-      title: meta?.title || raw?.data?.title || 'Untitled',
+      title: meta?.title || 'Untitled',
       createTime: typeof meta?.inserted_at === 'number' ? meta.inserted_at : undefined,
       raw,
     }
@@ -82,31 +81,41 @@ export const deepseekAdapter: ChatPlatformAdapter = {
 
   async listConversationIds(): Promise<string[]> {
     const ids: string[] = []
+    const seen = new Set<string>()
     const count = 100
     let before: number | undefined
 
-    // Cursor pagination: each page returns sessions ordered by updated_at desc;
-    // `before` is the oldest updated_at seen so far.
-for (let page = 0; page < 200; page++) {
+    // Page backwards from the smallest seq_id seen so far; `has_more` terminates.
+    for (let page = 0; page < 500; page++) {
       const qs = new URLSearchParams({ count: String(count) })
       if (before !== undefined) qs.set('before', String(before))
       const json = await apiGet(`/api/v0/chat_session/fetch_page?${qs}`)
 
-      const sessions: any[] =
-  json?.data?.biz_data?.chat_sessions || json?.data?.chat_sessions || []
+      const bd = json?.data?.biz_data
+      const sessions: any[] = bd?.chat_sessions || []
       if (sessions.length === 0) break
 
-   let oldest: number | undefined
+      const sizeBefore = seen.size
       for (const s of sessions) {
-    const id = s?.id || s?.chat_session_id
-     if (id && !ids.includes(id)) ids.push(id)
-      const ts = s?.updated_at ?? s?.inserted_at
-        if (typeof ts === 'number' && (oldest === undefined || ts < oldest)) oldest = ts
-}
+        const id = s?.id
+     if (id && !seen.has(id)) { seen.add(id); ids.push(id) }
+      }
 
-      if (sessions.length < count) break
-      if (oldest === undefined || oldest === before) break // no cursor progress
-      before = oldest
+      if (bd?.has_more === false) break
+
+      // Page yielded nothing new → the cursor param was ignored by the server.
+      // Stop instead of re-fetching page 1 forever.
+ if (seen.size === sizeBefore) {
+        console.warn(
+        `[Iris] DeepSeek pagination stalled at ${ids.length} conversations ` +
+          `(cursor "before" may be the wrong param name)`,
+        )
+ break
+      }
+
+      const next = sessions[sessions.length - 1]?.seq_id
+      if (typeof next !== 'number' || next === before) break
+   before = next
     }
 
     if (ids.length === 0) throw new Error('No DeepSeek conversations returned')

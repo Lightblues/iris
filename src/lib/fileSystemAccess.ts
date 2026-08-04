@@ -146,6 +146,20 @@ export async function requestDirectoryAccess(): Promise<FileSystemDirectoryHandl
   }
 }
 
+// Read-only permission check — safe to call from a service worker (never
+// prompts). requestPermission() needs user activation, which a SW never has,
+// so background code should query and report rather than try to request.
+export async function queryDirectoryPermission(
+  handle: FileSystemDirectoryHandle,
+): Promise<'granted' | 'prompt' | 'denied'> {
+  try {
+    // @ts-expect-error - queryPermission not in all TS defs
+  return await handle.queryPermission({ mode: 'readwrite' })
+  } catch {
+    return 'denied'
+}
+}
+
 // Verify we still have permission to access the directory
 export async function verifyDirectoryPermission(
   handle: FileSystemDirectoryHandle
