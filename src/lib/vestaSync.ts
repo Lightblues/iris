@@ -3,6 +3,14 @@ import type { Conversation } from '@/agent/types'
 import { getVestaDirectoryHandle, verifyDirectoryPermission } from './fileSystemAccess'
 import { getAllEntries } from './knowledge'
 import { loadAllConversations } from '@/agent/history'
+import {
+  ensureSubdirectory,
+  writeFile,
+  readFile,
+  parseIndexLines,
+  indexIdSet,
+  upsertIndexLine,
+} from './fsWrite'
 
 const SYNC_STATE_KEY = 'iris_vesta_sync_state'
 const EVENTS_KEY_PREFIX = 'iris_events_'
@@ -43,72 +51,6 @@ async function saveSyncState(state: VestaSyncState): Promise<void> {
 
 export async function getSyncState(): Promise<VestaSyncState> {
   return loadSyncState()
-}
-
-// --- Directory helpers ---
-
-async function ensureSubdirectory(
-  root: FileSystemDirectoryHandle,
-  ...path: string[]
-): Promise<FileSystemDirectoryHandle> {
-  let current = root
-  for (const segment of path) {
-    current = await current.getDirectoryHandle(segment, { create: true })
-  }
-  return current
-}
-
-async function writeFile(
-  dir: FileSystemDirectoryHandle,
-  name: string,
-  content: string,
-): Promise<void> {
-  const fileHandle = await dir.getFileHandle(name, { create: true })
-  // 
-  const writable = await fileHandle.createWritable()
-  await writable.write(content)
-  await writable.close()
-}
-
-async function readFile(
-  dir: FileSystemDirectoryHandle,
-  name: string,
-): Promise<string | null> {
-  try {
-    const fileHandle = await dir.getFileHandle(name)
-    const file = await fileHandle.getFile()
-    return await file.text()
-  } catch {
-    return null
-  }
-}
-
-// --- Index helpers ---
-
-function parseIndexLines(content: string | null): string[] {
-  if (!content) return []
-  return content.trim().split('\n').filter(Boolean)
-}
-
-function indexIdSet(lines: string[]): Set<string> {
-  const ids = new Set<string>()
-  for (const line of lines) {
-    try { ids.add(JSON.parse(line).id) } catch {}
-  }
-  return ids
-}
-
-// Upsert: replace existing line by id, or append
-function upsertIndexLine(lines: string[], id: string, newLine: string): string[] {
-  const idx = lines.findIndex(line => {
-    try { return JSON.parse(line).id === id } catch { return false }
-  })
-  if (idx >= 0) {
-    lines[idx] = newLine
-  } else {
-    lines.push(newLine)
-  }
-  return lines
 }
 
 // --- Flow 1: Tracing Events → JSONL ---

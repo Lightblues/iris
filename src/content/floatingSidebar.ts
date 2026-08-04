@@ -14,6 +14,21 @@ let fabHideButton: HTMLButtonElement | null = null
 let fabMenu: HTMLDivElement | null = null
 let currentEnhancements: EnhancementResult[] = []
 
+// Custom click-actions (e.g. chat export) injected by feature code.
+export interface FabCustomAction {
+  label: string
+  icon: string
+  onClick: () => void
+  disabled?: boolean
+}
+let customActions: FabCustomAction[] = []
+
+/** Register custom FAB menu actions (replaces any previously set). */
+export function setFabCustomActions(actions: FabCustomAction[]): void {
+  customActions = actions
+  if (fabMenu) rebuildMenu()
+}
+
 // Iris logo SVG icon
 const irisIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="3"></circle>
@@ -119,6 +134,26 @@ function rebuildMenu(): void {
     openSidePanel()
   })
   fabMenu.appendChild(chatAction)
+
+  // Custom feature actions (e.g. chat export)
+  if (customActions.length > 0) {
+    const divider = document.createElement('div')
+    divider.className = 'iris-fab-menu-divider'
+    fabMenu.appendChild(divider)
+
+    for (const action of customActions) {
+      const btn = document.createElement('button')
+      btn.className = 'iris-fab-menu-item'
+      btn.disabled = !!action.disabled
+      if (action.disabled) btn.style.opacity = '0.5'
+      btn.innerHTML = `<span class="iris-fab-menu-icon">${action.icon}</span><span>${action.label}</span>`
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (!action.disabled) action.onClick()
+})
+      fabMenu.appendChild(btn)
+    }
+  }
 
   // Per-URL enhancement actions
   if (currentEnhancements.length > 0) {

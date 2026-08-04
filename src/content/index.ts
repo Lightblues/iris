@@ -6,7 +6,9 @@ import { enhancementRegistry } from './enhancements'
 import { createArxivEnhancement } from './enhancements/arxiv'
 import { createGitHubEnhancement } from './enhancements/github'
 import { showCommandMenu } from './commandMenu'
-import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements } from './floatingSidebar'
+import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements, setFabCustomActions } from './floatingSidebar'
+import { getAdapterForUrl } from './chatExport'
+import { exportCurrent, exportAll } from './chatExport/runExport'
 import { saveHighlight, restoreHighlights, initSelectionPopup } from './highlights'
 import { extractAndConvertPage, convertSelectionToMarkdown, copyToClipboard } from '../lib/markdown'
 import type { MarkdownConvertMessage } from '../lib/types'
@@ -107,6 +109,31 @@ async function init() {
 
   // Restore saved highlights for this page
   restoreHighlights(url).catch(() => {})
+
+  // Register chat-export FAB actions on supported AI platforms
+  updateChatExportActions(url)
+}
+
+function updateChatExportActions(url: string): void {
+  const adapter = getAdapterForUrl(url)
+  if (!adapter) {
+ setFabCustomActions([])
+  return
+  }
+  const hasConversation = adapter.currentConversationId(url) != null
+  setFabCustomActions([
+    {
+    label: `Export current (${adapter.label})`,
+      icon: '⬇',
+      disabled: !hasConversation,
+      onClick: () => { exportCurrent(adapter).catch(err => console.warn('[Iris] export current failed:', err)) },
+},
+    {
+      label: `Export all (${adapter.label})`,
+      icon: '📦',
+      onClick: () => { exportAll(adapter).catch(err => console.warn('[Iris] export all failed:', err)) },
+    },
+  ])
 }
 
 // Run when DOM is ready

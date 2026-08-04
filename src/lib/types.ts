@@ -295,6 +295,25 @@ export interface TabAgentResponse {
   error?: string;
 }
 
+// Chat Export types
+export type ChatExportPlatform = 'chatgpt' | 'deepseek';
+
+// Sent from content script → background to persist one raw conversation to disk
+export interface ChatExportSaveMessage {
+  type: 'chat_export_save';
+  platform: ChatExportPlatform;
+  id: string;              // conversation id
+  title: string;
+  createTime?: number;     // unix seconds, platform-provided when available
+  raw: any;    // raw platform API JSON, stored verbatim
+}
+
+export interface ChatExportSaveResponse {
+  success: boolean;
+  filename?: string;
+  error?: string;
+}
+
 // Automation Agent types
 export interface AutomationMessage {
   type: 'automation_action';

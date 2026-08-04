@@ -7,7 +7,8 @@ import { cleanupExpired } from '../lib/tabTrash';
 import { recordEvent, detectSearchQuery, cleanupOldEvents } from '../lib/tracing';
 import { loadSettings } from '../lib/sidepanelSettings';
 import { syncToVesta } from '../lib/vestaSync';
-import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse } from '../lib/types';
+import { saveChatExport } from '../lib/chatExportStore';
+import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse, ChatExportSaveMessage } from '../lib/types';
 
 console.log('[Iris] Background script loaded');
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
@@ -313,6 +314,16 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
       .catch((error) => {
         sendResponse({ success: false, message: error.message || 'Unknown error' });
       });
+    return true;
+  }
+
+  // Persist a raw chat conversation exported by a content script to disk.
+  if (message.type === 'chat_export_save') {
+    saveChatExport(message as ChatExportSaveMessage)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({ success: false, error: error?.message || 'Unknown error' });
+});
     return true;
   }
 

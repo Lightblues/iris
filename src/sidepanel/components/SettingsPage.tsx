@@ -17,6 +17,9 @@ import {
   getVestaDirectoryHandle,
   requestVestaDirectoryAccess,
   clearVestaDirectoryHandle,
+  getChatExportDirectoryHandle,
+  requestChatExportDirectoryAccess,
+  clearChatExportDirectoryHandle,
 } from '@/lib/fileSystemAccess'
 import { getCommandDisplayName } from '@/lib/slashCommands'
 import { syncToVesta, getSyncState, type VestaSyncState } from '@/lib/vestaSync'
@@ -50,6 +53,7 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   const [vestaSyncState, setVestaSyncState] = useState<VestaSyncState | null>(null)
   const [vestaSyncing, setVestaSyncing] = useState(false)
   const [vestaSyncResult, setVestaSyncResult] = useState<string | null>(null)
+  const [chatExportDirName, setChatExportDirName] = useState<string | null>(null)
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -60,6 +64,9 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
     })
     getVestaDirectoryHandle().then(handle => {
       if (handle) setVestaDirName(handle.name)
+    })
+    getChatExportDirectoryHandle().then(handle => {
+      if (handle) setChatExportDirName(handle.name)
     })
     getSyncState().then(setVestaSyncState)
   }, [])
@@ -204,8 +211,23 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   }
 
   const handleUnlinkVesta = async () => {
-    await clearVestaDirectoryHandle()
+  await clearVestaDirectoryHandle()
     setVestaDirName(null)
+  }
+
+  // --- Chat export handlers ---
+  const handleLinkChatExport = async () => {
+    try {
+      const handle = await requestChatExportDirectoryAccess()
+      if (handle) setChatExportDirName(handle.name)
+    } catch (err: any) {
+ setError(err.message || 'Failed to link chat export directory')
+    }
+  }
+
+const handleUnlinkChatExport = async () => {
+ await clearChatExportDirectoryHandle()
+    setChatExportDirName(null)
   }
 
   const handleVestaSync = async () => {
@@ -509,8 +531,39 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
           </Button>
         </div>
 
-        <p className="text-[10px] text-muted-foreground">
+         <p className="text-[10px] text-muted-foreground">
           One-way sync: tracing events, knowledge entries, and conversations → Vesta. Auto-syncs daily.
+        </p>
+      </section>
+
+      {/* ===== Chat Export ===== */}
+      <section className="space-y-3">
+        <SectionHeader title="Chat Export" />
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Directory:</span>
+ {chatExportDirName ? (
+            <>
+   <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">{chatExportDirName}/</span>
+            <Button variant="ghost" size="sm" onClick={handleUnlinkChatExport} className="h-5 px-1 text-destructive" title="Unlink chat export directory">
+           <Unlink className="h-3 w-3" />
+            </Button>
+        </>
+          ) : (
+       <span className="text-muted-foreground italic">None</span>
+)}
+        </div>
+
+     <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleLinkChatExport} className="h-7 text-xs flex-1" title="Pick the directory to export online AI chats into">
+        <FolderOpen className="h-3 w-3 mr-1" />
+         {chatExportDirName ? 'Re-link' : 'Choose Directory'}
+          </Button>
+        </div>
+
+        <p className="text-[10px] text-muted-foreground">
+       Export ChatGPT / DeepSeek conversations as raw JSON via the on-page FAB (⬇ / 📦).
+      Pick your <span className="font-mono">chat-exports/</span> folder here first. Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
         </p>
       </section>
 

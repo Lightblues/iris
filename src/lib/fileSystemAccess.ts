@@ -5,6 +5,7 @@ const DB_NAME = 'iris_fs_handles'
 const STORE_NAME = 'handles'
 const COMMANDS_DIR_KEY = 'commands_directory'
 const VESTA_DIR_KEY = 'vesta_directory'
+const CHAT_EXPORT_DIR_KEY = 'chat_export_directory'
 
 // IndexedDB helpers for storing FileSystemDirectoryHandle
 function openDB(): Promise<IDBDatabase> {
@@ -90,6 +91,35 @@ export async function requestVestaDirectoryAccess(): Promise<FileSystemDirectory
       startIn: 'documents',
     })
     await saveVestaDirectoryHandle(handle)
+    return handle
+  } catch (err: any) {
+    if (err?.name === 'AbortError') return null
+    throw err
+  }
+}
+
+// --- Chat export directory handle ---
+export async function saveChatExportDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  return saveHandle(CHAT_EXPORT_DIR_KEY, handle)
+}
+
+export async function getChatExportDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+  return getHandle(CHAT_EXPORT_DIR_KEY)
+}
+
+export async function clearChatExportDirectoryHandle(): Promise<void> {
+  return clearHandle(CHAT_EXPORT_DIR_KEY)
+}
+
+export async function requestChatExportDirectoryAccess(): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    // @ts-expect-error - showDirectoryPicker is not in all TS definitions
+    const handle = await window.showDirectoryPicker({
+      id: 'iris-chat-export',
+      mode: 'readwrite',
+      startIn: 'documents',
+    })
+    await saveChatExportDirectoryHandle(handle)
     return handle
   } catch (err: any) {
     if (err?.name === 'AbortError') return null
