@@ -3,5 +3,8 @@ category: app
 origin: original
 scope: personal
 status: active
+priority: p1
+thread: app
+depends_on: []
 stack: [typescript, react, chrome-extension]
 description: Personal AIO Chrome extension — AI agent, knowledge capture, page enhancements
