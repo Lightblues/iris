@@ -7,7 +7,7 @@ import { cleanupExpired } from '../lib/tabTrash';
 import { recordEvent, detectSearchQuery, cleanupOldEvents } from '../lib/tracing';
 import { loadSettings } from '../lib/sidepanelSettings';
 import { syncToVesta } from '../lib/vestaSync';
-import { saveChatExport } from '../lib/chatExportStore';
+import { saveChatExport, readChatExportIndex, checkChatExportReady } from '../lib/chatExportStore';
 import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse, ChatExportSaveMessage } from '../lib/types';
 
 console.log('[Iris] Background script loaded');
@@ -313,6 +313,26 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
       .then(sendResponse)
       .catch((error) => {
         sendResponse({ success: false, message: error.message || 'Unknown error' });
+      });
+    return true;
+  }
+
+  // Preflight so long exports fail fast rather than at the last item.
+  if (message.type === 'chat_export_check') {
+    checkChatExportReady()
+      .then(sendResponse)
+      .catch((error) => {
+   sendResponse({ ready: false, error: error?.message || 'Unknown error' });
+      });
+return true;
+  }
+
+  // Report what's already exported, so export-all can skip unchanged chats.
+  if (message.type === 'chat_export_index') {
+    readChatExportIndex(message.platform)
+      .then((entries) => sendResponse({ success: true, entries }))
+ .catch((error) => {
+        sendResponse({ success: false, error: error?.message || 'Unknown error' });
       });
     return true;
   }

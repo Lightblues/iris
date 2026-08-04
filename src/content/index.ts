@@ -129,9 +129,14 @@ function updateChatExportActions(url: string): void {
       onClick: () => { exportCurrent(adapter).catch(err => console.warn('[Iris] export current failed:', err)) },
 },
     {
-      label: `Export all (${adapter.label})`,
+      label: `Export new/updated (${adapter.label})`,
       icon: '📦',
       onClick: () => { exportAll(adapter).catch(err => console.warn('[Iris] export all failed:', err)) },
+    },
+    {
+      label: 'Force re-export all',
+      icon: '🔄',
+      onClick: () => { exportAll(adapter, { force: true }).catch(err => console.warn('[Iris] force export failed:', err)) },
     },
   ])
 }

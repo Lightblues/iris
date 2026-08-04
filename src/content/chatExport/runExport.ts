@@ -1,5 +1,10 @@
-import type { ChatExportSaveMessage, ChatExportSaveResponse } from '@/lib/types'
-import type { ChatPlatformAdapter } from './types'
+import type {
+  ChatExportSaveMessage,
+  ChatExportSaveResponse,
+  ChatExportIndexResponse,
+  ChatExportCheckResponse,
+} from '@/lib/types'
+import type { ChatPlatformAdapter, ChatSessionSummary } from './types'
 
 // --- Minimal in-page toast (inline styles, no CSS dependency) ---
 
@@ -14,11 +19,11 @@ function showToast(text: string, kind: 'info' | 'success' | 'error' = 'info'): v
       zIndex: '2147483647', padding: '10px 16px', borderRadius: '8px',
       font: '13px/1.4 -apple-system, system-ui, sans-serif', color: '#fff',
       boxShadow: '0 4px 16px rgba(0,0,0,.25)', maxWidth: '80vw', pointerEvents: 'none',
-  } as CSSStyleDeclaration)
+    } as CSSStyleDeclaration)
     document.body.appendChild(toastEl)
   }
-  const bg = kind === 'error' ? '#dc2626' : kind === 'success' ? '#16a34a' : '#334155'
-  toastEl.style.background = bg
+  toastEl.style.background =
+    kind === 'error' ? '#dc2626' : kind === 'success' ? '#16a34a' : '#334155'
   toastEl.textContent = text
   toastEl.style.opacity = '1'
 }
@@ -29,63 +34,172 @@ function hideToastLater(delay = 3000): void {
   setTimeout(() => { el.style.opacity = '0' }, delay)
 }
 
+// --- Export ---
+
 async function saveOne(msg: ChatExportSaveMessage): Promise<ChatExportSaveResponse> {
   return chrome.runtime.sendMessage(msg) as Promise<ChatExportSaveResponse>
 }
 
-async function exportIds(adapter: ChatPlatformAdapter, ids: string[]): Promise<void> {
-  let done = 0
-  let failed = 0
-  for (const id of ids) {
-    try {
-      const conv = await adapter.fetchConversation(id)
-      const res = await saveOne({
-        type: 'chat_export_save',
-      platform: adapter.id,
-        id,
-        title: conv.title,
-        createTime: conv.createTime,
+/** Thrown when the export directory is unusable — abort the whole run. */
+class ExportBlocked extends Error {}
+
+/**
+ * Verify the export directory is linked AND still authorized before doing any
+ * network work. Chrome downgrades directory handles to 'prompt' whenever the
+ * extension reloads, so this is a routine state, not an edge case.
+ */
+async function preflight(): Promise<void> {
+  const res = (await chrome.runtime.sendMessage({
+    type: 'chat_export_check',
+  })) as ChatExportCheckResponse
+
+  if (res?.ready) return
+  if (res?.reason === 'not-configured') {
+    throw new ExportBlocked('No export directory set — Iris Settings → Chat Export → Choose Directory')
+  }
+  throw new ExportBlocked(
+    `Export directory needs re-authorization (${res?.dirName || 'chat-exports'}/) — ` +
+    'Iris Settings → Chat Export → Reconnect',
+  )
+}
+
+async function fetchAndSave(
+  adapter: ChatPlatformAdapter,
+  id: string,
+  fallbackUpdatedAt?: number,
+): Promise<boolean> {
+  const conv = await adapter.fetchConversation(id)
+  const res = await saveOne({
+    type: 'chat_export_save',
+    platform: adapter.id,
+    id,
+    title: conv.title,
+createTime: conv.createTime,
+    // Prefer the detail payload's timestamp; fall back to the list's.
+    updatedAt: conv.updatedAt ?? fallbackUpdatedAt,
   raw: conv.raw,
   })
-   if (res?.success) done++
-      else { failed++; console.warn('[Iris] export save failed:', res?.error) }
-    } catch (err: any) {
-    failed++
-      console.warn('[Iris] export fetch failed:', err?.message || err)
+  if (!res?.success) {
+    const msg = res?.error || 'save failed'
+    // A directory-level failure will hit every remaining item — stop now.
+    if (/re-authorization|not configured|Permission/i.test(msg)) {
+      throw new ExportBlocked(msg)
     }
- if (ids.length > 1) showToast(`Exporting ${adapter.label}… ${done + failed}/${ids.length}`, 'info')
+    throw new Error(msg)
   }
-  if (failed === 0) {
-    showToast(`Exported ${done} ${adapter.label} conversation${done === 1 ? '' : 's'}`, 'success')
-  } else {
-    showToast(`Exported ${done}, ${failed} failed — see console`, failed && !done ? 'error' : 'info')
-  }
-  hideToastLater()
+  return true
 }
 
 export async function exportCurrent(adapter: ChatPlatformAdapter): Promise<void> {
   const id = adapter.currentConversationId(window.location.href)
   if (!id) {
-    showToast('Open a conversation first', 'error')
+ showToast('Open a conversation first', 'error')
     hideToastLater()
     return
   }
   showToast(`Exporting current ${adapter.label} conversation…`, 'info')
-  await exportIds(adapter, [id])
+  try {
+    await preflight()
+    await fetchAndSave(adapter, id)
+    showToast('Exported 1 conversation', 'success')
+  } catch (err: any) {
+    showToast(err?.message || 'Export failed', 'error')
+    hideToastLater(6000)
+    return
+  }
+  hideToastLater()
 }
 
-export async function exportAll(adapter: ChatPlatformAdapter): Promise<void> {
-  showToast(`Listing ${adapter.label} conversations…`, 'info')
+/**
+ * Export every conversation, skipping ones already on disk whose `updated_at`
+ * hasn't advanced since the last export. Listing is cheap (100/page); the
+ * per-conversation detail fetch is what we avoid.
+ */
+export async function exportAll(
+  adapter: ChatPlatformAdapter,
+  opts: { force?: boolean } = {},
+): Promise<void> {
+  // Fail fast: check the directory before any network work.
   try {
-    const ids = await adapter.listConversationIds()
-    if (ids.length === 0) {
-      showToast('No conversations found', 'error')
-      hideToastLater()
-      return
-    }
-    await exportIds(adapter, ids)
+    await preflight()
+  } catch (err: any) {
+    showToast(err?.message || 'Export directory unavailable', 'error')
+    hideToastLater(8000)
+    return
+  }
+
+  showToast(`Listing ${adapter.label} conversations…`, 'info')
+
+  let sessions: ChatSessionSummary[]
+  try {
+    sessions = await adapter.listConversations()
   } catch (err: any) {
     showToast(err?.message || 'Failed to list conversations', 'error')
-    hideToastLater(5000)
+    hideToastLater(6000)
+    return
   }
+  if (sessions.length === 0) {
+    showToast('No conversations found', 'error')
+    hideToastLater()
+    return
+  }
+
+  // Build the "already exported" map from the on-disk index.
+  const known = new Map<string, number | null>()
+  if (!opts.force) {
+    const res = (await chrome.runtime.sendMessage({
+      type: 'chat_export_index',
+      platform: adapter.id,
+    })) as ChatExportIndexResponse
+    for (const e of res?.entries || []) known.set(e.id, e.updatedAt ?? null)
+  }
+
+  const todo = sessions.filter(s => {
+    if (!known.has(s.id)) return true       // never exported
+    const prev = known.get(s.id)
+    if (prev == null) return true  // exported before we tracked time
+    if (s.updatedAt == null) return false     // no signal → assume unchanged
+    return s.updatedAt > prev            // changed since last export
+  })
+
+  const skipped = sessions.length - todo.length
+  if (todo.length === 0) {
+    showToast(`Up to date — ${skipped} conversation${skipped === 1 ? '' : 's'} unchanged`, 'success')
+    hideToastLater()
+    return
+  }
+
+  let done = 0
+  let failed = 0
+  for (const s of todo) {
+    try {
+      await fetchAndSave(adapter, s.id, s.updatedAt)
+      done++
+    } catch (err: any) {
+      // Directory-level problem: every remaining item would fail the same way.
+      if (err instanceof ExportBlocked) {
+        showToast(
+    `Stopped after ${done} exported — ${err.message}`,
+    done ? 'info' : 'error',
+        )
+   hideToastLater(8000)
+        return
+      }
+      failed++
+      console.warn('[Iris] export failed for', s.id, err?.message || err)
+    }
+    showToast(
+      `Exporting ${adapter.label}… ${done + failed}/${todo.length}` +
+      (skipped ? ` (${skipped} unchanged)` : ''),
+      'info',
+    )
+  }
+
+  const tail = skipped ? `, ${skipped} unchanged` : ''
+  if (failed === 0) {
+    showToast(`Exported ${done} conversation${done === 1 ? '' : 's'}${tail}`, 'success')
+  } else {
+    showToast(`Exported ${done}, ${failed} failed${tail} — see console`, done ? 'info' : 'error')
+  }
+  hideToastLater(failed ? 6000 : 3000)
 }

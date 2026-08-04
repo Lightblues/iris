@@ -1,4 +1,10 @@
-import type { ChatExportSaveMessage, ChatExportSaveResponse } from './types'
+import type {
+  ChatExportSaveMessage,
+  ChatExportSaveResponse,
+  ChatExportPlatform,
+  ChatExportIndexEntry,
+  ChatExportCheckResponse,
+} from './types'
 import { getChatExportDirectoryHandle, queryDirectoryPermission } from './fileSystemAccess'
 import {
   ensureSubdirectory,
@@ -43,7 +49,8 @@ export async function saveChatExport(
       id: msg.id,
       platform: msg.platform,
       title: msg.title,
-      createTime: msg.createTime ?? null,
+          createTime: msg.createTime ?? null,
+      updatedAt: msg.updatedAt ?? null,
       exportedAt: new Date().toISOString(),
       filename,
     })
@@ -54,4 +61,39 @@ export async function saveChatExport(
   } catch (err: any) {
   return { success: false, error: err?.message || 'Failed to write chat export' }
   }
+}
+
+// Read the on-disk index so export-all can skip unchanged conversations.
+export async function readChatExportIndex(
+  platform: ChatExportPlatform,
+): Promise<ChatExportIndexEntry[]> {
+  const root = await getChatExportDirectoryHandle()
+  if (!root) return []
+  if ((await queryDirectoryPermission(root)) !== 'granted') return []
+
+  try {
+    const dir = await ensureSubdirectory(root, platform)
+    const lines = parseIndexLines(await readFile(dir, 'index.jsonl'))
+    const out: ChatExportIndexEntry[] = []
+    for (const line of lines) {
+      try {
+      const o = JSON.parse(line)
+        if (o?.id) out.push({ id: o.id, updatedAt: o.updatedAt ?? null, exportedAt: o.exportedAt })
+      } catch {}
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+// Preflight check so a long export fails fast instead of at the last item.
+export async function checkChatExportReady(): Promise<ChatExportCheckResponse> {
+  const root = await getChatExportDirectoryHandle()
+  if (!root) return { ready: false, reason: 'not-configured' }
+  const perm = await queryDirectoryPermission(root)
+  if (perm !== 'granted') {
+    return { ready: false, reason: 'needs-grant', dirName: root.name }
+  }
+  return { ready: true, dirName: root.name }
 }

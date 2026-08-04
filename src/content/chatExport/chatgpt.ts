@@ -1,4 +1,4 @@
-import type { ChatPlatformAdapter, FetchedConversation } from './types'
+import type { ChatPlatformAdapter, FetchedConversation, ChatSessionSummary } from './types'
 
 const CONV_RE = /\/c\/([0-9a-f-]{36})/i
 
@@ -29,6 +29,15 @@ async function apiGet(path: string): Promise<any> {
   return res.json()
 }
 
+function parseTime(v: any): number | undefined {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') {
+    const ms = Date.parse(v)
+    if (!Number.isNaN(ms)) return ms / 1000
+  }
+  return undefined
+}
+
 export const chatgptAdapter: ChatPlatformAdapter = {
   id: 'chatgpt',
   label: 'ChatGPT',
@@ -46,33 +55,45 @@ export const chatgptAdapter: ChatPlatformAdapter = {
     const raw = await apiGet(`/conversation/${id}`)
     return {
       title: raw?.title || 'Untitled',
-      createTime: typeof raw?.create_time === 'number' ? raw.create_time : undefined,
+ createTime: typeof raw?.create_time === 'number' ? raw.create_time : undefined,
+    updatedAt: typeof raw?.update_time === 'number' ? raw.update_time : undefined,
       raw,
     }
   },
 
-  async listConversationIds(): Promise<string[]> {
-    const ids: string[] = []
+  async listConversations(): Promise<ChatSessionSummary[]> {
+    const out: ChatSessionSummary[] = []
     const seen = new Set<string>()
-  const limit = 28
+    const limit = 28
     let offset = 0
-    let total: number | undefined
-    // Guard against runaway pagination.
+ let total: number | undefined
+
     for (let page = 0; page < 400; page++) {
-   const data = await apiGet(`/conversations?offset=${offset}&limit=${limit}&order=updated`)
+      const data = await apiGet(`/conversations?offset=${offset}&limit=${limit}&order=updated`)
       const items: any[] = data?.items || []
-      if (items.length === 0) break
-      if (typeof data?.total === 'number') total = data.total
-  const sizeBefore = seen.size
-      for (const it of items) {
-        if (it?.id && !seen.has(it.id)) { seen.add(it.id); ids.push(it.id) }
+  if (items.length === 0) break
+  if (typeof data?.total === 'number') total = data.total
+
+      const sizeBefore = seen.size
+ for (const it of items) {
+     const id = it?.id
+        if (!id || seen.has(id)) continue
+      seen.add(id)
+        out.push({
+       id,
+          title: it?.title || undefined,
+// ChatGPT returns ISO strings here, not epoch seconds.
+  updatedAt: parseTime(it?.update_time),
+        })
       }
-      if (seen.size === sizeBefore) break // no new ids → stop
-      offset += items.length
-      if (total !== undefined && ids.length >= total) break
+      if (seen.size === sizeBefore) break
+
+    offset += items.length
+      if (total !== undefined && out.length >= total) break
       if (items.length < limit) break
     }
-    console.log(`[Iris] ChatGPT: ${ids.length} conversations${total !== undefined ? ` (server total: ${total})` : ''}`)
-    return ids
+
+    console.log(`[Iris] ChatGPT: ${out.length} conversations${total !== undefined ? ` (server total: ${total})` : ''}`)
+    return out
   },
 }

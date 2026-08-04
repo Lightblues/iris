@@ -1,4 +1,4 @@
-import type { ChatPlatformAdapter, FetchedConversation } from './types'
+import type { ChatPlatformAdapter, FetchedConversation, ChatSessionSummary } from './types'
 
 // DeepSeek has no official export API; these are its internal web endpoints,
 // verified against a live session:
@@ -75,22 +75,23 @@ export const deepseekAdapter: ChatPlatformAdapter = {
     return {
       title: meta?.title || 'Untitled',
       createTime: typeof meta?.inserted_at === 'number' ? meta.inserted_at : undefined,
+      updatedAt: typeof meta?.updated_at === 'number' ? meta.updated_at : undefined,
       raw,
     }
   },
 
-  async listConversationIds(): Promise<string[]> {
-    const ids: string[] = []
+  async listConversations(): Promise<ChatSessionSummary[]> {
+    const out: ChatSessionSummary[] = []
     const seen = new Set<string>()
     const count = 100
     let before: number | undefined
 
     // Page backwards from the smallest seq_id seen so far; `has_more` terminates.
     for (let page = 0; page < 500; page++) {
- const qs = new URLSearchParams({ count: String(count) })
-      // Verified param name: `before_seq_id` (strictly-less-than on seq_id).
+      const qs = new URLSearchParams({ count: String(count) })
+    // Verified param name: `before_seq_id` (strictly-less-than on seq_id).
       // `before` / `offset` / `cursor` etc. are silently ignored by the server.
-  if (before !== undefined) qs.set('before_seq_id', String(before))
+      if (before !== undefined) qs.set('before_seq_id', String(before))
       const json = await apiGet(`/api/v0/chat_session/fetch_page?${qs}`)
 
       const bd = json?.data?.biz_data
@@ -100,27 +101,29 @@ export const deepseekAdapter: ChatPlatformAdapter = {
       const sizeBefore = seen.size
       for (const s of sessions) {
         const id = s?.id
-     if (id && !seen.has(id)) { seen.add(id); ids.push(id) }
+        if (!id || seen.has(id)) continue
+        seen.add(id)
+        out.push({
+          id,
+ title: s?.title || undefined,
+          updatedAt: typeof s?.updated_at === 'number' ? s.updated_at : undefined,
+        })
       }
 
       if (bd?.has_more === false) break
 
-      // Page yielded nothing new → the cursor param was ignored by the server.
-      // Stop instead of re-fetching page 1 forever.
- if (seen.size === sizeBefore) {
-        console.warn(
-        `[Iris] DeepSeek pagination stalled at ${ids.length} conversations ` +
-          `(cursor "before" may be the wrong param name)`,
-        )
- break
-      }
+      // Page yielded nothing new -> cursor was ignored. Stop rather than loop.
+      if (seen.size === sizeBefore) {
+        console.warn(`[Iris] DeepSeek pagination stalled at ${out.length} conversations`)
+      break
+   }
 
       const next = sessions[sessions.length - 1]?.seq_id
       if (typeof next !== 'number' || next === before) break
-   before = next
+      before = next
     }
 
-    if (ids.length === 0) throw new Error('No DeepSeek conversations returned')
-    return ids
+    if (out.length === 0) throw new Error('No DeepSeek conversations returned')
+    return out
   },
 }
