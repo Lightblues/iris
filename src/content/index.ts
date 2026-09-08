@@ -5,6 +5,7 @@ import './floatingSidebar.css'
 import { enhancementRegistry } from './enhancements'
 import { createArxivEnhancement } from './enhancements/arxiv'
 import { createGitHubEnhancement } from './enhancements/github'
+import { initZhihu } from './zhihu'
 import { showCommandMenu } from './commandMenu'
 import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements, setFabCustomActions } from './floatingSidebar'
 import { getAdapterForUrl } from './chatExport'
@@ -90,6 +91,8 @@ let isInitialized = false
 async function init() {
   const url = window.location.href
   console.log('[Iris] Content script initialized on', url)
+
+  initZhihu()
 
   // Get enhancement actions for current URL
   const enhancements = enhancementRegistry.getActionsForUrl(url)

@@ -27,6 +27,17 @@ URL-based cross-navigation actions, displayed via the FAB enhancement menu.
 
 Architecture: `EnhancementRegistry` matches current URL → returns available actions. Handlers defined in `content/enhancements/` (arxiv.ts, github.ts).
 
+## Site Patches
+
+Automatic page fixes for specific sites (not FAB actions).
+
+| Site | Behavior |
+|------|----------|
+| Zhihu | Strip notification prefixes from the tab title (`（99+ 封私信/80 条消息）…`) |
+| Zhihu | Unwrap `link.zhihu.com/?target=` so external links open directly |
+
+Key files: `lib/zhihu.ts`, `content/zhihu.ts`, `content/zhihuRedirect.ts`
+
 ## Command Menu (`Cmd+Shift+P`)
 
 Keyboard-navigable command palette with search filtering, injected as a content script overlay.
