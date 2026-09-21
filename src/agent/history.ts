@@ -9,7 +9,7 @@ function generateId(): string {
 }
 
 function generateTitle(messages: IrisMessage[]): string {
-  const first = messages.find(m => m.role === 'user')
+  const first = messages.find(m => m.role === 'user' && !m.metadata?.contextType)
   if (!first) return 'New Chat'
   const text = first.parts
     .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
@@ -52,13 +52,13 @@ export async function setActiveConversation(id: string | null): Promise<void> {
   await saveStore(store)
 }
 
-export async function createConversation(agentMode: AgentMode): Promise<Conversation> {
+export async function createConversation(agentMode: AgentMode, messages: IrisMessage[] = []): Promise<Conversation> {
   const store = await loadStore()
   const now = Date.now()
   const conv: Conversation = {
     id: generateId(),
-    title: 'New Chat',
-    messages: [],
+    title: generateTitle(messages),
+    messages: messages.slice(-MAX_MESSAGES),
     agentMode,
     createdAt: now,
     lastUpdated: now,

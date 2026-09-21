@@ -157,10 +157,10 @@ export function useAgentChat(
       } catch { /* ignore */ }
     }
 
-    // Lazy conversation creation
+    // Lazy conversation creation — snapshot already-injected page context
     let conv = conversationRef.current
     if (!conv) {
-      conv = await createConversation(agentMode)
+      conv = await createConversation(agentMode, chat.messages as IrisMessage[])
       conversationRef.current = conv
       onConversationCreated(conv)
     }
@@ -199,13 +199,11 @@ export function useAgentChat(
         if (!silent) onError('Could not extract page content')
         return false
       }
-      const sameUrl = chat.messages.find(
-        (m: IrisMessage) =>
-          m.metadata?.contextType === 'page'
-          && m.metadata?.tabId === targetTabId
-          && m.metadata?.pageUrl === tab.url,
-      )
-      if (sameUrl) {
+      if (
+        chat.messages.some(
+          (m: IrisMessage) => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab.url,
+        )
+      ) {
         if (!silent) onError('Page content already loaded')
         return true
       }
@@ -232,10 +230,8 @@ export function useAgentChat(
         parts: [{ type: 'text', text: `[Page content from "${tab.title || 'a page'}"]\n\n${context}` }],
       }
       chat.setMessages((prev: IrisMessage[]) => {
-        const without = prev.filter(
-          m => !(m.metadata?.contextType === 'page' && m.metadata?.tabId === targetTabId),
-        )
-        return [...without, msg]
+        if (prev.some(m => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab.url)) return prev
+        return [...prev, msg]
       })
       return true
     } catch {

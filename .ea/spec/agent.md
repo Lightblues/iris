@@ -14,7 +14,7 @@ The agent process **is the side panel**. There is no background LLM loop.
 | Switch to a tab without Iris | Panel hides; Chrome may unload the document and abort streams |
 | Switch back to an Iris tab | Panel shows again; conversation restored from `chrome.storage.session` |
 | Cmd+click from an Iris tab | Child tab joins the opener session and auto-injects its page |
-| Close a linked child tab | That tab’s page/selection context is removed; the conversation continues |
+| Close a linked child tab | Tab leaves the session; already-injected page/selection messages stay in the thread |
 | Close a browser tab | Dropped from its session; last tab tears the session down |
 | New Chat | Unlinks this tab into an empty session; other linked tabs keep the old one |
 | Close the side panel | That tab’s session unmounts |
@@ -60,7 +60,7 @@ General mode (the daily path) has **no tools**. Context is the auto-injected pag
 - Open Iris on a tab: show that tab’s slot (hydrate conversation from `chrome.storage.session` if the panel remounted).
 - Cmd+click / Shift+click / middle-click / right-click open-in-new-tab from an Iris tab: child joins the opener session, the panel opens on the child, and its page is injected after load (redirect hops like `link.zhihu.com` are skipped). Cmd+T does not join.
 - Switching to a tab without Iris does not create a slot.
-- Close a linked tab: drop it from the session and strip its context messages.
+- Close a linked tab: drop it from the session. Do not rewrite or delete already-injected context messages.
 - New Chat: unlink this tab into an empty session.
 - Close the side panel: unmount the in-memory agent. Reopen the same tab to hydrate the conversation.
 
@@ -85,11 +85,11 @@ The agent instance is built on mount. Mode change, New Chat, and History select 
 1. Require API key.
 2. If input starts with `/`, expand the slash template (page/selection/url/title/`$ARGUMENTS`).
 3. Paper + empty thread + current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
-4. Lazy `createConversation(mode)` on first real send.
+4. Lazy `createConversation(mode, currentMessages)` on first real send (includes already-injected page context).
 5. Trace `chat_message`.
 6. `chat.sendMessage({ text, files })`.
 
-Page text is **auto-injected** when a new empty session mounts (http(s)/file pages, 100k char cap, same-URL de-duplicated). Manual inject page / selection still inserts a user message with `contextType` + `tabId` metadata (Readability via background → content script). `getPageContext(tabId)` always targets that session’s tab, not “whatever is active”.
+Page text is a normal **user** message (`metadata.contextType = page|selection`) and is part of the persisted transcript. Auto-inject on a new empty session and when a tab joins a live session (http(s)/file, 100k char cap). Same `pageUrl` already in the thread → skip. Never replace or strip earlier context (closing a child tab, opening History, navigation); append only, so the model prefix and prompt cache stay stable. Restoring a stored conversation does not re-inject. Manual inject page / selection still appends. `getPageContext(tabId)` always targets that session’s tab, not “whatever is active”.
 
 ## Modes
 

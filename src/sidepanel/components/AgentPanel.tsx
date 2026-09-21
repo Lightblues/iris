@@ -172,13 +172,24 @@ function AgentPanelReady(props: AgentPanelProps & {
   const isLoading = status === 'streaming' || status === 'submitted'
   const displayMessages = useThrottledValue(messages, isLoading, 16)
   const memberKey = memberTabIds.join(',')
+  const seenMembersRef = useRef<number[]>([])
+  const injectTargetsRef = useRef(new Set<number>())
 
   useEffect(() => {
     let cancelled = false
+    const restored = (conversation?.messages?.length ?? 0) > 0
+    const prev = seenMembersRef.current
+    const added = memberTabIds.filter(id => !prev.includes(id))
+    seenMembersRef.current = memberTabIds
+    // Restored history: keep the stored prefix. Only inject tabs that join later.
+    const targets = restored && prev.length === 0 ? [] : (prev.length === 0 ? memberTabIds : added)
+    for (const id of targets) injectTargetsRef.current.add(id)
+
     const injectMembers = async () => {
-      for (const id of memberTabIds) {
+      for (const id of targets) {
         if (cancelled) return
-        await injectContext({ silent: true, tabId: id })
+        const ok = await injectContext({ silent: true, tabId: id })
+        if (ok) injectTargetsRef.current.delete(id)
       }
       if (cancelled || flushedRef.current || !pendingMessage) return
       flushedRef.current = true
@@ -187,9 +198,11 @@ function AgentPanelReady(props: AgentPanelProps & {
     void injectMembers()
 
     const onUpdated = (id: number, info: { status?: string; url?: string }) => {
-      if (!memberTabIds.includes(id)) return
+      if (!injectTargetsRef.current.has(id)) return
       if (info.status !== 'complete' && info.url == null) return
-      void injectContext({ silent: true, tabId: id })
+      void injectContext({ silent: true, tabId: id }).then(ok => {
+        if (ok) injectTargetsRef.current.delete(id)
+      })
     }
     chrome.tabs.onUpdated.addListener(onUpdated)
     return () => {
@@ -197,17 +210,6 @@ function AgentPanelReady(props: AgentPanelProps & {
       chrome.tabs.onUpdated.removeListener(onUpdated)
     }
   }, [memberKey]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    setMessages(prev => {
-      const next = prev.filter(m => {
-        if (m.metadata?.contextType !== 'page' && m.metadata?.contextType !== 'selection') return true
-        if (m.metadata.tabId == null) return true
-        return memberTabIds.includes(m.metadata.tabId)
-      })
-      return next.length === prev.length ? prev : next
-    })
-  }, [memberKey, memberTabIds, setMessages])
 
   const isAtBottom = useCallback(() => {
     if (!scrollViewportRef.current) return true
