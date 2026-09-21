@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 import { AgentSelector, type AgentMode } from './AgentSelector'
@@ -21,7 +22,7 @@ interface ChatHeaderProps {
   mcpStatus?: McpStatus
 }
 
-export function ChatHeader({
+export const ChatHeader = memo(function ChatHeader({
   onNewChat,
   newChatTitle = 'New Chat',
   agentMode,
@@ -78,4 +79,4 @@ export function ChatHeader({
       </Button>
     </div>
   )
-}
+})

@@ -9,6 +9,7 @@ import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
 import { createConversation } from '@/agent/history'
+import { useThrottledValue } from '../useThrottledValue'
 
 export interface AgentPanelProps {
   tabId: number
@@ -149,7 +150,8 @@ function AgentPanelReady(props: AgentPanelProps & {
   const [error, setError] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const scrollViewportRef = useRef<HTMLDivElement>(null)
-  const userScrolledUpRef = useRef(false)
+  const stickToBottomRef = useRef(true)
+  const programmaticScrollRef = useRef(false)
   const flushedRef = useRef(false)
 
   const {
@@ -168,6 +170,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
+  const displayMessages = useThrottledValue(messages, isLoading, 16)
   const memberKey = memberTabIds.join(',')
 
   useEffect(() => {
@@ -206,36 +209,56 @@ function AgentPanelReady(props: AgentPanelProps & {
     })
   }, [memberKey, memberTabIds, setMessages])
 
-  // Scroll helpers
   const isAtBottom = useCallback(() => {
     if (!scrollViewportRef.current) return true
     const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current
-    return scrollHeight - scrollTop - clientHeight < 50
+    return scrollHeight - scrollTop - clientHeight < 80
   }, [])
 
   const scrollToBottom = useCallback(() => {
-    if (scrollViewportRef.current && !userScrolledUpRef.current) {
-      scrollViewportRef.current.scrollTop = scrollViewportRef.current.scrollHeight
-    }
+    const el = scrollViewportRef.current
+    if (!el || !stickToBottomRef.current) return
+    programmaticScrollRef.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { programmaticScrollRef.current = false })
+    })
   }, [])
 
   useEffect(() => {
     const viewport = scrollViewportRef.current
     if (!viewport) return
-    const handleScroll = () => { userScrolledUpRef.current = !isAtBottom() }
-    viewport.addEventListener('scroll', handleScroll, { passive: true })
-    return () => viewport.removeEventListener('scroll', handleScroll)
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) stickToBottomRef.current = false
+      else stickToBottomRef.current = isAtBottom()
+    }
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return
+      stickToBottomRef.current = isAtBottom()
+    }
+    viewport.addEventListener('wheel', onWheel, { passive: true })
+    viewport.addEventListener('touchmove', onScroll, { passive: true })
+    viewport.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      viewport.removeEventListener('wheel', onWheel)
+      viewport.removeEventListener('touchmove', onScroll)
+      viewport.removeEventListener('scroll', onScroll)
+    }
   }, [isAtBottom])
 
-  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
-  useEffect(() => { if (isLoading) userScrolledUpRef.current = false }, [isLoading])
+  useEffect(() => { scrollToBottom() }, [displayMessages, scrollToBottom])
 
-  // Persist messages
   useEffect(() => {
-    if (conversation?.id && messages.length > 0) {
+    if (!conversation?.id || messages.length === 0) return
+    if (!isLoading) {
       updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+      return
     }
-  }, [messages, conversation?.id])
+    const t = setTimeout(() => {
+      updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+    }, 400)
+    return () => clearTimeout(t)
+  }, [messages, conversation?.id, isLoading])
 
   // Message actions
   const handleDeleteMessage = useCallback((id: string) => {
@@ -293,8 +316,10 @@ function AgentPanelReady(props: AgentPanelProps & {
     }
     setError(null)
     clearError()
+    stickToBottomRef.current = true
+    scrollToBottom()
     await sendMessage(content, attachedImages)
-  }, [settings.apiKey, sendMessage, onOpenSettings, clearError])
+  }, [settings.apiKey, sendMessage, onOpenSettings, clearError, scrollToBottom])
 
   const handleClearEditingContent = useCallback(() => { setEditingContent('') }, [])
 
@@ -307,7 +332,7 @@ function AgentPanelReady(props: AgentPanelProps & {
         newChatTitle={memberTabIds.length > 1 ? 'New chat (unlinks this tab)' : 'New Chat'}
         agentMode={agentMode}
         onAgentModeChange={onAgentModeChange}
-        messages={messages as IrisMessage[]}
+        messages={displayMessages as IrisMessage[]}
         models={props.availableModels}
         favourites={settings.favouriteModels ?? []}
         defaultModel={settings.model}
@@ -321,20 +346,20 @@ function AgentPanelReady(props: AgentPanelProps & {
 
       <ScrollArea className="flex-1 px-3 py-2" viewportRef={scrollViewportRef}>
         <div className="space-y-3">
-          {messages.length === 0 && (
+          {displayMessages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
               <p className="text-xs">Start a conversation</p>
               <p className="text-[11px] mt-1">Page content loads automatically. Type / for commands.</p>
             </div>
           )}
-          {messages.map((message: IrisMessage) => (
+          {displayMessages.map((message: IrisMessage) => (
             <ChatMessage
               key={message.id}
               message={message}
               isStreaming={
                 isLoading &&
                 message.role === 'assistant' &&
-                message === messages[messages.length - 1]
+                message === displayMessages[displayMessages.length - 1]
               }
               onDelete={handleDeleteMessage}
               onEdit={handleEditMessage}

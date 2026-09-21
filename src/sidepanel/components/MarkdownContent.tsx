@@ -1,9 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
+
+const REMARK_PLUGINS = [remarkGfm, remarkMath]
+const REHYPE_PLUGINS = [rehypeKatex]
 
 function CopyButton({ getText }: { getText: () => string }) {
   const [copied, setCopied] = useState(false)
@@ -206,10 +209,74 @@ function domToMarkdown(fragment: DocumentFragment): string {
   return lines.join('\n')
 }
 
-export function MarkdownContent({ content }: MarkdownContentProps) {
+function MarkdownPre({ children }: { children?: React.ReactNode }) {
+  const ref = useRef<HTMLPreElement>(null)
+  return (
+    <div className="relative group/copy">
+      <CopyButton getText={() => ref.current ? extractCodeMarkdown(ref.current) : ''} />
+      <pre ref={ref} className="bg-background/50 rounded p-2 overflow-x-auto text-[11px] leading-snug">
+        {children}
+      </pre>
+    </div>
+  )
+}
+
+function MarkdownTable({ children }: { children?: React.ReactNode }) {
+  const ref = useRef<HTMLTableElement>(null)
+  return (
+    <div className="relative group/copy overflow-x-auto">
+      <CopyButton getText={() => ref.current ? extractTableMarkdown(ref.current) : ''} />
+      <table ref={ref} className="border-collapse border border-muted-foreground/30 text-xs">
+        {children}
+      </table>
+    </div>
+  )
+}
+
+const markdownComponents = {
+  pre: MarkdownPre,
+  code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode }) => {
+    const isInline = !className
+    return isInline ? (
+      <code className="bg-background/50 px-1 py-0.5 rounded text-[11px]" {...props}>
+        {children}
+      </code>
+    ) : (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    )
+  },
+  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-1.5 last:mb-0 leading-snug">{children}</p>,
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="leading-snug">{children}</li>,
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+      {children}
+    </a>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-2 border-muted-foreground/30 pl-3 italic">
+      {children}
+    </blockquote>
+  ),
+  table: MarkdownTable,
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="border border-muted-foreground/30 px-2 py-1 bg-muted/50">
+      {children}
+    </th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="border border-muted-foreground/30 px-2 py-1">
+      {children}
+    </td>
+  ),
+}
+
+export const MarkdownContent = memo(function MarkdownContent({ content }: MarkdownContentProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Intercept copy events to rewrite clipboard with markdown-style formatting
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -231,72 +298,13 @@ export function MarkdownContent({ content }: MarkdownContentProps) {
 
   return (
     <div ref={containerRef}>
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-      components={{
-        pre: ({ children }) => {
-          const ref = useRef<HTMLPreElement>(null)
-          return (
-            <div className="relative group/copy">
-              <CopyButton getText={() => ref.current ? extractCodeMarkdown(ref.current) : ''} />
-              <pre ref={ref} className="bg-background/50 rounded p-2 overflow-x-auto text-[11px] leading-snug">
-                {children}
-              </pre>
-            </div>
-          )
-        },
-        code: ({ className, children, ...props }) => {
-          const isInline = !className
-          return isInline ? (
-            <code className="bg-background/50 px-1 py-0.5 rounded text-[11px]" {...props}>
-              {children}
-            </code>
-          ) : (
-            <code className={className} {...props}>
-              {children}
-            </code>
-          )
-        },
-        p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-snug">{children}</p>,
-        ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
-        li: ({ children }) => <li className="leading-snug">{children}</li>,
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-            {children}
-          </a>
-        ),
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-muted-foreground/30 pl-3 italic">
-            {children}
-          </blockquote>
-        ),
-        table: ({ children }) => {
-          const ref = useRef<HTMLTableElement>(null)
-          return (
-            <div className="relative group/copy overflow-x-auto">
-              <CopyButton getText={() => ref.current ? extractTableMarkdown(ref.current) : ''} />
-              <table ref={ref} className="border-collapse border border-muted-foreground/30 text-xs">
-                {children}
-              </table>
-            </div>
-          )
-        },
-        th: ({ children }) => (
-          <th className="border border-muted-foreground/30 px-2 py-1 bg-muted/50">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="border border-muted-foreground/30 px-2 py-1">
-            {children}
-          </td>
-        ),
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        components={markdownComponents}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, memo } from 'react'
 import { cn } from '@/lib/utils'
 import { FileText, Scissors, ChevronDown, ChevronUp, X, Pencil, GitFork, StickyNote, Copy, Check, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,7 @@ function isToolPart(part: any): part is ToolPartProps {
   return part.type.startsWith('tool-') || part.type === 'dynamic-tool'
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   message,
   isStreaming,
   onDelete,
@@ -327,7 +327,7 @@ export function ChatMessage({
       </div>
     </div>
   )
-}
+})
 
 function TypingIndicator() {
   return (
