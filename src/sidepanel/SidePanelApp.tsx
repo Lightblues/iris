@@ -51,8 +51,10 @@ export default function SidePanelApp() {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const previousTabRef = useRef<TabType>('agent')
 
-  const { currentTabId, sessions, patchSession, remountSession, changeMode } = useAgentSessions()
-  const currentSession = currentTabId != null ? sessions[currentTabId] : undefined
+  const { currentTabId, sessions, patchSession, remountSession, unlinkToNewChat, changeMode } = useAgentSessions()
+  const currentSession = currentTabId != null
+    ? Object.values(sessions).find(s => s.tabIds.includes(currentTabId))
+    : undefined
 
   useEffect(() => {
     console.log('[Iris] Initializing...')
@@ -112,10 +114,10 @@ export default function SidePanelApp() {
   }
 
   const handleAgentNewChat = useCallback(async (tabId: number) => {
-    remountSession(tabId, { conversation: null, chatModel: null })
+    unlinkToNewChat(tabId)
     setActiveTab('agent')
     await setAgentActiveConversation(null)
-  }, [remountSession])
+  }, [unlinkToNewChat])
 
   const handleAgentConversationCreated = useCallback((tabId: number, conv: AgentConversation) => {
     patchSession(tabId, { conversation: conv })
@@ -163,21 +165,26 @@ export default function SidePanelApp() {
           ) : (
             sessionList.map((s) => (
               <div
-                key={s.tabId}
-                className={cn('flex-1 min-h-0 flex flex-col', s.tabId !== currentTabId && 'hidden')}
+                key={s.id}
+                className={cn(
+                  'flex-1 min-h-0 flex flex-col',
+                  (currentTabId == null || !s.tabIds.includes(currentTabId)) && 'hidden',
+                )}
               >
                 <AgentPanel
-                  key={`${s.tabId}-${s.agentMode}-${s.sessionKey}`}
-                  tabId={s.tabId}
+                  key={`${s.id}-${s.agentMode}-${s.sessionKey}`}
+                  tabId={currentTabId != null && s.tabIds.includes(currentTabId) ? currentTabId : s.tabIds[0]}
+                  memberTabIds={s.tabIds}
+                  autoFocus={activeTab === 'agent' && currentTabId != null && s.tabIds.includes(currentTabId)}
                   agentMode={s.agentMode}
                   settings={settings}
                   availableModels={availableModels}
                   chatModel={s.chatModel}
-                  onChatModelChange={(model) => patchSession(s.tabId, { chatModel: model })}
+                  onChatModelChange={(model) => patchSession(s.tabIds[0], { chatModel: model })}
                   conversation={s.conversation}
-                  onConversationCreated={(conv) => handleAgentConversationCreated(s.tabId, conv)}
-                  onNewChat={() => handleAgentNewChat(s.tabId)}
-                  onAgentModeChange={(mode) => handleNewAgentModeChange(s.tabId, mode)}
+                  onConversationCreated={(conv) => handleAgentConversationCreated(s.tabIds[0], conv)}
+                  onNewChat={() => currentTabId != null && handleAgentNewChat(currentTabId)}
+                  onAgentModeChange={(mode) => handleNewAgentModeChange(s.tabIds[0], mode)}
                   slashCommands={slashCommands}
                   onOpenSettings={handleOpenSettings}
                 />

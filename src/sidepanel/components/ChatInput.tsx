@@ -17,6 +17,7 @@ interface ChatInputProps {
   defaultValue?: string
   onDefaultValueConsumed?: () => void
   slashCommands?: SlashCommand[]
+  autoFocus?: boolean
 }
 
 export function ChatInput({
@@ -29,6 +30,7 @@ export function ChatInput({
   defaultValue,
   onDefaultValueConsumed,
   slashCommands = [],
+  autoFocus = false,
 }: ChatInputProps) {
   const [value, setValue] = useState('')
   const [images, setImages] = useState<ChatImageAttachment[]>([])
@@ -37,17 +39,31 @@ export function ChatInput({
     query: '',
     selectedIndex: 0,
   })
+  const [queued, setQueued] = useState(false)
+  const queuedRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Handle defaultValue for edit mode
   useEffect(() => {
     if (defaultValue !== undefined && defaultValue !== '') {
+      /* eslint-disable react-hooks/set-state-in-effect -- hydrate composer from message edit */
       setValue(defaultValue)
+      /* eslint-enable react-hooks/set-state-in-effect */
       onDefaultValueConsumed?.()
       setTimeout(() => textareaRef.current?.focus(), 0)
     }
   }, [defaultValue, onDefaultValueConsumed])
+
+  useEffect(() => {
+    if (!autoFocus || disabled) return
+    const focus = () => {
+      if (document.visibilityState === 'hidden') return
+      textareaRef.current?.focus()
+    }
+    focus()
+    document.addEventListener('visibilitychange', focus)
+    return () => document.removeEventListener('visibilitychange', focus)
+  }, [autoFocus, disabled])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -90,13 +106,41 @@ export function ChatInput({
     textareaRef.current?.focus()
   }
 
+  const flushSend = () => {
+    onSend(value, images.length > 0 ? images : undefined)
+    setValue('')
+    setImages([])
+    setSlashState({ isActive: false, query: '', selectedIndex: 0 })
+    queuedRef.current = false
+    setQueued(false)
+  }
+
   const handleSend = () => {
-    if ((value.trim() || images.length > 0) && !isLoading && !disabled) {
-      onSend(value, images.length > 0 ? images : undefined)
-      setValue('')
-      setImages([])
-      setSlashState({ isActive: false, query: '', selectedIndex: 0 })
+    if ((!value.trim() && images.length === 0) || disabled) return
+    if (isLoading) {
+      queuedRef.current = true
+      setQueued(true)
+      return
     }
+    flushSend()
+  }
+
+  useEffect(() => {
+    if (isLoading || !queuedRef.current) return
+    if (value.trim() || images.length > 0) {
+      /* eslint-disable react-hooks/set-state-in-effect -- send queued follow-up when the run ends */
+      flushSend()
+      /* eslint-enable react-hooks/set-state-in-effect */
+    } else {
+      queuedRef.current = false
+      setQueued(false)
+    }
+  }, [isLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleStop = () => {
+    queuedRef.current = false
+    setQueued(false)
+    onStop()
   }
 
   const handleImageSelect = async (files: FileList | null) => {
@@ -226,7 +270,7 @@ export function ChatInput({
             onClick={() => fileInputRef.current?.click()}
             title="Upload image"
             className="h-8 w-8"
-            disabled={disabled || isLoading}
+            disabled={disabled}
           >
             <Paperclip className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -263,13 +307,19 @@ export function ChatInput({
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder={disabled ? 'Enter API key in settings...' : 'Type / for commands, or ask about this page...'}
-          disabled={disabled || isLoading}
+          placeholder={
+            disabled
+              ? 'Enter API key in settings...'
+              : queued
+                ? 'Queued — sends when the reply finishes'
+                : 'Type / for commands, or ask about this page...'
+          }
+          disabled={disabled}
           className="min-h-[36px] max-h-[150px] resize-none text-[13px] md:text-[13px] py-1.5 px-2.5"
           rows={1}
         />
         {isLoading ? (
-          <Button variant="destructive" size="icon" onClick={onStop} title="Stop" className="h-8 w-8 shrink-0">
+          <Button variant="destructive" size="icon" onClick={handleStop} title="Stop" className="h-8 w-8 shrink-0">
             <Square className="h-4 w-4" />
           </Button>
         ) : (
@@ -285,7 +335,9 @@ export function ChatInput({
         )}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Enter for new line, Cmd+Enter to send · Type <kbd className="px-1 rounded bg-muted">/</kbd> for commands
+        {queued
+          ? 'Queued as next message · Stop cancels the queue'
+          : <>Enter for new line, Cmd+Enter to send · Type <kbd className="px-1 rounded bg-muted">/</kbd> for commands</>}
       </p>
     </div>
   )

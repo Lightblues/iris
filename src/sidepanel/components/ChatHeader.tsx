@@ -9,6 +9,7 @@ import { getSessionUsage, formatModelShort, formatCost, formatTokenCount } from 
 
 interface ChatHeaderProps {
   onNewChat: () => void
+  newChatTitle?: string
   agentMode: AgentMode
   onAgentModeChange: (mode: AgentMode) => void
   messages: IrisMessage[]
@@ -22,6 +23,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({
   onNewChat,
+  newChatTitle = 'New Chat',
   agentMode,
   onAgentModeChange,
   messages,
@@ -69,7 +71,7 @@ export function ChatHeader({
         variant="ghost"
         size="icon"
         onClick={onNewChat}
-        title="New Chat"
+        title={newChatTitle}
         className="h-7 w-7 ml-auto shrink-0"
       >
         <Plus className="h-4 w-4" />

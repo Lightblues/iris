@@ -12,6 +12,8 @@ import { createConversation } from '@/agent/history'
 
 export interface AgentPanelProps {
   tabId: number
+  memberTabIds: number[]
+  autoFocus?: boolean
   agentMode: AgentMode
   settings: SidePanelSettings
   availableModels: ModelConfig[]
@@ -33,7 +35,7 @@ export interface AgentPanelProps {
  */
 export function AgentPanel(props: AgentPanelProps) {
   const {
-    tabId, agentMode, settings, chatModel, onChatModelChange,
+    tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings,
   } = props
@@ -99,6 +101,7 @@ export function AgentPanel(props: AgentPanelProps) {
           defaultValue=""
           onDefaultValueConsumed={() => {}}
           slashCommands={slashCommands}
+          autoFocus={autoFocus}
         />
       </>
     )
@@ -108,6 +111,8 @@ export function AgentPanel(props: AgentPanelProps) {
     <AgentPanelReady
       transport={transport}
       tabId={tabId}
+      memberTabIds={memberTabIds}
+      autoFocus={autoFocus}
       agentMode={agentMode}
       settings={settings}
       availableModels={props.availableModels}
@@ -136,7 +141,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   pendingMessage: { content: string; images?: any[] } | null
 }) {
   const {
-    transport, tabId, agentMode, settings, chatModel, onChatModelChange,
+    transport, tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings, mcpStatus, pendingMessage,
   } = props
@@ -163,19 +168,35 @@ function AgentPanelReady(props: AgentPanelProps & {
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
+  const memberKey = memberTabIds.join(',')
+  const injectedTabsRef = useRef(new Set<number>())
 
-  // Auto-inject this tab's page, then flush any message queued before transport was ready.
+  // Auto-inject each member tab's page; flush any message queued before transport was ready.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const hasMessages = (conversation?.messages?.length ?? 0) > 0
-      if (!hasMessages) await injectContext({ silent: true })
+      for (const id of memberTabIds) {
+        if (injectedTabsRef.current.has(id)) continue
+        injectedTabsRef.current.add(id)
+        await injectContext({ silent: true, tabId: id })
+      }
       if (cancelled || flushedRef.current || !pendingMessage) return
       flushedRef.current = true
       sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
     })()
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [memberKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setMessages(prev => {
+      const next = prev.filter(m => {
+        if (m.metadata?.contextType !== 'page' && m.metadata?.contextType !== 'selection') return true
+        if (m.metadata.tabId == null) return true
+        return memberTabIds.includes(m.metadata.tabId)
+      })
+      return next.length === prev.length ? prev : next
+    })
+  }, [memberKey, memberTabIds, setMessages])
 
   // Scroll helpers
   const isAtBottom = useCallback(() => {
@@ -275,6 +296,7 @@ function AgentPanelReady(props: AgentPanelProps & {
     <>
       <ChatHeader
         onNewChat={onNewChat}
+        newChatTitle={memberTabIds.length > 1 ? 'New chat (unlinks this tab)' : 'New Chat'}
         agentMode={agentMode}
         onAgentModeChange={onAgentModeChange}
         messages={messages as IrisMessage[]}
@@ -285,6 +307,9 @@ function AgentPanelReady(props: AgentPanelProps & {
         onChatModelChange={onChatModelChange}
         mcpStatus={mcpStatus}
       />
+      {memberTabIds.length > 1 && (
+        <LinkedTabsBar tabIds={memberTabIds} currentTabId={tabId} />
+      )}
 
       <ScrollArea className="flex-1 px-3 py-2" viewportRef={scrollViewportRef}>
         <div className="space-y-3">
@@ -328,7 +353,43 @@ function AgentPanelReady(props: AgentPanelProps & {
         defaultValue={editingContent}
         onDefaultValueConsumed={handleClearEditingContent}
         slashCommands={slashCommands}
+        autoFocus={autoFocus}
       />
     </>
+  )
+}
+
+function LinkedTabsBar({ tabIds, currentTabId }: { tabIds: number[]; currentTabId: number }) {
+  const [titles, setTitles] = useState<Record<number, string>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all(tabIds.map(async id => {
+      try {
+        const tab = await chrome.tabs.get(id)
+        return [id, tab.title || tab.url || `#${id}`] as const
+      } catch {
+        return [id, `#${id}`] as const
+      }
+    })).then(entries => {
+      if (cancelled) return
+      setTitles(Object.fromEntries(entries))
+    })
+    return () => { cancelled = true }
+  }, [tabIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1 border-b bg-muted/20 text-[10px] text-muted-foreground overflow-x-auto">
+      <span className="shrink-0">Linked</span>
+      {tabIds.map(id => (
+        <span
+          key={id}
+          className={id === currentTabId ? 'truncate max-w-[140px] text-foreground' : 'truncate max-w-[140px]'}
+          title={titles[id]}
+        >
+          {titles[id] || `Tab ${id}`}
+        </span>
+      ))}
+    </div>
   )
 }

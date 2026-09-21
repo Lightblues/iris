@@ -190,32 +190,35 @@ export function useAgentChat(
     } as any)
   }, [settings.apiKey, slashCommands, agentMode, chat, onConversationCreated, onError, tabId])
 
-  const injectContext = useCallback(async (opts?: { silent?: boolean }) => {
+  const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number }) => {
     const silent = opts?.silent === true
+    const targetTabId = opts?.tabId ?? tabId
     try {
-      const tab = await waitForTabLoad(tabId)
+      const tab = await waitForTabLoad(targetTabId)
       if (!tab || !isInjectableUrl(tab.url)) {
         if (!silent) onError('Could not extract page content')
         return
       }
       const existing = chat.messages.find(
-        (m: IrisMessage) => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab.url,
+        (m: IrisMessage) =>
+          m.metadata?.contextType === 'page'
+          && (m.metadata?.tabId === targetTabId || m.metadata?.pageUrl === tab.url),
       )
       if (existing) {
         if (!silent) onError('Page content already loaded')
         return
       }
-      const context = await getPageContext(tabId)
+      const context = await getPageContext(targetTabId)
       if (!context) {
         if (!silent) onError('Could not extract page content')
         return
       }
       const msg: IrisMessage = {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${targetTabId}`,
         role: 'user',
         metadata: {
           timestamp: Date.now(),
-          tabId,
+          tabId: targetTabId,
           pageUrl: tab.url,
           pageTitle: tab.title,
           contextType: 'page',

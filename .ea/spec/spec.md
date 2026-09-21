@@ -21,7 +21,7 @@ Iris is not a general-purpose “all-in-one browser assistant”. It has two job
 
 New work must answer at least one: *does this help act on the current browsing context, or give ea a higher-quality input?* If neither, it does not belong in Iris.
 
-Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page’s content is injected automatically. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent.
+Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page’s content is injected automatically. Cmd+click from an Iris tab joins the same session. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent.
 
 ## Scope
 
@@ -68,7 +68,7 @@ The agent runtime lives in the side panel, not the service worker. Lifecycle imp
 
 ## Side panel
 
-Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Shared sessions for Cmd+click child tabs are not implemented yet.
+Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click (or other opener navigations) from an Iris tab joins that session; closing the child tab drops its page context. New Chat unlinks the current tab.
 
 | Tab | Status | Notes |
 |-----|--------|-------|

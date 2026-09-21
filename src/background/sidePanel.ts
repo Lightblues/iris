@@ -1,5 +1,7 @@
 /** Tab-scoped Chrome side panel. Global panel is disabled; only opted-in tabs show Iris. */
 
+import { copyTabSession, isBrowserNewTab } from '../sidepanel/sessionPersist'
+
 const PANEL_PATH = 'src/sidepanel/index.html'
 const STORAGE_KEY = 'iris_panel_open_tabs'
 
@@ -95,6 +97,14 @@ export function initSidePanel(): void {
 
   chrome.tabs.onRemoved.addListener(tabId => {
     if (openTabs.delete(tabId)) persist()
+  })
+
+  chrome.tabs.onCreated.addListener(tab => {
+    if (tab.id == null || tab.openerTabId == null) return
+    if (!openTabs.has(tab.openerTabId)) return
+    if (isBrowserNewTab(tab)) return
+    enableTab(tab.id)
+    void copyTabSession(tab.openerTabId, tab.id)
   })
 
   const onClosed = chrome.sidePanel.onClosed

@@ -13,7 +13,10 @@ The agent process **is the side panel**. There is no background LLM loop.
 | Tab-specific side panel | Only tabs where the user opened Iris show the panel. Cmd+T / unrelated tabs stay clean |
 | Switch to a tab without Iris | Panel hides; Chrome may unload the document and abort streams |
 | Switch back to an Iris tab | Panel shows again; conversation restored from `chrome.storage.session` |
-| Close a browser tab | That tab’s panel unmounts; binding dropped |
+| Cmd+click from an Iris tab | Child tab joins the opener session and auto-injects its page |
+| Close a linked child tab | That tab’s page/selection context is removed; the conversation continues |
+| Close a browser tab | Dropped from its session; last tab tears the session down |
+| New Chat | Unlinks this tab into an empty session; other linked tabs keep the old one |
 | Close the side panel | That tab’s session unmounts |
 | `useChat` in the panel only | No work continues after the panel closes |
 
@@ -52,12 +55,14 @@ General mode (the daily path) has **no tools**. Context is the auto-injected pag
 
 ### Bind to the current tab
 
-`useAgentSessions` keeps a live slot per Iris-enabled tab:
+`useAgentSessions` keeps a live slot per session (one or more linked tabs):
 
 - Open Iris on a tab: show that tab’s slot (hydrate conversation from `chrome.storage.session` if the panel remounted).
+- Cmd+click / opener navigation from an Iris tab: child joins the opener session and its page is injected. Cmd+T does not join.
 - Switching to a tab without Iris does not create a slot.
+- Close a linked tab: drop it from the session and strip its context messages.
+- New Chat: unlink this tab into an empty session.
 - Close the side panel: unmount the in-memory agent. Reopen the same tab to hydrate the conversation.
-- Close the browser tab: drop the slot and persisted binding.
 
 ### Create the agent
 
@@ -156,7 +161,9 @@ Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
 - Tool calls: collapsible arg/result cards
 - Message actions: edit (truncate + resend), fork, rerun, copy markdown, save to Knowledge
 - Usage: per-message tokens/cost; session total in header (OpenRouter metadata, else estimated)
-- Enter = newline, Cmd+Enter = send
+- Enter = newline, Cmd+Enter = send (queues as the next message while the agent is running)
+- Composer stays editable during a run; Stop cancels a queued follow-up
+- Opening the side panel focuses the composer
 
 ## Persistence
 
