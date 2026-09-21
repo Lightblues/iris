@@ -208,7 +208,7 @@ export function ChatInput({
         }))
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.metaKey && !e.ctrlKey)) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault()
         const selected = filteredCommands[slashState.selectedIndex]
         if (selected) {
@@ -222,8 +222,8 @@ export function ChatInput({
         return
       }
     }
-    // Cmd+Enter or Ctrl+Enter to send
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    // Enter sends; Shift+Enter inserts a newline. IME composition must not send.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
     }
@@ -337,7 +337,7 @@ export function ChatInput({
       <p className="text-[10px] text-muted-foreground">
         {queued
           ? 'Queued as next message · Stop cancels the queue'
-          : <>Enter for new line, Cmd+Enter to send · Type <kbd className="px-1 rounded bg-muted">/</kbd> for commands</>}
+          : <>Enter to send, Shift+Enter for a new line · Type <kbd className="px-1 rounded bg-muted">/</kbd> for commands</>}
       </p>
     </div>
   )

@@ -147,7 +147,7 @@ Header MCP dot: green / yellow / red. If MCP fails, Paper degrades to tool-less 
 
 Typed in chat input, not the page command menu. Spec of the menu: [page-enhancements.md](page-enhancements.md).
 
-- `/` → filter → Tab/Enter → optional args → Cmd+Enter
+- `/` → filter → Tab/Enter → optional args → Enter to send
 - Built-in: `/summarize`, `/translate`, `/explain`, `/extract` (`commands/iris/`)
 - Custom: Settings → Slash Commands → link a local folder
 - Variables: `` !`pageContent` ``, `` !`selection` ``, `` !`url` ``, `` !`title` ``, `$ARGUMENTS`
@@ -161,7 +161,7 @@ Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
 - Tool calls: collapsible arg/result cards
 - Message actions: edit (truncate + resend), fork, rerun, copy markdown, save to Knowledge
 - Usage: per-message tokens/cost; session total in header (OpenRouter metadata, else estimated)
-- Enter = newline, Cmd+Enter = send (queues as the next message while the agent is running)
+- Enter = send, Shift+Enter = newline (queues as the next message while the agent is running)
 - Composer stays editable during a run; Stop cancels a queued follow-up
 - Opening the side panel focuses the composer
 
