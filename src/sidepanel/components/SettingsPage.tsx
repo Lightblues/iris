@@ -595,8 +595,8 @@ const handleUnlinkChatExport = async () => {
         </div>
 
         <p className="text-[10px] text-muted-foreground">
-       Export ChatGPT / DeepSeek conversations as raw JSON via the on-page FAB (⬇ / 📦).
-      Pick your <span className="font-mono">chat-exports/</span> folder here first. Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
+           Export ChatGPT / DeepSeek / Gemini conversations as raw JSON via the on-page FAB (⬇ / 📦).
+      Pick <span className="font-mono">~/.ea/tools/chat-exports/</span> here first. Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
         </p>
       </section>
 
@@ -674,12 +674,12 @@ const handleUnlinkChatExport = async () => {
               const lines = e.target.value.split('\n').map(l => l.trim()).filter(Boolean)
               onSettingsChange({ fabSitePatterns: lines.length > 0 ? lines : undefined })
             }}
-            placeholder={`Empty = show on all sites\n*://example.com/*`}
+            placeholder={`*://github.com/*`}
             rows={3}
             className="w-full text-xs font-mono bg-background border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground">
-            Hide FAB on matching URLs (one glob per line). Empty = show everywhere.
+            Hide FAB on matching URLs (one glob per line). FAB is hidden on general sites by default and only appears on adapted pages (papers, GitHub, chat export).
             The X button only hides FAB for the current page session.
           </p>
         </div>

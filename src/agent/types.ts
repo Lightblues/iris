@@ -25,6 +25,7 @@ export interface MessageUsage {
 
 export interface IrisMessageMetadata {
   timestamp: number
+  tabId?: number
   pageUrl?: string
   pageTitle?: string
   contextType?: 'page' | 'selection'

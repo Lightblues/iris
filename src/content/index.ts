@@ -5,6 +5,7 @@ import './floatingSidebar.css'
 import { enhancementRegistry } from './enhancements'
 import { createArxivEnhancement } from './enhancements/arxiv'
 import { createGitHubEnhancement } from './enhancements/github'
+import { initDerivedTabOpens } from './derivedTabs'
 import { initZhihu } from './zhihu'
 import { showCommandMenu } from './commandMenu'
 import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements, setFabCustomActions } from './floatingSidebar'
@@ -18,7 +19,8 @@ import type { MarkdownConvertMessage } from '../lib/types'
 enhancementRegistry.register(createArxivEnhancement())
 enhancementRegistry.register(createGitHubEnhancement())
 
-// Listen for messages from background script
+initDerivedTabOpens()
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open-command-menu') {
     showCommandMenu()

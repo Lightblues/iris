@@ -9,8 +9,12 @@ import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
 import { createConversation } from '@/agent/history'
+import { useThrottledValue } from '../useThrottledValue'
 
 export interface AgentPanelProps {
+  tabId: number
+  memberTabIds: number[]
+  autoFocus?: boolean
   agentMode: AgentMode
   settings: SidePanelSettings
   availableModels: ModelConfig[]
@@ -32,7 +36,7 @@ export interface AgentPanelProps {
  */
 export function AgentPanel(props: AgentPanelProps) {
   const {
-    agentMode, settings, chatModel, onChatModelChange,
+    tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings,
   } = props
@@ -98,6 +102,7 @@ export function AgentPanel(props: AgentPanelProps) {
           defaultValue=""
           onDefaultValueConsumed={() => {}}
           slashCommands={slashCommands}
+          autoFocus={autoFocus}
         />
       </>
     )
@@ -106,6 +111,9 @@ export function AgentPanel(props: AgentPanelProps) {
   return (
     <AgentPanelReady
       transport={transport}
+      tabId={tabId}
+      memberTabIds={memberTabIds}
+      autoFocus={autoFocus}
       agentMode={agentMode}
       settings={settings}
       availableModels={props.availableModels}
@@ -134,7 +142,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   pendingMessage: { content: string; images?: any[] } | null
 }) {
   const {
-    transport, agentMode, settings, chatModel, onChatModelChange,
+    transport, tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings, mcpStatus, pendingMessage,
   } = props
@@ -142,7 +150,8 @@ function AgentPanelReady(props: AgentPanelProps & {
   const [error, setError] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const scrollViewportRef = useRef<HTMLDivElement>(null)
-  const userScrolledUpRef = useRef(false)
+  const stickToBottomRef = useRef(true)
+  const programmaticScrollRef = useRef(false)
   const flushedRef = useRef(false)
 
   const {
@@ -155,49 +164,103 @@ function AgentPanelReady(props: AgentPanelProps & {
     chatModel,
     conversation,
     slashCommands,
+    tabId,
     onConversationCreated,
     onError: setError,
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
+  const displayMessages = useThrottledValue(messages, isLoading, 16)
+  const memberKey = memberTabIds.join(',')
+  const seenMembersRef = useRef<number[]>([])
+  const injectTargetsRef = useRef(new Set<number>())
 
-  // Flush pending message once (queued before transport was ready)
   useEffect(() => {
-    if (flushedRef.current || !pendingMessage) return
-    flushedRef.current = true
-    sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    let cancelled = false
+    const restored = (conversation?.messages?.length ?? 0) > 0
+    const prev = seenMembersRef.current
+    const added = memberTabIds.filter(id => !prev.includes(id))
+    seenMembersRef.current = memberTabIds
+    // Restored history: keep the stored prefix. Only inject tabs that join later.
+    const targets = restored && prev.length === 0 ? [] : (prev.length === 0 ? memberTabIds : added)
+    for (const id of targets) injectTargetsRef.current.add(id)
 
-  // Scroll helpers
+    const injectMembers = async () => {
+      for (const id of targets) {
+        if (cancelled) return
+        const ok = await injectContext({ silent: true, tabId: id })
+        if (ok) injectTargetsRef.current.delete(id)
+      }
+      if (cancelled || flushedRef.current || !pendingMessage) return
+      flushedRef.current = true
+      sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
+    }
+    void injectMembers()
+
+    const onUpdated = (id: number, info: { status?: string; url?: string }) => {
+      if (!injectTargetsRef.current.has(id)) return
+      if (info.status !== 'complete' && info.url == null) return
+      void injectContext({ silent: true, tabId: id }).then(ok => {
+        if (ok) injectTargetsRef.current.delete(id)
+      })
+    }
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    return () => {
+      cancelled = true
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+    }
+  }, [memberKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const isAtBottom = useCallback(() => {
     if (!scrollViewportRef.current) return true
     const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current
-    return scrollHeight - scrollTop - clientHeight < 50
+    return scrollHeight - scrollTop - clientHeight < 80
   }, [])
 
   const scrollToBottom = useCallback(() => {
-    if (scrollViewportRef.current && !userScrolledUpRef.current) {
-      scrollViewportRef.current.scrollTop = scrollViewportRef.current.scrollHeight
-    }
+    const el = scrollViewportRef.current
+    if (!el || !stickToBottomRef.current) return
+    programmaticScrollRef.current = true
+    el.scrollTop = el.scrollHeight
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { programmaticScrollRef.current = false })
+    })
   }, [])
 
   useEffect(() => {
     const viewport = scrollViewportRef.current
     if (!viewport) return
-    const handleScroll = () => { userScrolledUpRef.current = !isAtBottom() }
-    viewport.addEventListener('scroll', handleScroll, { passive: true })
-    return () => viewport.removeEventListener('scroll', handleScroll)
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) stickToBottomRef.current = false
+      else stickToBottomRef.current = isAtBottom()
+    }
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return
+      stickToBottomRef.current = isAtBottom()
+    }
+    viewport.addEventListener('wheel', onWheel, { passive: true })
+    viewport.addEventListener('touchmove', onScroll, { passive: true })
+    viewport.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      viewport.removeEventListener('wheel', onWheel)
+      viewport.removeEventListener('touchmove', onScroll)
+      viewport.removeEventListener('scroll', onScroll)
+    }
   }, [isAtBottom])
 
-  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
-  useEffect(() => { if (isLoading) userScrolledUpRef.current = false }, [isLoading])
+  useEffect(() => { scrollToBottom() }, [displayMessages, scrollToBottom])
 
-  // Persist messages
   useEffect(() => {
-    if (conversation?.id && messages.length > 0) {
+    if (!conversation?.id || messages.length === 0) return
+    if (!isLoading) {
       updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+      return
     }
-  }, [messages, conversation?.id])
+    const t = setTimeout(() => {
+      updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+    }, 400)
+    return () => clearTimeout(t)
+  }, [messages, conversation?.id, isLoading])
 
   // Message actions
   const handleDeleteMessage = useCallback((id: string) => {
@@ -255,8 +318,10 @@ function AgentPanelReady(props: AgentPanelProps & {
     }
     setError(null)
     clearError()
+    stickToBottomRef.current = true
+    scrollToBottom()
     await sendMessage(content, attachedImages)
-  }, [settings.apiKey, sendMessage, onOpenSettings, clearError])
+  }, [settings.apiKey, sendMessage, onOpenSettings, clearError, scrollToBottom])
 
   const handleClearEditingContent = useCallback(() => { setEditingContent('') }, [])
 
@@ -266,9 +331,10 @@ function AgentPanelReady(props: AgentPanelProps & {
     <>
       <ChatHeader
         onNewChat={onNewChat}
+        newChatTitle={memberTabIds.length > 1 ? 'New chat (unlinks this tab)' : 'New Chat'}
         agentMode={agentMode}
         onAgentModeChange={onAgentModeChange}
-        messages={messages as IrisMessage[]}
+        messages={displayMessages as IrisMessage[]}
         models={props.availableModels}
         favourites={settings.favouriteModels ?? []}
         defaultModel={settings.model}
@@ -276,23 +342,26 @@ function AgentPanelReady(props: AgentPanelProps & {
         onChatModelChange={onChatModelChange}
         mcpStatus={mcpStatus}
       />
+      {memberTabIds.length > 1 && (
+        <LinkedTabsBar tabIds={memberTabIds} currentTabId={tabId} />
+      )}
 
       <ScrollArea className="flex-1 px-3 py-2" viewportRef={scrollViewportRef}>
         <div className="space-y-3">
-          {messages.length === 0 && (
+          {displayMessages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
               <p className="text-xs">Start a conversation</p>
-              <p className="text-[11px] mt-1">Click the page icon to inject page content</p>
+              <p className="text-[11px] mt-1">Page content loads automatically. Type / for commands.</p>
             </div>
           )}
-          {messages.map((message: IrisMessage) => (
+          {displayMessages.map((message: IrisMessage) => (
             <ChatMessage
               key={message.id}
               message={message}
               isStreaming={
                 isLoading &&
                 message.role === 'assistant' &&
-                message === messages[messages.length - 1]
+                message === displayMessages[displayMessages.length - 1]
               }
               onDelete={handleDeleteMessage}
               onEdit={handleEditMessage}
@@ -314,12 +383,48 @@ function AgentPanelReady(props: AgentPanelProps & {
         isLoading={isLoading}
         disabled={!settings.apiKey}
         usePageContext={true}
-        onInjectContext={injectContext}
+        onInjectContext={() => { void injectContext() }}
         onInjectSelection={injectSelection}
         defaultValue={editingContent}
         onDefaultValueConsumed={handleClearEditingContent}
         slashCommands={slashCommands}
+        autoFocus={autoFocus}
       />
     </>
+  )
+}
+
+function LinkedTabsBar({ tabIds, currentTabId }: { tabIds: number[]; currentTabId: number }) {
+  const [titles, setTitles] = useState<Record<number, string>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all(tabIds.map(async id => {
+      try {
+        const tab = await chrome.tabs.get(id)
+        return [id, tab.title || tab.url || `#${id}`] as const
+      } catch {
+        return [id, `#${id}`] as const
+      }
+    })).then(entries => {
+      if (cancelled) return
+      setTitles(Object.fromEntries(entries))
+    })
+    return () => { cancelled = true }
+  }, [tabIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1 border-b bg-muted/20 text-[10px] text-muted-foreground overflow-x-auto">
+      <span className="shrink-0">Linked</span>
+      {tabIds.map(id => (
+        <span
+          key={id}
+          className={id === currentTabId ? 'truncate max-w-[140px] text-foreground' : 'truncate max-w-[140px]'}
+          title={titles[id]}
+        >
+          {titles[id] || `Tab ${id}`}
+        </span>
+      ))}
+    </div>
   )
 }

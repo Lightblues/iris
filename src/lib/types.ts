@@ -179,10 +179,12 @@ export type AgentMode = 'general' | 'tab-agent' | 'automation' | 'paper'
 // Page context message types
 export interface GetPageContextMessage {
   type: 'get-page-context';
+  tabId?: number;
 }
 
 export interface GetSelectionContextMessage {
   type: 'get-selection-context';
+  tabId?: number;
 }
 
 export interface PageContextResponse {
@@ -296,7 +298,7 @@ export interface TabAgentResponse {
 }
 
 // Chat Export types
-export type ChatExportPlatform = 'chatgpt' | 'deepseek';
+export type ChatExportPlatform = 'chatgpt' | 'deepseek' | 'gemini';
 
 // Sent from content script → background to persist one raw conversation to disk
 export interface ChatExportSaveMessage {
@@ -313,6 +315,8 @@ export interface ChatExportSaveResponse {
   success: boolean;
   filename?: string;
   error?: string;
+  /** Identifies the service-worker instance; changes if the SW restarted. */
+  swInstance?: string;
 }
 
 // Preflight: is the export directory linked and still authorized?

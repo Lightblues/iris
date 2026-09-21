@@ -1,11 +1,11 @@
 # iris
 
-Personal AIO Chrome extension — AI agent, knowledge capture, page enhancements.
+Browser-side sensor and actuator of the ea system — Agent first, knowledge capture into ea, page enhancements as entry points.
 
 ## Quick Reference
 - **Dev**: `pnpm dev` (Vite + crxjs hot reload)
 - **Build**: `pnpm build` → `dist/` (load unpacked in Chrome)
-- **Spec**: @.ea/spec/spec.md
+- **Spec / Docs**: @.ea/spec/spec.md
 
 ## Coding Style
 - Compact and type-hinted

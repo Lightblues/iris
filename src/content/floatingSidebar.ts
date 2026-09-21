@@ -1,8 +1,7 @@
 // Floating FAB — visual entry point for the native Chrome side panel.
 // Previously injected an iframe into the page; now it only renders a button
 // (and hover menu) that asks the background to open chrome.sidePanel.
-// Keeping the FAB in the page gives us a visible handle and hover actions
-// (enhancements like "Copy as markdown", arxiv helpers, etc.).
+// Shown only on adapted pages (paper sites, GitHub/DeepWiki, chat export).
 
 import type { EnhancementResult } from './enhancements'
 
@@ -13,6 +12,7 @@ let fabButton: HTMLButtonElement | null = null
 let fabHideButton: HTMLButtonElement | null = null
 let fabMenu: HTMLDivElement | null = null
 let currentEnhancements: EnhancementResult[] = []
+let hiddenPatterns: string[] = []
 
 // Custom click-actions (e.g. chat export) injected by feature code.
 export interface FabCustomAction {
@@ -26,7 +26,7 @@ let customActions: FabCustomAction[] = []
 /** Register custom FAB menu actions (replaces any previously set). */
 export function setFabCustomActions(actions: FabCustomAction[]): void {
   customActions = actions
-  if (fabMenu) rebuildMenu()
+  syncFabVisibility()
 }
 
 // Iris logo SVG icon
@@ -54,9 +54,6 @@ export async function initFloatingSidebar(enhancements: EnhancementResult[] = []
 
   currentEnhancements = enhancements
 
-  // Create FAB immediately
-  createFabButton()
-
   // Load settings & hidden flag in parallel
   const SETTINGS_KEY = 'sidepanel_settings'
   const empty: Record<string, unknown> = {}
@@ -71,22 +68,37 @@ export async function initFloatingSidebar(enhancements: EnhancementResult[] = []
   ])
 
   const settings = (localSettings[SETTINGS_KEY] ?? syncSettings[SETTINGS_KEY]) as any
-  const patterns: string[] = settings?.fabSitePatterns || []
-  if (patterns.length > 0 && matchesSitePatterns(window.location.href, patterns)) {
-    removeFab()
-    return
-  }
+  hiddenPatterns = settings?.fabSitePatterns || []
 
   // Clear any stale legacy global-hidden flag
   if (hiddenResult[FAB_HIDDEN_KEY]) {
     void chrome.storage.local.set({ [FAB_HIDDEN_KEY]: false }).catch(() => {})
   }
+
+  syncFabVisibility()
 }
 
 /** Update enhancements (called when URL changes) */
 export function updateEnhancements(enhancements: EnhancementResult[]): void {
   currentEnhancements = enhancements
-  if (fabMenu) rebuildMenu()
+  syncFabVisibility()
+}
+
+/** Show FAB only on adapted pages (enhancements / chat export), minus blocklist. */
+function shouldShowFab(): boolean {
+  if (isFabHidden) return false
+  if (hiddenPatterns.length > 0 && matchesSitePatterns(window.location.href, hiddenPatterns)) {
+    return false
+  }
+  return currentEnhancements.length > 0 || customActions.length > 0
+}
+
+function syncFabVisibility(): void {
+  const show = shouldShowFab()
+  const exists = !!document.getElementById('iris-floating-fab-container')
+  if (show && !exists) createFabButton()
+  else if (!show && exists) removeFab()
+  else if (show && fabMenu) rebuildMenu()
 }
 
 function createFabButton(): void {

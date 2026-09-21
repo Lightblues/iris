@@ -1,7 +1,7 @@
 # SidePanel Repro
 
 Minimal MV3 extension to isolate the Chrome side-panel blank-render bug that
-plagues iris (see `.ea/spec/logs/2026-04-23.md`). No build step — edit files
+plagues iris (see `.ea/spec/spec.md` Side panel). No build step — edit files
 and hit "reload" on the unpacked extension.
 
 ## Goal

@@ -22,9 +22,9 @@ import { createConversation } from './history'
 import { recordEvent } from '@/lib/tracing'
 import { parseSlashInput, findCommand, expandCommand, createDefaultContextFetcher } from '@/lib/slashCommands'
 import { extractArxivId } from '@/content/enhancements/arxiv'
-import { getPageContext, getSelectionContext } from '@/lib/context'
+import { getPageContext, getSelectionContext, isInjectableUrl, waitForTabLoad } from '@/lib/context'
 import { estimateTokens } from '@/lib/tokenUtils'
-import { getMcpStatus, disconnectMcp, type McpStatus } from './mcp'
+import { getMcpStatus, disconnectMcp, releaseMcp, type McpStatus } from './mcp'
 
 // -- Transport creation hook --
 
@@ -46,11 +46,16 @@ export function useAgentTransport(options: {
 
   useEffect(() => {
     let cancelled = false
+    let mcpHeld = false
     console.log('[Agent] Creating agent...', agentMode, activeModel)
 
     createAgent(config, settings, activeModel, options.conversationId)
       .then(result => {
-        if (cancelled) return
+        if (cancelled) {
+          if (config.mcpEnabled) releaseMcp()
+          return
+        }
+        mcpHeld = !!config.mcpEnabled
         console.log('[Agent] Agent created, setting up transport')
         setTransport(createTransport(result.agent, activeModel, result.providerMetadataRef))
         setAgentReady(true)
@@ -58,13 +63,15 @@ export function useAgentTransport(options: {
       })
       .catch(err => {
         console.error('[Agent] Agent creation failed:', err)
-        if (!cancelled) {
-          onError(`Failed to create agent: ${err.message}`)
-          if (config.mcpEnabled) setMcpStatus('error')
-        }
+        if (cancelled) return
+        onError(`Failed to create agent: ${err.message}`)
+        if (config.mcpEnabled) setMcpStatus('error')
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      if (mcpHeld) releaseMcp()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { transport, agentReady, mcpStatus, providerMetadataRef }
@@ -78,6 +85,7 @@ export interface UseAgentChatOptions {
   chatModel: string | null
   conversation: Conversation | null
   slashCommands: SlashCommand[]
+  tabId: number
   onConversationCreated: (conv: Conversation) => void
   onError: (msg: string) => void
 }
@@ -86,7 +94,7 @@ export function useAgentChat(
   transport: DirectChatTransport,
   options: UseAgentChatOptions,
 ) {
-  const { agentMode, settings, chatModel, conversation, slashCommands, onConversationCreated, onError } = options
+  const { agentMode, settings, chatModel, conversation, slashCommands, tabId, onConversationCreated, onError } = options
   const activeModel = chatModel ?? settings.model
   const conversationRef = useRef(conversation)
   conversationRef.current = conversation
@@ -130,7 +138,7 @@ export function useAgentChat(
         const command = findCommand(slashCommands, parsed.name, parsed.namespace)
         if (command) {
           try {
-            processedContent = await expandCommand(command, parsed.args, createDefaultContextFetcher())
+            processedContent = await expandCommand(command, parsed.args, createDefaultContextFetcher(tabId))
           } catch { onError('Failed to expand slash command'); return }
         }
       }
@@ -139,7 +147,7 @@ export function useAgentChat(
     // Paper Agent: auto-inject arXiv context on first message
     if (agentMode === 'paper' && chat.messages.length === 0) {
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        const tab = await chrome.tabs.get(tabId)
         if (tab?.url) {
           const arxivId = extractArxivId(tab.url)
           if (arxivId) {
@@ -149,10 +157,10 @@ export function useAgentChat(
       } catch { /* ignore */ }
     }
 
-    // Lazy conversation creation
+    // Lazy conversation creation — snapshot already-injected page context
     let conv = conversationRef.current
     if (!conv) {
-      conv = await createConversation(agentMode)
+      conv = await createConversation(agentMode, chat.messages as IrisMessage[])
       conversationRef.current = conv
       onConversationCreated(conv)
     }
@@ -180,44 +188,69 @@ export function useAgentChat(
       ...(files?.length ? { files } : {}),
       metadata: { timestamp: Date.now() } as IrisMessageMetadata,
     } as any)
-  }, [settings.apiKey, slashCommands, agentMode, chat, onConversationCreated, onError, activeModel])
+  }, [settings.apiKey, slashCommands, agentMode, chat, onConversationCreated, onError, tabId])
 
-  // Context injection
-  const injectContext = useCallback(async () => {
+  const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number }): Promise<boolean> => {
+    const silent = opts?.silent === true
+    const targetTabId = opts?.tabId ?? tabId
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      const existing = chat.messages.find(
-        (m: IrisMessage) => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab?.url,
-      )
-      if (existing) { onError('Page content already loaded'); return }
-      const context = await getPageContext()
-      if (!context) { onError('Could not extract page content'); return }
+      const tab = await waitForTabLoad(targetTabId)
+      if (!tab || !isInjectableUrl(tab.url)) {
+        if (!silent) onError('Could not extract page content')
+        return false
+      }
+      if (
+        chat.messages.some(
+          (m: IrisMessage) => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab.url,
+        )
+      ) {
+        if (!silent) onError('Page content already loaded')
+        return true
+      }
+      let context = await getPageContext(targetTabId)
+      if (!context) {
+        await new Promise(r => setTimeout(r, 400))
+        context = await getPageContext(targetTabId)
+      }
+      if (!context) {
+        if (!silent) onError('Could not extract page content')
+        return false
+      }
       const msg: IrisMessage = {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${targetTabId}`,
         role: 'user',
         metadata: {
           timestamp: Date.now(),
-          pageUrl: tab?.url,
-          pageTitle: tab?.title,
+          tabId: targetTabId,
+          pageUrl: tab.url,
+          pageTitle: tab.title,
           contextType: 'page',
           estimatedTokens: estimateTokens(context),
         },
-        parts: [{ type: 'text', text: `[Page content from "${tab?.title || 'a page'}"]\n\n${context}` }],
+        parts: [{ type: 'text', text: `[Page content from "${tab.title || 'a page'}"]\n\n${context}` }],
       }
-      chat.setMessages((prev: IrisMessage[]) => [...prev, msg])
-    } catch { onError('Failed to load page content') }
-  }, [chat, onError])
+      chat.setMessages((prev: IrisMessage[]) => {
+        if (prev.some(m => m.metadata?.contextType === 'page' && m.metadata?.pageUrl === tab.url)) return prev
+        return [...prev, msg]
+      })
+      return true
+    } catch {
+      if (!silent) onError('Failed to load page content')
+      return false
+    }
+  }, [chat, onError, tabId])
 
   const injectSelection = useCallback(async () => {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      const context = await getSelectionContext()
+      const tab = await chrome.tabs.get(tabId)
+      const context = await getSelectionContext(tabId)
       if (!context) { onError('No text selected'); return }
       const msg: IrisMessage = {
         id: Date.now().toString(),
         role: 'user',
         metadata: {
           timestamp: Date.now(),
+          tabId,
           pageUrl: tab?.url,
           pageTitle: tab?.title,
           contextType: 'selection',
@@ -227,7 +260,7 @@ export function useAgentChat(
       }
       chat.setMessages((prev: IrisMessage[]) => [...prev, msg])
     } catch { onError('Failed to load selected text') }
-  }, [chat, onError])
+  }, [chat, onError, tabId])
 
   return {
     messages: chat.messages as IrisMessage[],
@@ -242,4 +275,4 @@ export function useAgentChat(
   }
 }
 
-export { disconnectMcp }
+export { disconnectMcp, releaseMcp }

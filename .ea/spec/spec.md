@@ -1,101 +1,97 @@
-# Iris — Browser AI Assistant
+# Iris
+
+Browser-side **sensor and actuator** of the ea system. It acts on the current browsing context, and writes what is worth keeping into ea.
 
 | Item | Detail |
 |------|--------|
-| Project | `packages/iris`, subpackage of `easons_agent` |
-| Purpose | Browser-resident AI assistant: agent-powered Q&A, knowledge capture, browsing enhancement |
+| Repo | `packages/iris` (easons_agent) |
+| Form | Chrome extension, Manifest V3 |
 | Stack | React + TypeScript + Tailwind v4 + Shadcn/ui |
-| Build | Vite + @crxjs/vite-plugin (Manifest V3) |
-| AI | AI SDK v6 (ToolLoopAgent, DirectChatTransport, useChat) + OpenRouter |
+| Build | Vite + `@crxjs/vite-plugin` |
+| AI | AI SDK v6 (`ToolLoopAgent`, `DirectChatTransport`, `useChat`) + OpenRouter-compatible provider |
 
-## Core Pillars
+## Positioning
 
-| Pillar | Priority | Description | Spec |
-|--------|----------|-------------|------|
-| **Agent** | P0 | LLM agent with pluggable tool sets — browsing Q&A, tab management, automation, paper reading | [agent.md](agent.md) |
-| **Knowledge** | Evolving | Capture highlights, notes, chat saves; passive browsing tracing; Vesta sync — the input layer for the ea system | [knowledge.md](knowledge.md) |
-| **Page Enhancements** | Stable | FAB, site cross-links, command menu, context menu — traditional tools that enhance browsing | [page-enhancements.md](page-enhancements.md) |
+Iris is not a general-purpose “all-in-one browser assistant”. It has two jobs:
+
+1. **Actuator** — ask and act on the current page, tab set, or paper.
+2. **Sensor** — turn highlights, notes, agent chats, browsing traces, and exported third-party chats into ea inputs.
+
+**Product surface is the Agent.** Knowledge capture is the strategic pipe into ea. Page enhancements are stable entry points and personal patches.
+
+New work must answer at least one: *does this help act on the current browsing context, or give ea a higher-quality input?* If neither, it does not belong in Iris.
+
+Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page’s content is injected automatically. Cmd+click from an Iris tab joins the same session. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent.
+
+## Scope
+
+| Layer | Status | Role | Spec |
+|-------|--------|------|------|
+| **Agent** | Core | Primary surface. Side-panel copilot with pluggable tools. | [agent.md](agent.md) |
+| **Knowledge** | Maintain | Capture + tracing + Vesta / chat-export. ea input layer. | [knowledge.md](knowledge.md) |
+| **Page enhancements** | Maintain | FAB, site jumps, command menu, patches. Do not expand unless they serve Agent or Knowledge. | [page-enhancements.md](page-enhancements.md) |
+
+Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
+
+**Out of scope (do not position Iris as):** a second knowledge base (Vesta owns that), a Chrome UI replacement for bookmarks/reading list, a background browser-use agent, or a public AIO sidebar product.
 
 ## Architecture
 
-```
-Chrome Extension (Manifest V3)
-├── Background (Service Worker)
-│   ├── Agent tool execution (chrome.tabs, chrome.scripting)
-│   ├── Browsing tracing (page visits, search queries)
-│   ├── Context menus, alarms, Vesta sync
-│   └── Message router
-├── Content Scripts
-│   ├── FAB + floating sidebar
-│   ├── Page enhancements (arXiv, GitHub)
-│   ├── Command menu (Cmd+Shift+P)
-│   ├── Highlight injection & restore
-│   └── Context extraction (page/selection)
-├── SidePanel (React SPA)
-    ├── Agent tab (AgentPanel — chat with AI agent)
-    ├── Agent History tab
-    ├── Tabs / Bookmarks / Reading List / Notes tabs
-    └── Settings
-```
-
-### Message Passing
+Three processes:
 
 ```
-SidePanel ──sendMessage──▶ Background ──executeScript/sendMessage──▶ Content Script / Chrome APIs
+Background (service worker)
+  tool execution (chrome.tabs, chrome.scripting)
+  tracing, context menus, alarms, file writes (Vesta / chat export)
+  message router
+
+Content scripts (<all_urls>)
+  FAB, site enhancements, command menu
+  highlight restore, page/selection extraction
+  chat-export adapters (on supported origins)
+
+Side Panel (React SPA, tab-specific)
+  Agent (primary) + History / Notes / Tabs / Bookmarks / Reading List
+  Settings
+```
+
+```
+SidePanel ──sendMessage──▶ Background ──executeScript / sendMessage──▶ Content / Chrome APIs
          ◀──response──────           ◀──response──────────────────
 ```
 
-Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `get-selection-context`, `create-highlight`, `tracing-event`
+Key messages: `tab_agent_action`, `automation_action`, `get-page-context`, `get-selection-context`, `execute-command`, `create-highlight`, `tracing-event`.
 
-### Permissions
+Permissions: `storage`, `activeTab`, `readingList`, `contextMenus`, `clipboardWrite`, `sidePanel`, `tabs`, `tabGroups`, `unlimitedStorage`, `alarms`, `scripting` + `host_permissions: <all_urls>`.
 
-`storage`, `activeTab`, `readingList`, `contextMenus`, `clipboardWrite`, `sidePanel`, `tabs`, `tabGroups`, `unlimitedStorage`, `alarms`, `scripting` + `host_permissions: <all_urls>`
+The agent runtime lives in the side panel, not the service worker. Lifecycle implications are in [agent.md](agent.md).
 
-### SidePanel Lifecycle & Per-Tab Chat
+## Side panel
 
-**Toggle:** Toolbar icon click and keyboard shortcut (`Cmd+Shift+Y`) toggle the sidepanel open/closed per-window. `openPanelOnActionClick: false` + manual `chrome.sidePanel.open/close({ windowId })`.
+Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click / Shift+click / middle-click / right-click “open in new tab” from an Iris tab joins that session and opens the panel on the child; closing the child unlinks that tab but leaves already-injected page messages in the thread. New Chat unlinks the current tab.
 
-**Per-tab conversation binding:** The sidepanel is a **single React instance per window** (Chrome limitation). On tab switch (`chrome.tabs.onActivated`), the app swaps the active conversation:
-- Save current conversation ID to an in-memory `Map<tabId, conversationId>`
-- Load the new tab's conversation (or start fresh if first visit)
-- Component remount via `key` bump
+| Tab | Status | Notes |
+|-----|--------|-------|
+| Agent | Core | `AgentPanel` |
+| History | Core-adjacent | Conversation list, import/export |
+| Notes | Maintain | Browse local knowledge entries |
+| Tabs / Bookmarks / Reading List | Maintain | Thin Chrome wrappers; not a product line |
+| Settings | Shared | LLM, MCP, Vesta, slash-command folder, FAB blocklist, chat-export dir |
 
-**Architectural constraints:**
-| Constraint | Implication |
-|------------|-------------|
-| Single sidepanel instance per window | All tabs share one React app; "per-tab" is simulated via state swap |
-| Closing sidepanel = unmount | Streaming responses are terminated; no background survival |
-| Tab switch during streaming | Stream is interrupted, partial response saved |
-| No background AI processing | `useChat` runs in sidepanel process only |
+Chrome may leave a newly opened side panel blank until a second UI gesture (shortcut / FAB / inspect). This is a Chromium scheduling bug, not Iris logic. Repro: `experiments/sidepanel-repro/`. Workaround: trigger open a second time.
 
-**Future:** To support background agent execution (survive tab-switch / panel-close), AI streaming must move to the background service worker with sidepanel as display-only subscriber. This is a major architecture change.
+## Settings (agent-relevant)
 
-## SidePanel Tabs
+| Section | Fields |
+|---------|--------|
+| LLM / Agent | API key, base URL, default model, favourites (from `/v1/models`), temperature, max output tokens, max steps |
+| MCP | Endpoint for Paper mode (default `http://localhost:8765/mcp`) |
+| Per-chat model | Searchable combobox in the chat header; favourites pinned |
 
-| Tab | Component | Description |
-|-----|-----------|-------------|
-| Agent | `AgentPanel` | Primary chat interface — AI agent with tool calling |
-| Agent History | `AgentHistoryTab` | Agent conversation list with import/export |
-| Tabs | `TabsTab` | Open tabs viewer |
-| Bookmarks | `BookmarksTab` | Category-filtered bookmark manager |
-| Reading List | `ReadingListTab` | Chrome native reading list UI |
-| Notes | `NotesTab` | Knowledge entries (highlights, notes, chat saves) |
+Other settings (Vesta, slash-command folder, FAB patterns, chat-export directory, Notion) are documented in the layer that owns them.
 
-## Settings
+## Reading order
 
-| Section | Key Fields |
-|---------|------------|
-| LLM / Agent | API Key, Base URL, Default Model, Favourite Models (fetched from /v1/models), Temperature, Max Output Tokens, Max Steps |
-| MCP Server | Endpoint URL (for Paper Agent) |
-| Vesta Sync | Link directory, sync trigger |
-| Slash Commands | Link folder, command list |
-| Content Script | FAB site patterns |
-| Import / Export | Settings JSON |
-
-Per-chat model override via searchable combobox in the chat header. Models fetched from provider's /v1/models API; users star favourites for quick access.
-
-## References
-
-- [agent.md](agent.md) — Agent architecture, tool registry, MCP
-- [knowledge.md](knowledge.md) — Knowledge capture, tracing, Vesta sync
-- [page-enhancements.md](page-enhancements.md) — FAB, site enhancements, command menu
+1. This file — what Iris is, and what not to build.
+2. [agent.md](agent.md) — how the core surface actually runs.
+3. [knowledge.md](knowledge.md) / [page-enhancements.md](page-enhancements.md) — only when touching those layers.

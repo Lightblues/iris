@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Iris",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "AI-powered browser assistant - analyze pages, chat with content",
   "icons": {
     "16": "icon-16.png",
@@ -33,7 +33,7 @@
       "run_at": "document_start"
     }
   ],
-  "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "unlimitedStorage", "alarms", "scripting"],
+      "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "webNavigation", "unlimitedStorage", "alarms", "scripting"],
   "host_permissions": ["<all_urls>"],
   "commands": {
     "open-command-menu": {
