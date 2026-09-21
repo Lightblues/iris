@@ -1,3 +1,4 @@
+import { initSidePanel, toggleForTab, openForTab } from './sidePanel';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -27,28 +28,7 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-// Disable auto-open so we handle toggle manually per-tab.
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error);
-
-// Track which windows have the panel open so we can toggle.
-// Chrome's sidePanel is per-window (not per-tab) — opening on tabId just sets
-// which tab triggered it, but close must target the windowId.
-const panelOpenWindows = new Set<number>();
-
-// Handle toolbar icon click — toggle.
-chrome.action.onClicked.addListener(async (tab) => {
-  if (tab?.id == null || tab.windowId == null) return;
-  try {
-    if (panelOpenWindows.has(tab.windowId)) {
-      await chrome.sidePanel.close({ windowId: tab.windowId });
-      panelOpenWindows.delete(tab.windowId);
-    } else {
-      await chrome.sidePanel.open({ tabId: tab.id });
-    }
-  } catch (err) {
-    console.warn('[Iris] sidePanel toggle from action click failed:', err);
-  }
-});
+initSidePanel();
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -158,15 +138,8 @@ chrome.commands.onCommand.addListener(async (command) => {
       console.log('[Iris] Could not send message to tab:', error);
     }
   } else if (command === 'toggle-floating-sidebar') {
-    // Toggle: close if open, open if closed.
     try {
-      const windowId = tab.windowId!;
-      if (panelOpenWindows.has(windowId)) {
-        await chrome.sidePanel.close({ windowId });
-        panelOpenWindows.delete(windowId);
-      } else {
-        await chrome.sidePanel.open({ tabId: tab.id! });
-      }
+      await toggleForTab(tab);
     } catch (error) {
       console.log('[Iris] Could not toggle side panel:', error);
     }
@@ -259,7 +232,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     if (tab.url) {
       await handlePageVisit(activeInfo.tabId, tab.url, tab.title || '');
     }
-  } catch (err) {
+  } catch {
     // Tab may have been closed
   }
 });
@@ -277,15 +250,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
-// Clean up panel tracking when a tab is closed.
-chrome.tabs.onRemoved.addListener((_tabId, removeInfo) => {
-  // If no more tabs in this window, remove tracking.
-  // (Chrome auto-closes the panel when the last tab closes anyway.)
-  if (removeInfo.isWindowClosing) {
-    panelOpenWindows.delete(removeInfo.windowId);
-  }
-});
-
 // Handle messages from content scripts, popup, or sidepanel
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
   console.log('[Iris] Message received:', message);
@@ -299,26 +263,12 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
       sendResponse({ success: false, error: 'No tab id on sender' });
       return true;
     }
-    chrome.sidePanel.open({ tabId })
+    openForTab(tabId)
       .then(() => sendResponse({ success: true }))
       .catch((err) => {
         console.warn('[Iris] sidePanel.open failed:', err);
         sendResponse({ success: false, error: err?.message || String(err) });
       });
-    return true;
-  }
-
-  // Track sidepanel open/close state per window (for toggle)
-  if (message.type === 'sidepanel-opened') {
-    const windowId = message.windowId as number | undefined;
-    if (windowId != null) panelOpenWindows.add(windowId);
-    sendResponse({ success: true });
-    return true;
-  }
-  if (message.type === 'sidepanel-closed') {
-    const windowId = message.windowId as number | undefined;
-    if (windowId != null) panelOpenWindows.delete(windowId);
-    sendResponse({ success: true });
     return true;
   }
 
@@ -371,7 +321,7 @@ return true;
   }
 
   if (message.type === 'get-selection-context') {
-    handleGetSelectionContext()
+    handleGetSelectionContext(message)
       .then(sendResponse)
       .catch((error) => {
         sendResponse({ success: false, error: error.message || 'Failed to get selection' });
@@ -422,10 +372,22 @@ return true;
   return true;
 });
 
-async function handleGetPageContext(_message: GetPageContextMessage): Promise<PageContextResponse> {
+async function resolveContextTab(tabId?: number): Promise<chrome.tabs.Tab | undefined> {
+  if (tabId != null) {
+    try {
+      return await chrome.tabs.get(tabId);
+    } catch {
+      return undefined;
+    }
+  }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+async function handleGetPageContext(message: GetPageContextMessage): Promise<PageContextResponse> {
+  const tab = await resolveContextTab(message.tabId);
   if (!tab?.id) {
-    return { success: false, error: 'No active tab' };
+    return { success: false, error: 'No tab' };
   }
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'extract-page-content' });
@@ -435,10 +397,10 @@ async function handleGetPageContext(_message: GetPageContextMessage): Promise<Pa
   }
 }
 
-async function handleGetSelectionContext(): Promise<PageContextResponse> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+async function handleGetSelectionContext(message?: { tabId?: number }): Promise<PageContextResponse> {
+  const tab = await resolveContextTab(message?.tabId);
   if (!tab?.id) {
-    return { success: false, error: 'No active tab' };
+    return { success: false, error: 'No tab' };
   }
   try {
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'extract-selection-content' });

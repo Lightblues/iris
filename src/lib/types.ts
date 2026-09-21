@@ -179,10 +179,12 @@ export type AgentMode = 'general' | 'tab-agent' | 'automation' | 'paper'
 // Page context message types
 export interface GetPageContextMessage {
   type: 'get-page-context';
+  tabId?: number;
 }
 
 export interface GetSelectionContextMessage {
   type: 'get-selection-context';
+  tabId?: number;
 }
 
 export interface PageContextResponse {

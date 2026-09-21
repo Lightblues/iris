@@ -11,6 +11,7 @@ import type { SlashCommand } from '@/lib/types'
 import { createConversation } from '@/agent/history'
 
 export interface AgentPanelProps {
+  tabId: number
   agentMode: AgentMode
   settings: SidePanelSettings
   availableModels: ModelConfig[]
@@ -32,7 +33,7 @@ export interface AgentPanelProps {
  */
 export function AgentPanel(props: AgentPanelProps) {
   const {
-    agentMode, settings, chatModel, onChatModelChange,
+    tabId, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings,
   } = props
@@ -106,6 +107,7 @@ export function AgentPanel(props: AgentPanelProps) {
   return (
     <AgentPanelReady
       transport={transport}
+      tabId={tabId}
       agentMode={agentMode}
       settings={settings}
       availableModels={props.availableModels}
@@ -134,7 +136,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   pendingMessage: { content: string; images?: any[] } | null
 }) {
   const {
-    transport, agentMode, settings, chatModel, onChatModelChange,
+    transport, tabId, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat, onAgentModeChange,
     slashCommands, onOpenSettings, mcpStatus, pendingMessage,
   } = props
@@ -155,17 +157,24 @@ function AgentPanelReady(props: AgentPanelProps & {
     chatModel,
     conversation,
     slashCommands,
+    tabId,
     onConversationCreated,
     onError: setError,
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
-  // Flush pending message once (queued before transport was ready)
+  // Auto-inject this tab's page, then flush any message queued before transport was ready.
   useEffect(() => {
-    if (flushedRef.current || !pendingMessage) return
-    flushedRef.current = true
-    sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
+    let cancelled = false
+    ;(async () => {
+      const hasMessages = (conversation?.messages?.length ?? 0) > 0
+      if (!hasMessages) await injectContext({ silent: true })
+      if (cancelled || flushedRef.current || !pendingMessage) return
+      flushedRef.current = true
+      sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
+    })()
+    return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll helpers
@@ -282,7 +291,7 @@ function AgentPanelReady(props: AgentPanelProps & {
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
               <p className="text-xs">Start a conversation</p>
-              <p className="text-[11px] mt-1">Click the page icon to inject page content</p>
+              <p className="text-[11px] mt-1">Page content loads automatically. Type / for commands.</p>
             </div>
           )}
           {messages.map((message: IrisMessage) => (
@@ -314,7 +323,7 @@ function AgentPanelReady(props: AgentPanelProps & {
         isLoading={isLoading}
         disabled={!settings.apiKey}
         usePageContext={true}
-        onInjectContext={injectContext}
+        onInjectContext={() => { void injectContext() }}
         onInjectSelection={injectSelection}
         defaultValue={editingContent}
         onDefaultValueConsumed={handleClearEditingContent}

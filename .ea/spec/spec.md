@@ -21,7 +21,7 @@ Iris is not a general-purpose “all-in-one browser assistant”. It has two job
 
 New work must answer at least one: *does this help act on the current browsing context, or give ea a higher-quality input?* If neither, it does not belong in Iris.
 
-Honest capability today: the user is present, the side panel is open, the agent works on the current context. Closing the panel or switching tabs stops in-flight generation. Iris is not a background autonomous browser agent.
+Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page’s content is injected automatically. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent.
 
 ## Scope
 
@@ -50,7 +50,7 @@ Content scripts (<all_urls>)
   highlight restore, page/selection extraction
   chat-export adapters (on supported origins)
 
-Side Panel (React SPA, one instance per window)
+Side Panel (React SPA, tab-specific)
   Agent (primary) + History / Notes / Tabs / Bookmarks / Reading List
   Settings
 ```
@@ -68,7 +68,7 @@ The agent runtime lives in the side panel, not the service worker. Lifecycle imp
 
 ## Side panel
 
-Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`; background calls `chrome.sidePanel.open/close({ windowId })`.
+Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Shared sessions for Cmd+click child tabs are not implemented yet.
 
 | Tab | Status | Notes |
 |-----|--------|-------|

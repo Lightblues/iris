@@ -10,6 +10,8 @@ let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null
 let cachedTools: ToolSet | null = null
 let status: McpStatus = 'disconnected'
 let currentUrl: string | null = null
+let holdCount = 0
+let connectPromise: Promise<ToolSet> | null = null
 
 export function getMcpStatus(): McpStatus { return status }
 
@@ -58,32 +60,64 @@ function sanitizeTools(tools: ToolSet): ToolSet {
   return sanitized
 }
 
-/** Connect to MCP server and return tools. Caches connection by URL. */
-export async function connectMcp(url: string): Promise<ToolSet> {
-  if (mcpClient && currentUrl === url && status === 'connected') return cachedTools ?? {}
-  await disconnectMcp()
+async function openClient(url: string): Promise<ToolSet> {
+  const transportType = url.endsWith('/sse') ? 'sse' as const : 'http' as const
+  console.log('[Agent MCP] Connecting via', transportType, 'to', url)
+  mcpClient = await createMCPClient({ transport: { type: transportType, url } })
+  const rawTools = await mcpClient.tools()
+  cachedTools = sanitizeTools(rawTools)
+  status = 'connected'
+  console.log('[Agent MCP] Connected, tools:', Object.keys(cachedTools))
+  return cachedTools
+}
 
-  status = 'connecting'
+/** Connect to MCP server and return tools. Shared across Paper sessions; refcounted. */
+export async function connectMcp(url: string): Promise<ToolSet> {
+  if (status === 'connected' && mcpClient && currentUrl === url) {
+    holdCount++
+    return cachedTools ?? {}
+  }
+  if (connectPromise && currentUrl === url) {
+    const tools = await connectPromise
+    holdCount++
+    return tools
+  }
+  if (holdCount > 0 && currentUrl && currentUrl !== url) {
+    throw new Error(`MCP already connected to ${currentUrl}`)
+  }
+
   currentUrl = url
+  status = 'connecting'
+  connectPromise = openClient(url)
   try {
-    const transportType = url.endsWith('/sse') ? 'sse' as const : 'http' as const
-    console.log('[Agent MCP] Connecting via', transportType, 'to', url)
-    mcpClient = await createMCPClient({ transport: { type: transportType, url } })
-    const rawTools = await mcpClient.tools()
-    cachedTools = sanitizeTools(rawTools)
-    status = 'connected'
-    console.log('[Agent MCP] Connected, tools:', Object.keys(cachedTools))
-    return cachedTools
+    const tools = await connectPromise
+    holdCount++
+    return tools
   } catch (err) {
     console.error('[Agent MCP] Connection failed:', err)
+    holdCount = 0
     status = 'error'
     mcpClient = null
     cachedTools = null
+    currentUrl = null
     throw err
+  } finally {
+    connectPromise = null
   }
 }
 
+export async function releaseMcp(): Promise<void> {
+  if (holdCount <= 0) {
+    holdCount = 0
+    return
+  }
+  holdCount--
+  if (holdCount === 0) await disconnectMcp()
+}
+
 export async function disconnectMcp(): Promise<void> {
+  holdCount = 0
+  connectPromise = null
   if (mcpClient) {
     try { await mcpClient.close() } catch { /* ignore */ }
     mcpClient = null

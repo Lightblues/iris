@@ -10,12 +10,14 @@ The agent process **is the side panel**. There is no background LLM loop.
 
 | Constraint | Implication |
 |------------|-------------|
-| One side panel per window | “Per-tab chat” is a state swap, not a separate app |
-| Close panel = unmount | In-flight streams die; partial messages are saved if already persisted |
-| Switch tab during stream | Stream aborts; partial response saved |
-| `useChat` in the panel only | No work continues after close |
+| Tab-specific side panel | Only tabs where the user opened Iris show the panel. Cmd+T / unrelated tabs stay clean |
+| Switch to a tab without Iris | Panel hides; Chrome may unload the document and abort streams |
+| Switch back to an Iris tab | Panel shows again; conversation restored from `chrome.storage.session` |
+| Close a browser tab | That tab’s panel unmounts; binding dropped |
+| Close the side panel | That tab’s session unmounts |
+| `useChat` in the panel only | No work continues after the panel closes |
 
-To survive tab-switch / panel-close, streaming would have to move into the service worker with the panel as a subscriber. That is a major rewrite, not a patch. Until then, do not describe Iris as a background agent.
+To survive panel-close, streaming would have to move into the service worker with the panel as a subscriber. That is a major rewrite, not a patch. Until then, do not describe Iris as a background agent.
 
 ## Request path
 
@@ -31,7 +33,7 @@ ChatInput
   → chrome.storage.local
 ```
 
-General mode (the daily path) has **no tools**. Context exists only if the user injected page/selection, attached an image, or used a slash command that pulls those variables.
+General mode (the daily path) has **no tools**. Context is the auto-injected page, plus anything the user injects, attaches, or pulls in via slash commands.
 
 ## Modules (`src/agent/`)
 
@@ -44,17 +46,18 @@ General mode (the daily path) has **no tools**. Context exists only if the user 
 | `mcp.ts` | MCP connect / disconnect / schema sanitize |
 | `history.ts` | Conversation CRUD in `chrome.storage.local` |
 
-`SidePanelApp.tsx` owns per-tab conversation binding and remount keys. `AgentPanel.tsx` is the two-phase UI (loading → ready).
+`SidePanelApp.tsx` hosts one live `AgentPanel` per Iris-enabled browser tab (`useAgentSessions.ts`). The panel document only stays visible on those tabs. `AgentPanel.tsx` is the two-phase UI (loading → ready). New Chat / mode change remount **that tab only**.
 
 ## Lifecycle
 
 ### Bind to the current tab
 
-`SidePanelApp` keeps an in-memory `Map<tabId, conversationId>`:
+`useAgentSessions` keeps a live slot per Iris-enabled tab:
 
-- Open: load that tab’s conversation, or start empty.
-- Tab activate: stash the old id, load/create for the new tab, remount Agent via `key`.
-- Map is memory-only. Closing the panel forgets the binding; History still has the conversation.
+- Open Iris on a tab: show that tab’s slot (hydrate conversation from `chrome.storage.session` if the panel remounted).
+- Switching to a tab without Iris does not create a slot.
+- Close the side panel: unmount the in-memory agent. Reopen the same tab to hydrate the conversation.
+- Close the browser tab: drop the slot and persisted binding.
 
 ### Create the agent
 
@@ -81,7 +84,7 @@ The agent instance is built on mount. Mode change, New Chat, and History select 
 5. Trace `chat_message`.
 6. `chat.sendMessage({ text, files })`.
 
-Page text is **not** auto-attached. Inject page / selection inserts a user message with `contextType` metadata (Readability via background → content script, 100k char cap). Same-URL full-page inject is de-duplicated.
+Page text is **auto-injected** when a new empty session mounts (http(s)/file pages, 100k char cap, same-URL de-duplicated). Manual inject page / selection still inserts a user message with `contextType` + `tabId` metadata (Readability via background → content script). `getPageContext(tabId)` always targets that session’s tab, not “whatever is active”.
 
 ## Modes
 

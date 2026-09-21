@@ -11,8 +11,9 @@ import type { Conversation as AgentConversation } from '@/agent/types'
 import type { AgentMode as NewAgentMode } from '@/agent/types'
 import { loadAllCommands } from '@/lib/commandStorage'
 import { fetchModels } from '@/lib/modelRegistry'
+import { cn } from '@/lib/utils'
+import { useAgentSessions } from './useAgentSessions'
 
-// Lazy-loaded tabs — only fetched when user navigates to them
 const SettingsPage = lazy(() => import('./components/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const BookmarksTab = lazy(() => import('./components/BookmarksTab').then(m => ({ default: m.BookmarksTab })))
 const ReadingListTab = lazy(() => import('./components/ReadingListTab').then(m => ({ default: m.ReadingListTab })))
@@ -21,7 +22,6 @@ const NotesTab = lazy(() => import('./components/NotesTab').then(m => ({ default
 const AgentHistoryTab = lazy(() => import('./components/AgentHistoryTab').then(m => ({ default: m.AgentHistoryTab })))
 const AgentPanel = lazy(() => import('./components/AgentPanel').then(m => ({ default: m.AgentPanel })))
 
-// Lazy telemetry — only loaded when a Phoenix endpoint is configured
 async function initTelemetryIfNeeded(endpoint: string | undefined) {
   if (!endpoint) return
   const { initTelemetry } = await import('@/lib/telemetry')
@@ -51,22 +51,9 @@ export default function SidePanelApp() {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const previousTabRef = useRef<TabType>('agent')
 
-  // Agent system state
-  const [agentConversation, setAgentConversation] = useState<AgentConversation | null>(null)
-  const [agentChatModel, setAgentChatModel] = useState<string | null>(null)
-  const [newAgentMode, setNewAgentMode] = useState<NewAgentMode>('general')
-  const agentSessionRef = useRef(0) // bumped on explicit new-chat / mode-change / history-select
-  const [agentSessionKey, setAgentSessionKey] = useState(0)
-  const bumpAgentSession = useCallback(() => {
-    agentSessionRef.current += 1
-    setAgentSessionKey(agentSessionRef.current)
-  }, [])
+  const { currentTabId, sessions, patchSession, remountSession, changeMode } = useAgentSessions()
+  const currentSession = currentTabId != null ? sessions[currentTabId] : undefined
 
-  // Per-tab chat binding: maps tabId → conversationId (or null for fresh chat)
-  const currentTabIdRef = useRef<number | null>(null)
-  const tabConvMapRef = useRef<Map<number, string | null>>(new Map())
-
-  // Load settings and active conversation on mount
   useEffect(() => {
     console.log('[Iris] Initializing...')
     loadSettings().then((s) => {
@@ -91,99 +78,11 @@ export default function SidePanelApp() {
       if (result[TAB_STORAGE_KEY]) setActiveTab(result[TAB_STORAGE_KEY] as TabType)
     })
 
-    // Per-tab: identify which tab we're opened on, start fresh chat
-    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
-      if (tab?.id) {
-        currentTabIdRef.current = tab.id
-        // Signal background that panel is open on this window
-        chrome.runtime.sendMessage({ type: 'sidepanel-opened', windowId: tab.windowId }).catch(() => {})
-        // Load conversation for this tab if we've seen it before, otherwise fresh
-        const existingConvId = tabConvMapRef.current.get(tab.id)
-        if (existingConvId) {
-          loadConversationById(existingConvId)
-        } else {
-          setAgentConversation(null) // fresh chat for new tab
-        }
-      }
-    })
-
-    // Listen for tab switches to swap conversations
-    const onTabActivated = (activeInfo: { tabId: number; windowId: number }) => {
-      const oldTabId = currentTabIdRef.current
-      const newTabId = activeInfo.tabId
-      if (oldTabId === newTabId) return
-
-      // Save current conversation for the old tab
-      if (oldTabId != null) {
-        tabConvMapRef.current.set(oldTabId, agentConversationRef.current?.id ?? null)
-      }
-      currentTabIdRef.current = newTabId
-
-      // Load conversation for the new tab
-      const existingConvId = tabConvMapRef.current.get(newTabId)
-      if (existingConvId) {
-        loadConversationById(existingConvId)
-      } else {
-        setAgentConversation(null)
-        bumpAgentSession()
-      }
-    }
-    chrome.tabs.onActivated.addListener(onTabActivated)
-
-    // Cleanup tab mapping on tab close
-    const onTabRemoved = (tabId: number) => {
-      tabConvMapRef.current.delete(tabId)
-    }
-    chrome.tabs.onRemoved.addListener(onTabRemoved)
-
-    // Signal background on close — use windowId for toggle tracking
-    const signalClose = () => {
-      chrome.windows.getCurrent().then((win) => {
-        if (win?.id != null) {
-          chrome.runtime.sendMessage({ type: 'sidepanel-closed', windowId: win.id }).catch(() => {})
-        }
-      }).catch(() => {})
-    }
-    window.addEventListener('beforeunload', signalClose)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') signalClose()
-      else {
-        chrome.windows.getCurrent().then((win) => {
-          if (win?.id != null) {
-            chrome.runtime.sendMessage({ type: 'sidepanel-opened', windowId: win.id }).catch(() => {})
-          }
-        }).catch(() => {})
-      }
-    })
-
     return () => {
       shutdownTelemetryIfLoaded()
-      chrome.tabs.onActivated.removeListener(onTabActivated)
-      chrome.tabs.onRemoved.removeListener(onTabRemoved)
-      window.removeEventListener('beforeunload', signalClose)
-      signalClose()
     }
   }, [])
 
-  // Ref to track current conversation for the tab-switch closure
-  const agentConversationRef = useRef(agentConversation)
-  useEffect(() => { agentConversationRef.current = agentConversation }, [agentConversation])
-
-  // Helper: load a conversation by ID from storage
-  const loadConversationById = async (convId: string) => {
-    const store = await loadAgentConversations()
-    const conv = store.conversations.find((c) => c.id === convId)
-    if (conv) {
-      setAgentConversation(conv)
-      if (conv.agentMode) setNewAgentMode(conv.agentMode)
-      bumpAgentSession()
-    } else {
-      setAgentConversation(null)
-      bumpAgentSession()
-    }
-  }
-
-  // Tab navigation
   const handleTabChange = (tab: TabType) => {
     if (tab !== 'settings') previousTabRef.current = tab
     setActiveTab(tab)
@@ -199,48 +98,35 @@ export default function SidePanelApp() {
     setActiveTab(previousTabRef.current)
   }
 
-  // Agent system handlers
   const handleAgentSelectConversation = async (id: string) => {
+    if (currentTabId == null) return
     const store = await loadAgentConversations()
     const conv = store.conversations.find((c) => c.id === id)
-    if (conv) {
-      setAgentConversation(conv)
-      if (conv.agentMode) setNewAgentMode(conv.agentMode)
-      await setAgentActiveConversation(id)
-      bumpAgentSession()
-      setActiveTab('agent')
-    }
+    if (!conv) return
+    remountSession(currentTabId, {
+      conversation: conv,
+      agentMode: conv.agentMode || 'general',
+    })
+    await setAgentActiveConversation(id)
+    setActiveTab('agent')
   }
 
-  const handleAgentNewChat = async () => {
-    setAgentConversation(null)
-    setAgentChatModel(null)
-    bumpAgentSession()
+  const handleAgentNewChat = useCallback(async (tabId: number) => {
+    remountSession(tabId, { conversation: null, chatModel: null })
     setActiveTab('agent')
     await setAgentActiveConversation(null)
-  }
+  }, [remountSession])
 
-  const handleAgentConversationCreated = useCallback((conv: AgentConversation) => {
-    setAgentConversation(conv)
+  const handleAgentConversationCreated = useCallback((tabId: number, conv: AgentConversation) => {
+    patchSession(tabId, { conversation: conv })
     setAgentActiveConversation(conv.id).catch(() => {})
-    // Track in per-tab map
-    const tabId = currentTabIdRef.current
-    if (tabId != null) tabConvMapRef.current.set(tabId, conv.id)
-  }, [])
+  }, [patchSession])
 
-  const handleNewAgentModeChange = useCallback(async (mode: NewAgentMode) => {
-    if (mode === newAgentMode) return
-    if (newAgentMode === 'paper') {
-      const { disconnectMcp } = await import('@/agent/useAgentChat')
-      await disconnectMcp()
-    }
-    setNewAgentMode(mode)
-    setAgentConversation(null)
-    bumpAgentSession()
-    await setAgentActiveConversation(null)
-  }, [newAgentMode, bumpAgentSession])
+  const handleNewAgentModeChange = useCallback((tabId: number, mode: NewAgentMode) => {
+    changeMode(tabId, mode)
+    setAgentActiveConversation(null).catch(() => {})
+  }, [changeMode])
 
-  // Settings
   const handleSettingsChange = async (newSettings: Partial<SidePanelSettings>) => {
     const updated = { ...settings, ...newSettings }
     setSettings(updated)
@@ -258,6 +144,8 @@ export default function SidePanelApp() {
     })
   }, [])
 
+  const sessionList = Object.values(sessions)
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
       <SidebarHeader
@@ -267,47 +155,66 @@ export default function SidePanelApp() {
         onSettingsBack={handleSettingsBack}
       />
 
-      {activeTab === 'settings' ? (
+      {/* Keep enabled-tab AgentPanels mounted so History/Settings views do not remount the chat. */}
+      <div className={cn('flex-1 min-h-0 flex flex-col', activeTab !== 'agent' && 'hidden')}>
         <Suspense fallback={<TabFallback />}>
-          <SettingsPage
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-            onCommandsChanged={handleCommandsChanged}
-          />
+          {sessionList.length === 0 ? (
+            <TabFallback />
+          ) : (
+            sessionList.map((s) => (
+              <div
+                key={s.tabId}
+                className={cn('flex-1 min-h-0 flex flex-col', s.tabId !== currentTabId && 'hidden')}
+              >
+                <AgentPanel
+                  key={`${s.tabId}-${s.agentMode}-${s.sessionKey}`}
+                  tabId={s.tabId}
+                  agentMode={s.agentMode}
+                  settings={settings}
+                  availableModels={availableModels}
+                  chatModel={s.chatModel}
+                  onChatModelChange={(model) => patchSession(s.tabId, { chatModel: model })}
+                  conversation={s.conversation}
+                  onConversationCreated={(conv) => handleAgentConversationCreated(s.tabId, conv)}
+                  onNewChat={() => handleAgentNewChat(s.tabId)}
+                  onAgentModeChange={(mode) => handleNewAgentModeChange(s.tabId, mode)}
+                  slashCommands={slashCommands}
+                  onOpenSettings={handleOpenSettings}
+                />
+              </div>
+            ))
+          )}
         </Suspense>
-      ) : activeTab === 'agent' ? (
-        <Suspense fallback={<TabFallback />}>
-          <AgentPanel
-            key={`agent-${newAgentMode}-${agentSessionKey}`}
-            agentMode={newAgentMode}
-            settings={settings}
-            availableModels={availableModels}
-            chatModel={agentChatModel}
-            onChatModelChange={setAgentChatModel}
-            conversation={agentConversation}
-            onConversationCreated={handleAgentConversationCreated}
-            onNewChat={handleAgentNewChat}
-            onAgentModeChange={handleNewAgentModeChange}
-            slashCommands={slashCommands}
-            onOpenSettings={handleOpenSettings}
-          />
-        </Suspense>
-      ) : activeTab === 'agent-history' ? (
-        <Suspense fallback={<TabFallback />}>
-          <AgentHistoryTab
-            activeConversationId={agentConversation?.id || null}
-            onSelectConversation={handleAgentSelectConversation}
-            onNewChat={handleAgentNewChat}
-          />
-        </Suspense>
-      ) : activeTab === 'tabs' ? (
-        <Suspense fallback={<TabFallback />}><TabsTab /></Suspense>
-      ) : activeTab === 'bookmarks' ? (
-        <Suspense fallback={<TabFallback />}><BookmarksTab /></Suspense>
-      ) : activeTab === 'reading-list' ? (
-        <Suspense fallback={<TabFallback />}><ReadingListTab /></Suspense>
-      ) : (
-        <Suspense fallback={<TabFallback />}><NotesTab /></Suspense>
+      </div>
+
+      {activeTab !== 'agent' && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {activeTab === 'settings' ? (
+            <Suspense fallback={<TabFallback />}>
+              <SettingsPage
+                settings={settings}
+                onSettingsChange={handleSettingsChange}
+                onCommandsChanged={handleCommandsChanged}
+              />
+            </Suspense>
+          ) : activeTab === 'agent-history' ? (
+            <Suspense fallback={<TabFallback />}>
+              <AgentHistoryTab
+                activeConversationId={currentSession?.conversation?.id || null}
+                onSelectConversation={handleAgentSelectConversation}
+                onNewChat={() => currentTabId != null && handleAgentNewChat(currentTabId)}
+              />
+            </Suspense>
+          ) : activeTab === 'tabs' ? (
+            <Suspense fallback={<TabFallback />}><TabsTab /></Suspense>
+          ) : activeTab === 'bookmarks' ? (
+            <Suspense fallback={<TabFallback />}><BookmarksTab /></Suspense>
+          ) : activeTab === 'reading-list' ? (
+            <Suspense fallback={<TabFallback />}><ReadingListTab /></Suspense>
+          ) : (
+            <Suspense fallback={<TabFallback />}><NotesTab /></Suspense>
+          )}
+        </div>
       )}
     </div>
   )

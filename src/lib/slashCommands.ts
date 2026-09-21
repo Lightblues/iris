@@ -115,19 +115,21 @@ export interface ContextFetcher {
   title: () => Promise<string>
 }
 
-// Default context fetcher using Chrome APIs
-export function createDefaultContextFetcher(): ContextFetcher {
+export function createDefaultContextFetcher(tabId?: number): ContextFetcher {
+  const getTab = async () => {
+    try {
+      if (tabId != null) return await chrome.tabs.get(tabId)
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      return tab ?? null
+    } catch {
+      return null
+    }
+  }
   return {
-    pageContent: getPageContext,
-    selection: getSelectionContext,
-    url: async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      return tab?.url || ''
-    },
-    title: async () => {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-      return tab?.title || ''
-    },
+    pageContent: () => getPageContext(tabId),
+    selection: () => getSelectionContext(tabId),
+    url: async () => (await getTab())?.url || '',
+    title: async () => (await getTab())?.title || '',
   }
 }
 
