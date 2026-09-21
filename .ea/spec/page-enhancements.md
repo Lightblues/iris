@@ -7,11 +7,11 @@ Traditional tools that enhance the browsing experience. These are stable, standa
 Unified entry point injected into pages (bottom-right corner).
 
 - **Click**: toggle sidebar
-- **Hover**: show menu (Chat, Highlight selection, page enhancements)
-- **Close button**: hide FAB (persisted, resettable via Settings)
-- **Keyboard**: `Cmd+Shift+Y` restores hidden FAB and opens sidebar
-- **Instant loading**: FAB DOM created synchronously; storage loaded in parallel
-- **Site filtering**: `fabSitePatterns` glob patterns control per-site visibility
+- **Hover**: show menu (Chat, page enhancements, chat export)
+- **Close button**: hide FAB for the current page session
+- **Keyboard**: `Cmd+Shift+Y` opens the native side panel (independent of FAB)
+- **Visibility**: hidden by default; shown only on adapted pages (paper sites, GitHub/DeepWiki, chat-export platforms)
+- **Site filtering**: `fabSitePatterns` is an extra glob blocklist on top of the default hide
 
 Key files: `content/floatingSidebar.ts`, `content/floatingSidebar.css`
 

@@ -17,7 +17,7 @@ export interface SidePanelSettings {
   notionToken?: string // Notion integration token
   notionDatabaseId?: string // Notion database ID for notes sync
   notionSyncEnabled?: boolean // Enable/disable auto sync
-  fabSitePatterns?: string[] // Glob patterns for FAB visibility (empty = all sites)
+  fabSitePatterns?: string[] // Glob blocklist; FAB is hidden except on adapted sites
   tracingEnabled?: boolean // Enable/disable passive tracing (default true)
   mcpEndpoint?: string // ea-tools MCP server URL (default: http://localhost:8000/sse)
 }

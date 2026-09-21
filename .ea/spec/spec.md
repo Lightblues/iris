@@ -89,7 +89,7 @@ Key message types: `agent_tool_action`, `execute-command`, `get-page-context`, `
 | MCP Server | Endpoint URL (for Paper Agent) |
 | Vesta Sync | Link directory, sync trigger |
 | Slash Commands | Link folder, command list |
-| Content Script | FAB site patterns |
+| Content Script | FAB hidden patterns (blocklist; default = adapted sites only) |
 | Import / Export | Settings JSON |
 
 Per-chat model override via searchable combobox in the chat header. Models fetched from provider's /v1/models API; users star favourites for quick access.

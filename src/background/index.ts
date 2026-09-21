@@ -11,6 +11,20 @@ import { saveChatExport, readChatExportIndex, checkChatExportReady } from '../li
 import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse, ChatExportSaveMessage } from '../lib/types';
 
 console.log('[Iris] Background script loaded');
+
+// MV3 service workers are torn down when idle, which drops File System Access
+// permission grants mid-export. Tag each instance so the content script can
+// detect a restart, and accept a keepalive port to prevent one.
+const SW_INSTANCE = 'sw-' + Date.now().toString(36);
+console.log('[Iris] SW instance:', SW_INSTANCE);
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'iris-keepalive') return;
+  console.log('[Iris] keepalive port opened on', SW_INSTANCE);
+  port.onDisconnect.addListener(() => {
+    console.log('[Iris] keepalive port closed');
+  });
+});
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
 // Disable auto-open so we handle toggle manually per-tab.
@@ -340,7 +354,7 @@ return true;
   // Persist a raw chat conversation exported by a content script to disk.
   if (message.type === 'chat_export_save') {
     saveChatExport(message as ChatExportSaveMessage)
-      .then(sendResponse)
+      .then((r) => sendResponse({ ...r, swInstance: SW_INSTANCE }))
       .catch((error) => {
         sendResponse({ success: false, error: error?.message || 'Unknown error' });
 });

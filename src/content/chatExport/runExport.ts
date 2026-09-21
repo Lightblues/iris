@@ -44,6 +44,40 @@ async function saveOne(msg: ChatExportSaveMessage): Promise<ChatExportSaveRespon
 class ExportBlocked extends Error {}
 
 /**
+ * Hold a port open (cycled well inside Chrome's idle window) so the MV3 service
+ * worker isn't torn down mid-export. A restarted SW loses its File System
+ * Access permission grant, which surfaces as a spurious re-authorization error.
+ */
+function startKeepalive(): () => void {
+  let port: chrome.runtime.Port | null = null
+  const open = () => {
+    try { port = chrome.runtime.connect({ name: 'iris-keepalive' }) } catch { port = null }
+  }
+  open()
+  const iv = setInterval(() => {
+    try { port?.disconnect() } catch { /* already gone */ }
+    open()
+  }, 20000)
+  return () => {
+    clearInterval(iv)
+    try { port?.disconnect() } catch { /* already gone */ }
+  }
+}
+
+// Tracks the SW instance across saves so a teardown is reported, not guessed.
+let lastSwInstance: string | null = null
+
+function noteSwInstance(id?: string): boolean {
+  if (!id) return false
+  const restarted = lastSwInstance !== null && lastSwInstance !== id
+  if (restarted) {
+    console.warn(`[Iris] service worker restarted mid-export (${lastSwInstance} -> ${id})`)
+  }
+  lastSwInstance = id
+  return restarted
+}
+
+/**
  * Verify the export directory is linked AND still authorized before doing any
  * network work. Chrome downgrades directory handles to 'prompt' whenever the
  * extension reloads, so this is a routine state, not an edge case.
@@ -79,10 +113,16 @@ createTime: conv.createTime,
     updatedAt: conv.updatedAt ?? fallbackUpdatedAt,
   raw: conv.raw,
   })
+  const restarted = noteSwInstance(res?.swInstance)
   if (!res?.success) {
-    const msg = res?.error || 'save failed'
+    let msg = res?.error || 'save failed'
     // A directory-level failure will hit every remaining item — stop now.
     if (/re-authorization|not configured|Permission/i.test(msg)) {
+      if (restarted) {
+   msg = 'Background worker restarted and lost directory access — reopen ' +
+              'Iris Settings -> Chat Export -> Reconnect, then re-run ' +
+          '(already-exported chats are skipped).'
+}
       throw new ExportBlocked(msg)
     }
     throw new Error(msg)
@@ -171,6 +211,8 @@ export async function exportAll(
 
   let done = 0
   let failed = 0
+  const stopKeepalive = startKeepalive()
+  try {
   for (const s of todo) {
     try {
       await fetchAndSave(adapter, s.id, s.updatedAt)
@@ -202,4 +244,7 @@ export async function exportAll(
     showToast(`Exported ${done}, ${failed} failed${tail} — see console`, done ? 'info' : 'error')
   }
   hideToastLater(failed ? 6000 : 3000)
+  } finally {
+    stopKeepalive()
+  }
 }
