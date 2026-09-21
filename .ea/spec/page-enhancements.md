@@ -1,82 +1,66 @@
 # Page Enhancements
 
-Traditional tools that enhance the browsing experience. These are stable, standalone features injected via content scripts.
+Stable **entry points and site patches**. Maintain only. They exist to open the Agent, capture into Knowledge, or fix a specific site — not as a third product.
 
-## Floating Action Button (FAB)
+Slash commands live with the Agent: [agent.md](agent.md). Chat export lives with Knowledge: [knowledge.md](knowledge.md).
 
-Unified entry point injected into pages (bottom-right corner).
+## FAB
 
-- **Click**: toggle sidebar
-- **Hover**: show menu (Chat, page enhancements, chat export)
-- **Close button**: hide FAB for the current page session
-- **Keyboard**: `Cmd+Shift+Y` opens the native side panel (independent of FAB)
-- **Visibility**: hidden by default; shown only on adapted pages (paper sites, GitHub/DeepWiki, chat-export platforms)
-- **Site filtering**: `fabSitePatterns` is an extra glob blocklist on top of the default hide
+In-page button, bottom-right. Hidden by default; shown on adapted pages (paper sites, GitHub/DeepWiki, chat-export origins). `fabSitePatterns` is an extra glob **blocklist**.
 
-Key files: `content/floatingSidebar.ts`, `content/floatingSidebar.css`
+- Click → toggle native side panel (content → background → `sidePanel.open`)
+- Hover → Chat, site actions, chat export
+- Close → hide for this page session
+- `Cmd+Shift+Y` opens the side panel without the FAB
 
-## Site Enhancements
+Key files: `content/floatingSidebar.ts`, `content/floatingSidebar.css`.
 
-URL-based cross-navigation actions, displayed via the FAB enhancement menu.
+## Site enhancements
 
-| Site Pattern | Actions |
-|-------------|---------|
-| arXiv / alphaXiv / HuggingFace Papers / papers.cool | Cross-navigate between paper platforms |
-| GitHub | Jump to DeepWiki |
-| DeepWiki | Jump to GitHub |
+URL match → actions in the FAB menu. `EnhancementRegistry` in `content/enhancements/`.
 
-Architecture: `EnhancementRegistry` matches current URL → returns available actions. Handlers defined in `content/enhancements/` (arxiv.ts, github.ts).
+| Pattern | Actions |
+|---------|---------|
+| arXiv / alphaXiv / HuggingFace Papers / papers.cool | Jump between paper hosts |
+| GitHub | Open DeepWiki |
+| DeepWiki | Open GitHub |
 
-## Site Patches
+## Site patches
 
-Automatic page fixes for specific sites (not FAB actions).
+Always-on fixes, not FAB actions.
 
 | Site | Behavior |
 |------|----------|
-| Zhihu | Strip notification prefixes from the tab title (`（99+ 封私信/80 条消息）…`) |
+| Zhihu | Strip notification prefixes from the tab title |
 | Zhihu | Unwrap `link.zhihu.com/?target=` so external links open directly |
 
-Key files: `lib/zhihu.ts`, `content/zhihu.ts`, `content/zhihuRedirect.ts`
+Key files: `lib/zhihu.ts`, `content/zhihu.ts`, `content/zhihuRedirect.ts`.
 
-## Command Menu (`Cmd+Shift+P`)
+## Command menu (`Cmd+Shift+P`)
 
-Keyboard-navigable command palette with search filtering, injected as a content script overlay.
+Content-script palette, keyboard-navigable.
 
 | Command | Description |
 |---------|-------------|
 | Add Bookmark | Bookmark current page |
-| Add to Reading List | Add to Chrome reading list |
-| Copy Page as Markdown | Full page → Markdown → clipboard |
-| Copy Selection as Markdown | Selection → Markdown → clipboard |
-| Save Page as Note | Save full page to Knowledge |
-| Save Selection as Highlight | Save selection to Knowledge |
-| Open Settings | Open settings panel |
+| Add to Reading List | Chrome reading list |
+| Copy Page as Markdown | Full page → clipboard |
+| Copy Selection as Markdown | Selection → clipboard |
+| Save Page as Note | Knowledge `page-snapshot` |
+| Save Selection as Highlight | Knowledge `highlight` |
+| Open Settings | Side panel settings |
 
-Key files: `content/commandMenu.ts`, `content/commandMenu.css`
+Key files: `content/commandMenu.ts`, `content/commandMenu.css`.
 
-## Context Menu (Right-click)
+## Context menu
 
-Chrome native context menu entries registered in background service worker:
-- Copy Page / Selection as Markdown
-- Save Page / Selection to Knowledge
+Registered in the service worker:
 
-Key file: `background/index.ts`
+- Copy page / selection as Markdown
+- Save page / selection to Knowledge
 
-## Slash Commands
+## Markdown conversion
 
-Claude Code-inspired command system. Type `/` in chat input to trigger.
+Readability → Turndown + GFM → clipboard or Knowledge snapshot.
 
-- **Usage**: `/` → filter → arrow keys → Tab/Enter select → append args → Cmd+Enter send
-- **Built-in**: `/summarize`, `/translate`, `/explain`, `/extract`
-- **Custom**: Link local folder via Settings → Slash Commands → Link Folder
-- **Context variables**: `` !`pageContent` ``, `` !`selection` ``, `` !`url` ``, `` !`title` ``, `$ARGUMENTS`
-
-Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`, `commands/iris/`
-
-## Markdown Conversion
-
-Readability (extract article) → Turndown + GFM plugin (HTML → Markdown) → clipboard.
-
-Used by "Copy as Markdown" commands and page snapshot knowledge entries.
-
-Key file: `lib/markdown.ts`
+Key file: `lib/markdown.ts`.

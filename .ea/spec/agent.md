@@ -1,118 +1,164 @@
-# Agent System
+# Agent
 
-The agent is the core capability of Iris. All agent modes share a single architecture: AI SDK's `ToolLoopAgent` with pluggable tool sets, connected to the UI via `DirectChatTransport` and `useChat`.
+The **actuator**: a side-panel copilot that answers questions about, and acts on, the current browsing context.
 
-## Architecture
+All modes share one runtime: AI SDK `ToolLoopAgent` + `DirectChatTransport` + `useChat`. Modes differ only by system prompt and which tools are attached.
+
+The agent process **is the side panel**. There is no background LLM loop.
+
+## Runtime constraints
+
+| Constraint | Implication |
+|------------|-------------|
+| One side panel per window | “Per-tab chat” is a state swap, not a separate app |
+| Close panel = unmount | In-flight streams die; partial messages are saved if already persisted |
+| Switch tab during stream | Stream aborts; partial response saved |
+| `useChat` in the panel only | No work continues after close |
+
+To survive tab-switch / panel-close, streaming would have to move into the service worker with the panel as a subscriber. That is a major rewrite, not a patch. Until then, do not describe Iris as a background agent.
+
+## Request path
 
 ```
-User input
-  → ChatInput (slash command expansion, image attach)
+ChatInput
+  → slash expand / image attach / Paper arXiv prepend
   → useAgentChat.sendMessage()
-  → useChat (AI SDK React hook, bound to DirectChatTransport)
-  → ToolLoopAgent (model + tools + instructions)
-  → OpenRouter API (streaming)
-  → Tool calls executed (browser tools locally, MCP tools via server)
-  → Streamed response → ChatMessage rendering
+  → useChat + DirectChatTransport
+  → ToolLoopAgent (model + instructions + tools)
+  → OpenRouter-compatible API (stream)
+  → tool calls: browser tools via background, MCP tools via ea-tools
+  → streamed parts → ChatMessage (markdown, tool cards, usage)
+  → chrome.storage.local
 ```
 
-Key modules in `src/agent/`:
+General mode (the daily path) has **no tools**. Context exists only if the user injected page/selection, attached an image, or used a slash command that pulls those variables.
 
-| Module | Role |
-|--------|------|
-| `registry.ts` | Agent config registry — maps mode → systemPrompt + tools |
-| `createAgent.ts` | Factory: builds ToolLoopAgent with provider, tools, telemetry |
-| `transport.ts` | Creates DirectChatTransport with metadata callbacks (cost/usage) |
-| `useAgentChat.ts` | React hooks: `useAgentTransport` (async init) + `useAgentChat` (chat state) |
-| `mcp.ts` | MCP client lifecycle: connect, disconnect, tool schema sanitization |
-| `history.ts` | Conversation CRUD in chrome.storage.local |
+## Modules (`src/agent/`)
 
-## Agent Registry
+| File | Role |
+|------|------|
+| `registry.ts` | Mode → system prompt + `browserTools` / `mcpEnabled` |
+| `createAgent.ts` | Provider + merged tools + `ToolLoopAgent` |
+| `transport.ts` | `DirectChatTransport`; writes token/cost metadata on finish |
+| `useAgentChat.ts` | `useAgentTransport` (async init) + `useAgentChat` (send / inject) |
+| `mcp.ts` | MCP connect / disconnect / schema sanitize |
+| `history.ts` | Conversation CRUD in `chrome.storage.local` |
 
-Each agent mode is a config entry with a system prompt and optional tool set:
+`SidePanelApp.tsx` owns per-tab conversation binding and remount keys. `AgentPanel.tsx` is the two-phase UI (loading → ready).
 
-| Mode | Tools | MCP | Description |
-|------|-------|-----|-------------|
-| `general` | None | No | Generic assistant |
-| `tab-agent` | 7 tab management tools | No | Query, group, close, archive, restore tabs |
-| `automation` | 10 CSI tools | No | Browser automation via background tab + chrome.scripting |
-| `paper` | MCP tools (arxiv, web, vesta) | Yes | Paper reading & knowledge capture |
+## Lifecycle
 
-Adding a new agent: add an entry to `AGENT_REGISTRY` in `registry.ts` with `id`, `systemPrompt`, and optionally `browserTools` / `mcpEnabled`.
+### Bind to the current tab
 
-## Agent Creation Flow
+`SidePanelApp` keeps an in-memory `Map<tabId, conversationId>`:
 
-`AgentPanel` mounts → `useAgentTransport` → `createAgent()` (async):
+- Open: load that tab’s conversation, or start empty.
+- Tab activate: stash the old id, load/create for the new tab, remount Agent via `key`.
+- Map is memory-only. Closing the panel forgets the binding; History still has the conversation.
 
-1. Create OpenAI-compatible provider (OpenRouter, configurable base URL)
-2. Merge `browserTools` (from registry, static) + `mcpTools` (from MCP server, dynamic)
-3. Instantiate `ToolLoopAgent` with model, tools, instructions, step limit
-4. Wrap in `DirectChatTransport` with metadata callbacks for cost/token tracking
-5. Return transport → `AgentPanelReady` mounts with `useChat`
+### Create the agent
 
-The UI renders two phases: loading state (while agent initializes) and ready state (chat active). Messages sent during loading are queued and flushed on ready.
+`AgentPanel` mounts → `useAgentTransport` → `createAgent()`:
 
-## MCP Integration (Paper Agent)
+1. OpenAI-compatible provider (`apiKey`, `baseUrl`, default OpenRouter).
+2. Merge static `browserTools` with MCP tools when `mcpEnabled`.
+3. `ToolLoopAgent` with instructions, `stopWhen: stepCountIs(maxSteps)`, temperature, max output tokens.
+4. Wrap in `DirectChatTransport` (usage/cost on `finish`).
+5. `AgentPanelReady` mounts `useChat(transport)`.
 
-Paper agent connects to ea-tools MCP server via Streamable HTTP transport:
+UI is two-phase. Sends during init are queued in `pendingRef` and flushed on ready.
+
+The agent instance is built on mount. Mode change, New Chat, and History select remount the tree (`key={agentMode}-{sessionKey}`). Model is read at creation; Paper mode also `disconnectMcp` on leave.
+
+### Send
+
+`useAgentChat.sendMessage()`:
+
+1. Require API key.
+2. If input starts with `/`, expand the slash template (page/selection/url/title/`$ARGUMENTS`).
+3. Paper + empty thread + current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
+4. Lazy `createConversation(mode)` on first real send.
+5. Trace `chat_message`.
+6. `chat.sendMessage({ text, files })`.
+
+Page text is **not** auto-attached. Inject page / selection inserts a user message with `contextType` metadata (Readability via background → content script, 100k char cap). Same-URL full-page inject is de-duplicated.
+
+## Modes
+
+| Mode | Tools | MCP | What it is |
+|------|-------|-----|------------|
+| `general` | None | No | Daily Q&A over injected context / images |
+| `tab-agent` | 7 tab tools | No | Query / group / close / archive / restore tabs |
+| `automation` | 10 CSI tools | No | Drive a dedicated background tab |
+| `paper` | MCP (arxiv, web, vesta) | Yes | Read papers, save into Vesta via ea-tools |
+
+Add a mode: one `AGENT_REGISTRY` entry (`id`, `systemPrompt`, optional `browserTools` / `mcpEnabled`). Do not add modes unless the tools cannot live on an existing one.
+
+### Tab tools
+
+`lib/tabAgentTools.ts` (schemas) → `runtime.sendMessage({ type: 'tab_agent_action' })` → `lib/tabAgent.ts`.
+
+| Tool | Description |
+|------|-------------|
+| `query_tabs` | Filter open tabs by keyword / domain |
+| `create_tab_group` | Group tabs by name / color |
+| `close_tabs` | Close; default `safe=true` → 7-day trash |
+| `smart_organize` | Auto-group by domain (`preview` default) |
+| `archive_inactive` | Archive idle tabs (`preview` default) |
+| `list_closed_tabs` | List trash |
+| `restore_tab` | Restore from trash |
+
+### Automation tools
+
+`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Operates on one lazy, reused, auto-recovered **background** tab (`active: false`), not the user’s current page.
+
+| Tool | Description |
+|------|-------------|
+| `get_tab_info` | Current automation tab URL / title |
+| `navigate` | Open URL, wait for load |
+| `page_snapshot` | Compact DOM tree |
+| `click` / `type_text` | Interact |
+| `extract_data` | text / list / table / HTML |
+| `wait_for` / `scroll` | Wait or scroll |
+| `evaluate_js` | MAIN-world JS |
+| `take_screenshot` | Visible viewport |
+
+### Paper / MCP
 
 ```
-AgentPanel → createAgent() → connectMcp(endpoint) → @ai-sdk/mcp createMCPClient
-  → HTTP POST to ea-tools server (default http://localhost:8765/mcp)
-  → tools() → sanitize schemas (Gemini compatibility) → merge into agent
+createAgent() → connectMcp(endpoint)
+  → @ai-sdk/mcp (HTTP, or SSE if URL ends with /sse)
+  → default http://localhost:8765/mcp
+  → tools() → strip anyOf / oneOf / additionalProperties / $schema / title / default
+  → merge into ToolLoopAgent
 ```
 
-Tool schemas are sanitized to strip `anyOf/oneOf/additionalProperties/$schema/title/default` for broad model compatibility.
+Header MCP dot: green / yellow / red. If MCP fails, Paper degrades to tool-less chat. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy -k vesta`.
 
-MCP status is shown in ChatHeader: green (connected), yellow (connecting), red (error). If MCP is unavailable, agent degrades to general chat.
+## Slash commands
 
-arXiv auto-context: on first message in Paper mode, detects arXiv page URL and prepends `[Context: arXiv paper {id}]`.
+Typed in chat input, not the page command menu. Spec of the menu: [page-enhancements.md](page-enhancements.md).
 
-## Chat Features
+- `/` → filter → Tab/Enter → optional args → Cmd+Enter
+- Built-in: `/summarize`, `/translate`, `/explain`, `/extract` (`commands/iris/`)
+- Custom: Settings → Slash Commands → link a local folder
+- Variables: `` !`pageContent` ``, `` !`selection` ``, `` !`url` ``, `` !`title` ``, `$ARGUMENTS`
 
-- **Streaming**: real-time markdown rendering (GFM + LaTeX via KaTeX)
-- **Multimodal**: image upload (multi-select, 5MB) or Cmd+V paste
-- **Context injection**: inject full page content (100k char limit) or selection text
-- **Slash commands**: `/` trigger → filter → expand with context variables
-- **Tool call display**: collapsible cards with args/result
-- **Message actions**: edit (resend from that point), fork, copy as markdown, save to Knowledge
-- **Token/cost tracking**: per-message `↗input ↘output ≈$cost`, session total in header
-- **Input**: Enter = newline, Cmd+Enter = send
+Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
+
+## Chat UI
+
+- Streamed markdown (GFM + KaTeX)
+- Images: attach or Cmd+V, 5MB
+- Tool calls: collapsible arg/result cards
+- Message actions: edit (truncate + resend), fork, rerun, copy markdown, save to Knowledge
+- Usage: per-message tokens/cost; session total in header (OpenRouter metadata, else estimated)
+- Enter = newline, Cmd+Enter = send
 
 ## Persistence
 
-- Conversations stored in `chrome.storage.local` (separate store from legacy chat)
-- Lazy creation: conversation written to storage on first message only
-- Each conversation tracks `agentMode` for auto-restore on load
-- History tab with date grouping, import/export JSON
-
-## Tab Agent Tools
-
-LLM-driven tab management via chrome.tabs/tabGroups APIs. Tools defined in `lib/tabAgentTools.ts`, implementations in `lib/tabAgent.ts`.
-
-| Tool | Description |
-|------|-------------|
-| `query_tabs` | Search/filter open tabs by keyword, domain |
-| `create_tab_group` | Group tabs with name/color |
-| `close_tabs` | Close tabs (safe mode → 7-day trash) |
-| `smart_organize` | Auto-group by domain (supports preview) |
-| `archive_inactive` | Archive idle tabs (supports preview) |
-| `list_closed_tabs` | List trash items |
-| `restore_tab` | Restore from trash |
-
-Safety: default `safe=true` for closes, `preview=true` for bulk ops.
-
-## Automation Agent Tools
-
-Browser automation via Content Script Injection on a dedicated background tab. Tools in `lib/automationTools.ts`, engine in `lib/automationEngine.ts`.
-
-| Tool | Description |
-|------|-------------|
-| `navigate` | Open URL, wait for load |
-| `page_snapshot` | Compact DOM tree snapshot |
-| `click` / `type_text` | Interact with elements |
-| `extract_data` | Extract as text/list/table/HTML |
-| `wait_for` / `scroll` | Wait for element, scroll |
-| `evaluate_js` | Execute JS in MAIN world |
-| `take_screenshot` | Capture visible area |
-
-Background tab lifecycle: lazy creation, singleton reuse, auto-recovery.
+- Store: `iris_agent_conversations` in `chrome.storage.local` (max 100 conversations, 100 messages each)
+- Lazy create on first send; title from first user text
+- Each conversation records `agentMode` for restore
+- `AgentPanelReady` writes `messages` back on every change
+- History tab: date groups, JSON import/export

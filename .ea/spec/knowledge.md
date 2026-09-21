@@ -1,79 +1,96 @@
-# Knowledge System
+# Knowledge
 
-Knowledge accumulation is Iris's role as the **input layer** for the ea system. It captures information from browsing and agent interactions, stores it locally, and optionally syncs to Vesta for downstream analysis. This area is exploratory and evolving.
+The **sensor**: Iris captures browsing and agent work locally, then optionally writes it into ea. Iris is not a second knowledge base. Vesta (and ea-tools chat-export) own downstream processing.
+
+This layer is **maintain**. Keep the pipe working; do not grow a notes product.
 
 ## Capture
 
-Four types of knowledge entries, all stored as `KnowledgeEntry` in `chrome.storage.local`:
+Four entry types, all `KnowledgeEntry` in `chrome.storage.local` (`iris_knowledge`, max 500):
 
-| Type | Source | Description |
-|------|--------|-------------|
-| `highlight` | Page text selection | Selected text with position anchor for revisit restoration |
-| `note` | User annotation | User's own writing about a page |
-| `chat-save` | Assistant message "Save" button | Saved AI response linked to conversation |
-| `page-snapshot` | "Save Page" command | Full page content via Readability → Markdown |
+| Type | Source | What is stored |
+|------|--------|----------------|
+| `highlight` | Selection | Text + XPath/offset anchor for restore |
+| `note` | User annotation | Free text about a page |
+| `chat-save` | Agent message “Save” | Assistant output linked to a conversation |
+| `page-snapshot` | “Save Page” | Readability → Markdown of the full page |
 
-### Entry points
+Entry points:
 
-- Page selection → Context Menu / `Cmd+Shift+H` / FAB → `highlight`
-- Command Menu → "Save Page as Note" → `page-snapshot`
-- Chat message → "Save" button → `highlight` | `page-snapshot` | `chat-save`
+- Selection → context menu / `Cmd+Shift+H` / FAB → `highlight`
+- Command menu → “Save Page as Note” → `page-snapshot`
+- Agent message → “Save” → `highlight` | `page-snapshot` | `chat-save`
 
-### Page highlights
+### Highlights
 
-Capture: `window.getSelection()` → Range → XPath + textContent + offset → `HighlightAnchor`
+Capture: `getSelection()` → Range → XPath + text + offset → `HighlightAnchor`.
 
-Restore on page load: query entries by URL → TreeWalker text match → `<mark>` wrap. Falls back gracefully if DOM changed.
+Restore on load: entries by URL → TreeWalker text match → `<mark>`. Misses the DOM if the page changed; that is acceptable.
 
-### Knowledge Tab (Notes)
+Notes UI: `NotesTab.tsx` — search, type/tag filter, edit, import/export. Maintain-only.
 
-`NotesTab.tsx` in sidepanel: search, type/tag filter, list cards, detail view, edit, export/import. Stored under `iris_knowledge` key, max 500 entries.
+Key files: `lib/knowledge.ts`, `lib/highlights.ts`, `content/highlights.ts`.
 
-Key files: `lib/knowledge.ts`, `lib/highlights.ts`, `content/highlights.ts`
+## Chat export
 
-## Browsing Tracing
+Sensor for **third-party** chats (not Iris agent history). Content-script adapters on the platform origin use first-party cookies, fetch raw API JSON, write to a user-linked directory.
 
-Passive event recording of browsing activity and agent interactions. Events are enriched with full content at emission time, stored locally by day.
+```
+~/.ea/tools/chat-exports/<platform>/<id>.json     raw payload
+~/.ea/tools/chat-exports/<platform>/index.jsonl   upserted listing
+```
 
-### Event types
+| Platform | Adapter |
+|----------|---------|
+| ChatGPT | `content/chatExport/chatgpt.ts` |
+| DeepSeek | `content/chatExport/deepseek.ts` |
+| Gemini | `content/chatExport/gemini.ts` |
+
+FAB on a matched origin offers export current / export all. Incremental export-all skips unchanged ids via `index.jsonl` + `updatedAt`.
+
+Directory is chosen in Settings → Chat Export (File System Access). After an extension reload Chrome may drop the grant; reconnect from Settings. The service worker keep-alive port exists so a long export does not lose the handle mid-run.
+
+This path is **not** Vesta inbox. Files land under `~/.ea/tools/chat-exports/` for other ea tools to consume.
+
+Key files: `content/chatExport/`, `lib/chatExportStore.ts`, `lib/fileSystemAccess.ts`.
+
+## Browsing tracing
+
+Passive local log of browsing and agent activity. Events are enriched with content at emit time, stored per day.
 
 | Category | Events | Trigger |
 |----------|--------|---------|
-| Browsing | `page_visit`, `page_leave`, `search_query` | chrome.tabs events, URL pattern matching |
-| Knowledge | `highlight_created`, `note_created` | knowledge.ts CRUD |
-| Chat | `chat_message`, `chat_tool_call` | Agent chat streaming |
+| Browsing | `page_visit`, `page_leave`, `search_query` | `chrome.tabs`, URL patterns |
+| Knowledge | `highlight_created`, `note_created` | knowledge CRUD |
+| Chat | `chat_message`, `chat_tool_call` | Agent stream |
 
-### Storage
-
-- Key pattern: `iris_events_YYYY-MM-DD` in chrome.storage.local
-- Retention: 30 days (daily cleanup alarm)
-- Privacy: all local, nothing leaves browser unless Vesta sync enabled
+- Keys: `iris_events_YYYY-MM-DD`
+- Retention: 30 days (daily alarm)
+- Stays in the browser unless Vesta sync is on
 - Toggle: `tracingEnabled` in Settings
 
-Key files: `lib/tracing.ts`, `background/index.ts`
+Key files: `lib/tracing.ts`, `background/index.ts`.
 
-## Vesta Sync
+## Vesta sync
 
-One-way export from Iris to Vesta (`~/.ea/vesta/`) knowledge garden. Uses File System Access API.
+One-way export to `~/.ea/vesta/` via File System Access.
 
 ```
-Iris chrome.storage.local
-├── TracingEvents (iris_events_*)     → ~/.ea/vesta/memory/events/iris/{date}.jsonl
-├── KnowledgeEntries (iris_knowledge) → ~/.ea/vesta/inbox/iris/{date}-{id}.md + index.jsonl
-└── Conversations (agent store)       → ~/.ea/vesta/memory/conversations/iris/{date}-{id}.jsonl + index.jsonl
+iris_events_*              → memory/events/iris/{date}.jsonl
+iris_knowledge             → inbox/iris/{date}-{id}.md + index.jsonl
+agent conversations        → memory/conversations/iris/{date}-{id}.jsonl + index.jsonl
 ```
 
-### Design principles
+- Iris writes, never reads. Vesta agents triage independently.
+- Knowledge lands in `inbox/iris/` for later filing.
+- Iris runs fully without Vesta.
+- Events overwrite the daily JSONL; entries dedup by id.
+- Events embed full content so a day’s file is self-contained.
 
-- **One-way**: Iris writes to Vesta, never reads. Vesta agents process independently.
-- **Inbox pattern**: Knowledge entries land in `inbox/iris/` for Vesta to triage.
-- **No dependency**: Iris works fully without Vesta. Sync is optional.
-- **Idempotent**: events overwrite daily JSONL, entries dedup by ID.
-- **Self-contained**: enriched events embed full content so daily JSONL needs no cross-referencing.
+Trigger: Settings → Sync Now, or a daily alarm.
 
-### Trigger
+Key files: `lib/vestaSync.ts`, `lib/fileSystemAccess.ts`.
 
-- Manual: Settings → "Sync Now"
-- Automatic: daily alarm
+## Notion
 
-Key files: `lib/vestaSync.ts`, `lib/fileSystemAccess.ts`
+Settings still accept a Notion token/database; `NotesTab` can push entries. Vesta is the intended ea downstream. Do not add a third sync target.
