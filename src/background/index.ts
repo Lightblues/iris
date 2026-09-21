@@ -1,4 +1,4 @@
-import { initSidePanel, toggleForTab, openForTab } from './sidePanel';
+import { initSidePanel, toggleForTab, openForTab, noteDerivedGesture } from './sidePanel';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -270,6 +270,12 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
         sendResponse({ success: false, error: err?.message || String(err) });
       });
     return true;
+  }
+
+  if (message.type === 'iris-expect-derived-tab') {
+    if (sender.tab?.id != null) noteDerivedGesture(sender.tab.id)
+    sendResponse({ ok: true })
+    return true
   }
 
   if (message.type === 'execute-command') {

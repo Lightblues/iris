@@ -23,6 +23,17 @@ function disableTab(tabId: number): void {
   if (openTabs.delete(tabId)) persist()
 }
 
+const pendingPanelOpen = new Set<number>()
+
+function adoptDerivedTab(openerTabId: number, childTabId: number): void {
+  if (childTabId === openerTabId) return
+  enableTab(childTabId)
+  pendingPanelOpen.add(childTabId)
+  // Do not await — the click that spawned this tab is the user gesture open() needs.
+  chrome.sidePanel.open({ tabId: childTabId }).catch(() => {})
+  void copyTabSession(openerTabId, childTabId)
+}
+
 async function restore(): Promise<void> {
   try {
     const data = await chrome.storage.session.get(STORAGE_KEY)
@@ -82,6 +93,11 @@ export function openForTab(tabId: number): Promise<void> {
   })
 }
 
+export function noteDerivedGesture(_openerTabId: number): void {
+  // The forwarded click keeps the SW in a user-gesture window so the
+  // following onCreated / onCreatedNavigationTarget can call open().
+}
+
 export function initSidePanel(): void {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(console.error)
   chrome.sidePanel.setOptions({ enabled: false }).catch(console.error)
@@ -93,6 +109,9 @@ export function initSidePanel(): void {
 
   chrome.tabs.onActivated.addListener(({ tabId }) => {
     void syncTabEnabled(tabId)
+    if (pendingPanelOpen.delete(tabId)) {
+      chrome.sidePanel.open({ tabId }).catch(() => {})
+    }
   })
 
   chrome.tabs.onRemoved.addListener(tabId => {
@@ -103,8 +122,12 @@ export function initSidePanel(): void {
     if (tab.id == null || tab.openerTabId == null) return
     if (!openTabs.has(tab.openerTabId)) return
     if (isBrowserNewTab(tab)) return
-    enableTab(tab.id)
-    void copyTabSession(tab.openerTabId, tab.id)
+    adoptDerivedTab(tab.openerTabId, tab.id)
+  })
+
+  chrome.webNavigation.onCreatedNavigationTarget.addListener(details => {
+    if (!openTabs.has(details.sourceTabId)) return
+    adoptDerivedTab(details.sourceTabId, details.tabId)
   })
 
   const onClosed = chrome.sidePanel.onClosed

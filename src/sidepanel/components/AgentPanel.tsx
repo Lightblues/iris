@@ -169,22 +169,30 @@ function AgentPanelReady(props: AgentPanelProps & {
 
   const isLoading = status === 'streaming' || status === 'submitted'
   const memberKey = memberTabIds.join(',')
-  const injectedTabsRef = useRef(new Set<number>())
 
-  // Auto-inject each member tab's page; flush any message queued before transport was ready.
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const injectMembers = async () => {
       for (const id of memberTabIds) {
-        if (injectedTabsRef.current.has(id)) continue
-        injectedTabsRef.current.add(id)
+        if (cancelled) return
         await injectContext({ silent: true, tabId: id })
       }
       if (cancelled || flushedRef.current || !pendingMessage) return
       flushedRef.current = true
       sendMessage(pendingMessage.content, pendingMessage.images).catch(() => {})
-    })()
-    return () => { cancelled = true }
+    }
+    void injectMembers()
+
+    const onUpdated = (id: number, info: { status?: string; url?: string }) => {
+      if (!memberTabIds.includes(id)) return
+      if (info.status !== 'complete' && info.url == null) return
+      void injectContext({ silent: true, tabId: id })
+    }
+    chrome.tabs.onUpdated.addListener(onUpdated)
+    return () => {
+      cancelled = true
+      chrome.tabs.onUpdated.removeListener(onUpdated)
+    }
   }, [memberKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

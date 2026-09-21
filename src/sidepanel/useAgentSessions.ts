@@ -53,8 +53,18 @@ function indexTabs(sessions: Record<string, AgentSession>): Record<number, strin
 }
 
 async function hydrateSession(tabId: number): Promise<AgentSession> {
-  const all = await readTabSessions()
-  const saved = all[String(tabId)]
+  let saved = (await readTabSessions())[String(tabId)]
+  if (!saved) {
+    try {
+      const tab = await chrome.tabs.get(tabId)
+      if (tab.openerTabId != null) {
+        for (let i = 0; i < 5 && !saved; i++) {
+          await new Promise(r => setTimeout(r, 40))
+          saved = (await readTabSessions())[String(tabId)]
+        }
+      }
+    } catch { /* tab gone */ }
+  }
   if (!saved) {
     const session = emptySession(tabId)
     persistFrom(session)
@@ -65,6 +75,7 @@ async function hydrateSession(tabId: number): Promise<AgentSession> {
     const store = await loadAllConversations()
     conversation = store.conversations.find(c => c.id === saved.conversationId) ?? null
   }
+  const all = await readTabSessions()
   const tabIds = tabIdsForSession(all, saved.sessionId)
   return {
     id: saved.sessionId,
@@ -181,7 +192,6 @@ export function useAgentSessions() {
     }
     const onCreated = (tab: chrome.tabs.Tab) => {
       if (tab.id == null || tab.openerTabId == null) return
-      if (windowId != null && tab.windowId !== windowId) return
       if (isBrowserNewTab(tab)) return
       const childId = tab.id
       const openerId = tab.openerTabId

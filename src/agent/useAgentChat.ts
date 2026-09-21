@@ -190,28 +190,33 @@ export function useAgentChat(
     } as any)
   }, [settings.apiKey, slashCommands, agentMode, chat, onConversationCreated, onError, tabId])
 
-  const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number }) => {
+  const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number }): Promise<boolean> => {
     const silent = opts?.silent === true
     const targetTabId = opts?.tabId ?? tabId
     try {
       const tab = await waitForTabLoad(targetTabId)
       if (!tab || !isInjectableUrl(tab.url)) {
         if (!silent) onError('Could not extract page content')
-        return
+        return false
       }
-      const existing = chat.messages.find(
+      const sameUrl = chat.messages.find(
         (m: IrisMessage) =>
           m.metadata?.contextType === 'page'
-          && (m.metadata?.tabId === targetTabId || m.metadata?.pageUrl === tab.url),
+          && m.metadata?.tabId === targetTabId
+          && m.metadata?.pageUrl === tab.url,
       )
-      if (existing) {
+      if (sameUrl) {
         if (!silent) onError('Page content already loaded')
-        return
+        return true
       }
-      const context = await getPageContext(targetTabId)
+      let context = await getPageContext(targetTabId)
+      if (!context) {
+        await new Promise(r => setTimeout(r, 400))
+        context = await getPageContext(targetTabId)
+      }
       if (!context) {
         if (!silent) onError('Could not extract page content')
-        return
+        return false
       }
       const msg: IrisMessage = {
         id: `${Date.now()}-${targetTabId}`,
@@ -226,9 +231,16 @@ export function useAgentChat(
         },
         parts: [{ type: 'text', text: `[Page content from "${tab.title || 'a page'}"]\n\n${context}` }],
       }
-      chat.setMessages((prev: IrisMessage[]) => [...prev, msg])
+      chat.setMessages((prev: IrisMessage[]) => {
+        const without = prev.filter(
+          m => !(m.metadata?.contextType === 'page' && m.metadata?.tabId === targetTabId),
+        )
+        return [...without, msg]
+      })
+      return true
     } catch {
       if (!silent) onError('Failed to load page content')
+      return false
     }
   }, [chat, onError, tabId])
 

@@ -1,15 +1,21 @@
 import type { PageContextResponse } from './types'
+import { unwrapZhihuRedirect } from './zhihu'
 
 const MAX_CONTEXT_LENGTH = 100_000
 
 export function isInjectableUrl(url?: string): boolean {
-  return !!url && /^(https?|file):/i.test(url)
+  if (!url || !/^(https?|file):/i.test(url)) return false
+  if (unwrapZhihuRedirect(url)) return false
+  return true
 }
 
-export async function waitForTabLoad(tabId: number, timeoutMs = 8000): Promise<chrome.tabs.Tab | null> {
+export async function waitForTabLoad(tabId: number, timeoutMs = 15000): Promise<chrome.tabs.Tab | null> {
+  const ready = (tab: chrome.tabs.Tab | null | undefined) =>
+    !!tab && tab.status === 'complete' && isInjectableUrl(tab.url)
+
   try {
     const tab = await chrome.tabs.get(tabId)
-    if (tab.status === 'complete') return tab
+    if (ready(tab)) return tab
   } catch {
     return null
   }
@@ -17,14 +23,16 @@ export async function waitForTabLoad(tabId: number, timeoutMs = 8000): Promise<c
   return new Promise(resolve => {
     const timer = setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(onUpdated)
-      chrome.tabs.get(tabId).then(resolve).catch(() => resolve(null))
+      chrome.tabs.get(tabId).then(tab => resolve(ready(tab) ? tab : null)).catch(() => resolve(null))
     }, timeoutMs)
 
-    const onUpdated = (id: number, info: { status?: string }, updated: chrome.tabs.Tab) => {
-      if (id !== tabId || info.status !== 'complete') return
-      clearTimeout(timer)
-      chrome.tabs.onUpdated.removeListener(onUpdated)
-      resolve(updated)
+    const onUpdated = (_id: number, info: { status?: string; url?: string }, updated: chrome.tabs.Tab) => {
+      if (updated.id !== tabId) return
+      if (info.status === 'complete' && ready(updated)) {
+        clearTimeout(timer)
+        chrome.tabs.onUpdated.removeListener(onUpdated)
+        resolve(updated)
+      }
     }
     chrome.tabs.onUpdated.addListener(onUpdated)
   })

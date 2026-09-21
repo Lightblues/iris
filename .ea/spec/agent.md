@@ -58,7 +58,7 @@ General mode (the daily path) has **no tools**. Context is the auto-injected pag
 `useAgentSessions` keeps a live slot per session (one or more linked tabs):
 
 - Open Iris on a tab: show that tab’s slot (hydrate conversation from `chrome.storage.session` if the panel remounted).
-- Cmd+click / opener navigation from an Iris tab: child joins the opener session and its page is injected. Cmd+T does not join.
+- Cmd+click / Shift+click / middle-click / right-click open-in-new-tab from an Iris tab: child joins the opener session, the panel opens on the child, and its page is injected after load (redirect hops like `link.zhihu.com` are skipped). Cmd+T does not join.
 - Switching to a tab without Iris does not create a slot.
 - Close a linked tab: drop it from the session and strip its context messages.
 - New Chat: unlink this tab into an empty session.

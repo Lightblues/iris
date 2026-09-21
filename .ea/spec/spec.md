@@ -68,7 +68,7 @@ The agent runtime lives in the side panel, not the service worker. Lifecycle imp
 
 ## Side panel
 
-Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click (or other opener navigations) from an Iris tab joins that session; closing the child tab drops its page context. New Chat unlinks the current tab.
+Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click / Shift+click / middle-click / right-click “open in new tab” from an Iris tab joins that session and opens the panel on the child; closing the child tab drops its page context. New Chat unlinks the current tab.
 
 | Tab | Status | Notes |
 |-----|--------|-------|
