@@ -33,7 +33,7 @@
       "run_at": "document_start"
     }
   ],
-      "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "webNavigation", "unlimitedStorage", "alarms", "scripting"],
+      "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "windows", "webNavigation", "unlimitedStorage", "alarms", "scripting"],
   "host_permissions": ["<all_urls>"],
   "commands": {
     "open-command-menu": {

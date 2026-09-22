@@ -20,6 +20,9 @@ export interface SidePanelSettings {
   fabSitePatterns?: string[] // Glob blocklist; FAB is hidden except on adapted sites
   tracingEnabled?: boolean // Enable/disable passive tracing (default true)
   mcpEndpoint?: string // ea-tools MCP server URL (default: http://localhost:8000/sse)
+  browserRelayEnabled?: boolean // Connect to ea-tools browser relay (default true)
+  browserRelayPort?: number // Relay server port (default 33007)
+  browserRelayToken?: string // Shared token with ~/.ea/tools/config.yaml
 }
 
 const DEFAULT_FAVOURITE_MODELS = [
@@ -42,9 +45,12 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
   notionDatabaseId: '',
   notionSyncEnabled: false,
   tracingEnabled: true,
+  browserRelayEnabled: true,
+  browserRelayPort: 33007,
+  browserRelayToken: 'ea-browser-relay-local',
 }
 
-const SETTINGS_KEY = 'sidepanel_settings'
+export const SETTINGS_KEY = 'sidepanel_settings'
 
 // One-time migration from chrome.storage.sync → chrome.storage.local.
 // We moved off storage.sync because cold-start reads would occasionally hang
@@ -167,6 +173,9 @@ export function importSettings(jsonString: string): { success: true; settings: S
       fabSitePatterns: parsed.fabSitePatterns,
       tracingEnabled: parsed.tracingEnabled,
       mcpEndpoint: parsed.mcpEndpoint,
+      browserRelayEnabled: typeof parsed.browserRelayEnabled === 'boolean' ? parsed.browserRelayEnabled : DEFAULT_SETTINGS.browserRelayEnabled,
+      browserRelayPort: typeof parsed.browserRelayPort === 'number' ? parsed.browserRelayPort : DEFAULT_SETTINGS.browserRelayPort,
+      browserRelayToken: typeof parsed.browserRelayToken === 'string' ? parsed.browserRelayToken : DEFAULT_SETTINGS.browserRelayToken,
     }
 
     return { success: true, settings }

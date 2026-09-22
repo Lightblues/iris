@@ -363,3 +363,13 @@ export interface AutomationResponse {
   error?: string;
 }
 
+export interface BrowserRelayStatusMessage {
+  type: 'browser_relay_status';
+}
+
+export interface BrowserRelayStatusResponse {
+  enabled: boolean;
+  connected: boolean;
+  port: number;
+}
+

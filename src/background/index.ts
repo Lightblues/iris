@@ -1,4 +1,5 @@
 import { initSidePanel, toggleForTab, openForTab, noteDerivedGesture } from './sidePanel';
+import { initBrowserRelay, isRelayTab, getRelayState, reconnectRelay } from './browserRelay';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -29,6 +30,7 @@ chrome.runtime.onConnect.addListener((port) => {
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
 initSidePanel();
+initBrowserRelay();
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -195,6 +197,7 @@ function extractDomain(url: string): string {
 }
 
 async function handlePageVisit(tabId: number, url: string, title: string) {
+  if (isRelayTab(tabId)) return;
   if (!(await isTracingOn())) return;
   if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://')) return;
 
@@ -371,6 +374,16 @@ return true;
 
   if (message.type === 'delete-highlight') {
     deleteEntry(message.id).then(() => sendResponse({ success: true, message: 'Deleted' })).catch(() => sendResponse({ success: false, message: 'Failed' }));
+    return true;
+  }
+
+  if (message.type === 'browser_relay_status') {
+    sendResponse(getRelayState());
+    return true;
+  }
+
+  if (message.type === 'browser_relay_reconnect') {
+    sendResponse(reconnectRelay());
     return true;
   }
 
