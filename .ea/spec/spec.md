@@ -89,7 +89,7 @@ Chrome may leave a newly opened side panel blank until a second UI gesture (shor
 | Section | Fields |
 |---------|--------|
 | LLM / Agent | API key, base URL, default model, favourites (from `/v1/models`), temperature, max output tokens, max steps |
-| MCP | Endpoint for Paper mode (default `http://localhost:8765/mcp`) |
+| MCP | Endpoint (default `http://localhost:8765/mcp`). Connected for every agent; failure leaves chat usable without those tools |
 | Browser relay | Enabled, port (33007), token (`ea-browser-relay-local`). Must match ea-tools `browser_relay.*` |
 | Per-chat model | Searchable combobox in the chat header; favourites pinned |
 

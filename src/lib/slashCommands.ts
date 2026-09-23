@@ -166,7 +166,7 @@ export async function expandCommand(
     }
   }
   // Replace $ARGUMENTS
-  result = result.replace(/\$ARGUMENTS/g, args || '[No arguments provided]')
+  result = result.replace(/\$ARGUMENTS/g, args)
   return result
 }
 

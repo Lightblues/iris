@@ -23,7 +23,6 @@ export interface AgentPanelProps {
   conversation: Conversation | null
   onConversationCreated: (conv: Conversation) => void
   onNewChat: () => void
-  onAgentModeChange: (mode: AgentMode) => void
   slashCommands: SlashCommand[]
   onOpenSettings: () => void
 }
@@ -32,12 +31,12 @@ export interface AgentPanelProps {
  * Outer shell: creates transport async, renders loading state inline,
  * then mounts AgentPanelReady once transport is available.
  *
- * Keyed by agentMode+conversationId in parent so each session gets a fresh mount.
+ * Keyed by session in the parent so each session gets a fresh mount.
  */
 export function AgentPanel(props: AgentPanelProps) {
   const {
     tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
-    conversation, onConversationCreated, onNewChat, onAgentModeChange,
+    conversation, onConversationCreated, onNewChat,
     slashCommands, onOpenSettings,
   } = props
 
@@ -45,7 +44,6 @@ export function AgentPanel(props: AgentPanelProps) {
   const pendingRef = useRef<{ content: string; images?: any[] } | null>(null)
 
   const { transport, mcpStatus } = useAgentTransport({
-    agentMode,
     settings,
     chatModel,
     conversationId: conversation?.id,
@@ -70,8 +68,6 @@ export function AgentPanel(props: AgentPanelProps) {
       <>
         <ChatHeader
           onNewChat={onNewChat}
-          agentMode={agentMode}
-          onAgentModeChange={onAgentModeChange}
           messages={[]}
           models={props.availableModels}
           favourites={settings.favouriteModels ?? []}
@@ -122,7 +118,6 @@ export function AgentPanel(props: AgentPanelProps) {
       conversation={conversation}
       onConversationCreated={onConversationCreated}
       onNewChat={onNewChat}
-      onAgentModeChange={onAgentModeChange}
       slashCommands={slashCommands}
       onOpenSettings={onOpenSettings}
       mcpStatus={mcpStatus}
@@ -143,7 +138,7 @@ function AgentPanelReady(props: AgentPanelProps & {
 }) {
   const {
     transport, tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
-    conversation, onConversationCreated, onNewChat, onAgentModeChange,
+    conversation, onConversationCreated, onNewChat,
     slashCommands, onOpenSettings, mcpStatus, pendingMessage,
   } = props
 
@@ -332,8 +327,6 @@ function AgentPanelReady(props: AgentPanelProps & {
       <ChatHeader
         onNewChat={onNewChat}
         newChatTitle={memberTabIds.length > 1 ? 'New chat (unlinks this tab)' : 'New Chat'}
-        agentMode={agentMode}
-        onAgentModeChange={onAgentModeChange}
         messages={displayMessages as IrisMessage[]}
         models={props.availableModels}
         favourites={settings.favouriteModels ?? []}

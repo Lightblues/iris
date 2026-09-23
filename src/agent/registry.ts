@@ -1,33 +1,18 @@
-import type { AgentConfig, AgentMode } from './types'
-import { tabAgentTools, TAB_AGENT_SYSTEM_PROMPT } from '@/lib/tabAgentTools'
-import { automationAgentTools, AUTOMATION_SYSTEM_PROMPT } from '@/lib/automationTools'
-import { PAPER_AGENT_SYSTEM_PROMPT } from '@/lib/paperAgentTools'
+import type { AgentConfig } from './types'
+import { tabAgentTools } from '@/lib/tabAgentTools'
+import { automationAgentTools } from '@/lib/automationTools'
+import { skillTools } from './skillTools'
+import { skillsCatalogPrompt } from './skills'
 
-const GENERAL_SYSTEM_PROMPT = 'You are a helpful assistant. The user may provide page content or images for analysis. Help them understand and work with the content, referencing specific parts when relevant.'
-
-export const AGENT_REGISTRY: Record<AgentMode, AgentConfig> = {
-  general: {
-    id: 'general',
-    name: 'General',
-    systemPrompt: GENERAL_SYSTEM_PROMPT,
+/** One agent. Skills are a catalog plus load_skill; tab, automation, and MCP tools stay callable. */
+export const irisAgent: AgentConfig = {
+  id: 'general',
+  name: 'Iris',
+  systemPrompt: skillsCatalogPrompt(),
+  browserTools: {
+    ...skillTools,
+    ...tabAgentTools,
+    ...automationAgentTools,
   },
-  'tab-agent': {
-    id: 'tab-agent',
-    name: 'Tab Agent',
-    systemPrompt: TAB_AGENT_SYSTEM_PROMPT,
-    browserTools: tabAgentTools,
-  },
-  automation: {
-    id: 'automation',
-    name: 'Automation',
-    systemPrompt: AUTOMATION_SYSTEM_PROMPT,
-    browserTools: automationAgentTools,
-  },
-  paper: {
-    id: 'paper',
-    name: 'Paper',
-    systemPrompt: PAPER_AGENT_SYSTEM_PROMPT,
-    mcpEnabled: true,
-    maxSteps: 15,
-  },
+  mcpEnabled: true,
 }

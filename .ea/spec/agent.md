@@ -2,7 +2,7 @@
 
 The **actuator**: a side-panel copilot that answers questions about, and acts on, the current browsing context.
 
-All modes share one runtime: AI SDK `ToolLoopAgent` + `DirectChatTransport` + `useChat`. Modes differ only by system prompt and which tools are attached.
+One runtime: AI SDK `ToolLoopAgent` + `DirectChatTransport` + `useChat`. There is one agent. Scenario instructions are skills (`skills/<name>/SKILL.md`), loaded on demand with `load_skill`. `reference.md` stays out of the prompt until `read_skill_file`.
 
 The agent process **is the side panel**. There is no background LLM loop.
 
@@ -26,7 +26,7 @@ To survive panel-close, streaming would have to move into the service worker wit
 
 ```
 ChatInput
-  → slash expand / image attach / Paper arXiv prepend
+  → slash expand / image attach / arXiv id prepend when the tab is an arXiv paper
   → useAgentChat.sendMessage()
   → useChat + DirectChatTransport
   → ToolLoopAgent (model + instructions + tools)
@@ -36,20 +36,22 @@ ChatInput
   → chrome.storage.local
 ```
 
-General mode (the daily path) has **no tools**. Context is the auto-injected page, plus anything the user injects, attaches, or pulls in via slash commands.
+The system prompt lists skill names and descriptions only. Tab, automation, and MCP tools are always attached. Before using them the agent calls `load_skill`. If the local MCP server is down, those tools are omitted and chat still starts. Context is the auto-injected page, plus `/summarize` or a custom slash command.
 
 ## Modules (`src/agent/`)
 
 | File | Role |
 |------|------|
-| `registry.ts` | Mode → system prompt + `browserTools` / `mcpEnabled` |
+| `registry.ts` | The single agent: catalog prompt, browser tools, MCP flag |
+| `skills.ts` | Bundled skill catalog, `loadSkill`, `readSkillFile` |
+| `skillTools.ts` | `load_skill` and `read_skill_file` |
 | `createAgent.ts` | Provider + merged tools + `ToolLoopAgent` |
 | `transport.ts` | `DirectChatTransport`; writes token/cost metadata on finish |
 | `useAgentChat.ts` | `useAgentTransport` (async init) + `useAgentChat` (send / inject) |
 | `mcp.ts` | MCP connect / disconnect / schema sanitize |
 | `history.ts` | Conversation CRUD in `chrome.storage.local` |
 
-`SidePanelApp.tsx` hosts one live `AgentPanel` per Iris-enabled browser tab (`useAgentSessions.ts`). The panel document only stays visible on those tabs. `AgentPanel.tsx` is the two-phase UI (loading → ready). New Chat / mode change remount **that tab only**.
+`SidePanelApp.tsx` hosts one live `AgentPanel` per Iris-enabled browser tab (`useAgentSessions.ts`). The panel document only stays visible on those tabs. `AgentPanel.tsx` is the two-phase UI (loading → ready). New Chat and History select remount **that tab only**.
 
 ## Lifecycle
 
@@ -76,7 +78,7 @@ General mode (the daily path) has **no tools**. Context is the auto-injected pag
 
 UI is two-phase. Sends during init are queued in `pendingRef` and flushed on ready.
 
-The agent instance is built on mount. Mode change, New Chat, and History select remount the tree (`key={agentMode}-{sessionKey}`). Model is read at creation; Paper mode also `disconnectMcp` on leave.
+The agent instance is built on mount. New Chat and History select remount the tree (`key={sessionKey}`). Model is read at creation. MCP is connected once per mount and released on unmount; a failed connect does not block the agent.
 
 ### Send
 
@@ -84,23 +86,24 @@ The agent instance is built on mount. Mode change, New Chat, and History select 
 
 1. Require API key.
 2. If input starts with `/`, expand the slash template (page/selection/url/title/`$ARGUMENTS`).
-3. Paper + empty thread + current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
+3. On an empty thread, if the current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
 4. Lazy `createConversation(mode, currentMessages)` on first real send (includes already-injected page context).
 5. Trace `chat_message`.
 6. `chat.sendMessage({ text, files })`.
 
 Page text is a normal **user** message (`metadata.contextType = page|selection`) and is part of the persisted transcript. Auto-inject on a new empty session and when a tab joins a live session (http(s)/file, 100k char cap). Same `pageUrl` already in the thread → skip. Never replace or strip earlier context (closing a child tab, opening History, navigation); append only, so the model prefix and prompt cache stay stable. Restoring a stored conversation does not re-inject. Manual inject page / selection still appends. `getPageContext(tabId)` always targets that session’s tab, not “whatever is active”.
 
-## Modes
+## Skills
 
-| Mode | Tools | MCP | What it is |
-|------|-------|-----|------------|
-| `general` | None | No | Daily Q&A over injected context / images |
-| `tab-agent` | 7 tab tools | No | Query / group / close / archive / restore tabs |
-| `automation` | 10 CSI tools | No | Drive a dedicated background tab |
-| `paper` | MCP (arxiv, web, vesta) | Yes | Read papers, save into Vesta via ea-tools |
+One agent. The prompt contains only the catalog. `load_skill` returns the `SKILL.md` body and the skill directory. `read_skill_file` reads another bundled file (`tabs/reference.md`). Paths that leave the skill directory are rejected.
 
-Add a mode: one `AGENT_REGISTRY` entry (`id`, `systemPrompt`, optional `browserTools` / `mcpEnabled`). Do not add modes unless the tools cannot live on an existing one.
+| Skill | When the description matches |
+|-------|------------------------------|
+| `tabs` | Query / group / close / archive / restore tabs |
+| `automation` | Drive the dedicated background tab |
+| `paper` | Read arXiv papers and save notes via MCP |
+
+Bundled from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`. Add a scenario by adding a skill folder, not a mode.
 
 ### Tab tools
 
@@ -141,14 +144,14 @@ createAgent() → connectMcp(endpoint)
   → merge into ToolLoopAgent
 ```
 
-Header MCP dot: green / yellow / red. If MCP fails, Paper degrades to tool-less chat. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy -k vesta`.
+Header MCP dot: green / yellow / red. If MCP fails, paper tools are absent and the rest of the agent still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy -k vesta`.
 
 ## Slash commands
 
 Typed in chat input, not the page command menu. Spec of the menu: [page-enhancements.md](page-enhancements.md).
 
 - `/` → filter → Tab/Enter → optional args → Enter to send
-- Built-in: `/summarize`, `/translate`, `/explain`, `/extract` (`commands/iris/`)
+- Built-in: `/summarize` (`commands/iris/summarize.md`) — Chinese summary of the current page; text after the command narrows the focus
 - Custom: Settings → Slash Commands → link a local folder
 - Variables: `` !`pageContent` ``, `` !`selection` ``, `` !`url` ``, `` !`title` ``, `$ARGUMENTS`
 

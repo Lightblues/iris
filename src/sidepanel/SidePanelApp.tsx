@@ -8,7 +8,6 @@ import {
 } from '@/agent/history'
 import type { SlashCommand } from '@/lib/types'
 import type { Conversation as AgentConversation } from '@/agent/types'
-import type { AgentMode as NewAgentMode } from '@/agent/types'
 import { loadAllCommands } from '@/lib/commandStorage'
 import { fetchModels } from '@/lib/modelRegistry'
 import { cn } from '@/lib/utils'
@@ -51,7 +50,7 @@ export default function SidePanelApp() {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const previousTabRef = useRef<TabType>('agent')
 
-  const { currentTabId, sessions, patchSession, remountSession, unlinkToNewChat, changeMode } = useAgentSessions()
+  const { currentTabId, sessions, patchSession, remountSession, unlinkToNewChat } = useAgentSessions()
   const currentSession = currentTabId != null
     ? Object.values(sessions).find(s => s.tabIds.includes(currentTabId))
     : undefined
@@ -124,11 +123,6 @@ export default function SidePanelApp() {
     setAgentActiveConversation(conv.id).catch(() => {})
   }, [patchSession])
 
-  const handleNewAgentModeChange = useCallback((tabId: number, mode: NewAgentMode) => {
-    changeMode(tabId, mode)
-    setAgentActiveConversation(null).catch(() => {})
-  }, [changeMode])
-
   const handleSettingsChange = async (newSettings: Partial<SidePanelSettings>) => {
     const updated = { ...settings, ...newSettings }
     setSettings(updated)
@@ -172,7 +166,7 @@ export default function SidePanelApp() {
                 )}
               >
                 <AgentPanel
-                  key={`${s.id}-${s.agentMode}-${s.sessionKey}`}
+                  key={`${s.id}-${s.sessionKey}`}
                   tabId={currentTabId != null && s.tabIds.includes(currentTabId) ? currentTabId : s.tabIds[0]}
                   memberTabIds={s.tabIds}
                   autoFocus={activeTab === 'agent' && currentTabId != null && s.tabIds.includes(currentTabId)}
@@ -184,7 +178,6 @@ export default function SidePanelApp() {
                   conversation={s.conversation}
                   onConversationCreated={(conv) => handleAgentConversationCreated(s.tabIds[0], conv)}
                   onNewChat={() => currentTabId != null && handleAgentNewChat(currentTabId)}
-                  onAgentModeChange={(mode) => handleNewAgentModeChange(s.tabIds[0], mode)}
                   slashCommands={slashCommands}
                   onOpenSettings={handleOpenSettings}
                 />

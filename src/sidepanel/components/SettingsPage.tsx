@@ -511,7 +511,7 @@ const handleUnlinkChatExport = async () => {
             }}
             className="h-8 text-sm font-mono"
           />
-          <p className="text-xs text-muted-foreground">Max tool-calling iterations for agent modes</p>
+          <p className="text-xs text-muted-foreground">Max tool-calling iterations per reply</p>
         </div>
 
         <div className="space-y-1">
@@ -912,9 +912,8 @@ const handleUnlinkChatExport = async () => {
             <section>
               <h4 className="font-semibold mb-1">How to Use</h4>
               <div className="text-xs text-muted-foreground space-y-1.5">
-                <p><code className="bg-muted px-1 rounded">/summarize</code> — Summarize the current page</p>
-                <p><code className="bg-muted px-1 rounded">/translate Spanish</code> — Translate selected text to Spanish</p>
-                <p><code className="bg-muted px-1 rounded">/eason:review</code> — Use a custom command from "eason" namespace</p>
+                <p><code className="bg-muted px-1 rounded">/summarize</code> — 用中文总结当前页面。后面可加补充要求，例如 <code className="bg-muted px-1 rounded">/summarize 只看方法</code></p>
+                <p><code className="bg-muted px-1 rounded">/eason:review</code> — Use a custom command from the "eason" namespace</p>
               </div>
             </section>
             <section>
@@ -931,15 +930,15 @@ const handleUnlinkChatExport = async () => {
             <section>
               <h4 className="font-semibold mb-1">Command File Format</h4>
               <pre className="bg-muted p-2 rounded text-[10px] font-mono overflow-x-auto">{`---
-description: Summarize page content
+description: 用中文总结当前页面
 icon: 📝
 ---
 
-Summarize this page: **!\`title\`**
+请用中文总结：**!\`title\`**
 
 !\`pageContent\`
 
-Target language: $ARGUMENTS`}</pre>
+补充要求：$ARGUMENTS`}</pre>
             </section>
             <section>
               <h4 className="font-semibold mb-1">Context Variables</h4>

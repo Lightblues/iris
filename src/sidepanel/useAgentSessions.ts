@@ -285,24 +285,11 @@ export function useAgentSessions() {
     })
   }, [])
 
-  const changeMode = useCallback((tabId: number, mode: AgentMode) => {
-    setSessions(prev => {
-      const sid = indexTabs(prev)[tabId]
-      if (!sid) return prev
-      const cur = prev[sid]
-      if (!cur || cur.agentMode === mode) return prev
-      const next = { ...cur, agentMode: mode, conversation: null, sessionKey: cur.sessionKey + 1 }
-      persistFrom(next)
-      return { ...prev, [sid]: next }
-    })
-  }, [])
-
   return {
     currentTabId,
     sessions,
     patchSession,
     remountSession,
     unlinkToNewChat,
-    changeMode,
   }
 }

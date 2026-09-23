@@ -15,7 +15,7 @@ import type { DirectChatTransport } from 'ai'
 import type { IrisMessage, IrisMessageMetadata, AgentMode, Conversation } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
-import { AGENT_REGISTRY } from './registry'
+import { irisAgent } from './registry'
 import { createAgent, type ProviderMetadataRef } from './createAgent'
 import { createTransport } from './transport'
 import { createConversation } from './history'
@@ -29,43 +29,41 @@ import { getMcpStatus, disconnectMcp, releaseMcp, type McpStatus } from './mcp'
 // -- Transport creation hook --
 
 export function useAgentTransport(options: {
-  agentMode: AgentMode
   settings: SidePanelSettings
   chatModel: string | null
   conversationId?: string
   onError: (msg: string) => void
 }) {
-  const { agentMode, settings, chatModel, onError } = options
+  const { settings, chatModel, onError } = options
   const activeModel = chatModel ?? settings.model
-  const config = AGENT_REGISTRY[agentMode]
   const providerMetadataRef = useRef<any>(undefined) as ProviderMetadataRef
 
   const [transport, setTransport] = useState<DirectChatTransport | null>(null)
   const [agentReady, setAgentReady] = useState(false)
-  const [mcpStatus, setMcpStatus] = useState<McpStatus>(config.mcpEnabled ? 'connecting' : 'disconnected')
+  const [mcpStatus, setMcpStatus] = useState<McpStatus>('connecting')
 
   useEffect(() => {
     let cancelled = false
     let mcpHeld = false
-    console.log('[Agent] Creating agent...', agentMode, activeModel)
+    console.log('[Agent] Creating agent...', activeModel)
 
-    createAgent(config, settings, activeModel, options.conversationId)
+    createAgent(irisAgent, settings, activeModel, options.conversationId)
       .then(result => {
         if (cancelled) {
-          if (config.mcpEnabled) releaseMcp()
+          if (result.mcpConnected) releaseMcp()
           return
         }
-        mcpHeld = !!config.mcpEnabled
+        mcpHeld = result.mcpConnected
         console.log('[Agent] Agent created, setting up transport')
         setTransport(createTransport(result.agent, activeModel, result.providerMetadataRef))
         setAgentReady(true)
-        if (config.mcpEnabled) setMcpStatus(getMcpStatus())
+        setMcpStatus(getMcpStatus())
       })
       .catch(err => {
         console.error('[Agent] Agent creation failed:', err)
         if (cancelled) return
         onError(`Failed to create agent: ${err.message}`)
-        if (config.mcpEnabled) setMcpStatus('error')
+        setMcpStatus('error')
       })
 
     return () => {
@@ -144,8 +142,8 @@ export function useAgentChat(
       }
     }
 
-    // Paper Agent: auto-inject arXiv context on first message
-    if (agentMode === 'paper' && chat.messages.length === 0) {
+    // On an arXiv tab, name the paper so the paper skill can fetch it.
+    if (chat.messages.length === 0) {
       try {
         const tab = await chrome.tabs.get(tabId)
         if (tab?.url) {

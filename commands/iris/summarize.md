@@ -1,9 +1,12 @@
 ---
-description: Summarize current page content
+description: 用中文总结当前页面
 icon: 📝
 ---
 
-Please provide a concise summary of the following page:
+请用中文总结下面的页面。先给 3–6 条要点，再写一段不超过 120 字的概述。保留专有名词、数字和结论，不要逐段复述。
+
+若有补充要求，只覆盖那一部分：
+$ARGUMENTS
 
 **!`title`**
 URL: !`url`
@@ -11,7 +14,3 @@ URL: !`url`
 ---
 
 !`pageContent`
-
----
-
-Focus on the key points and main ideas. Use bullet points for clarity.

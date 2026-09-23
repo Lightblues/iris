@@ -19,12 +19,14 @@ export default defineConfig({
         sidepanel: 'src/sidepanel/index.html',
       },
       output: {
-        manualChunks: {
-          // Split vendor libs into separate chunks
-          'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-math', 'rehype-katex', 'katex'],
-          'vendor-radix': ['@radix-ui/react-dialog', '@radix-ui/react-scroll-area', '@radix-ui/react-select', '@radix-ui/react-slot'],
-          'vendor-ai': ['ai', '@ai-sdk/openai', '@ai-sdk/react'],
-          'vendor-otel': ['@opentelemetry/sdk-trace-web', '@opentelemetry/exporter-trace-otlp-proto', '@arizeai/openinference-vercel'],
+        // Function form: CRXJS dev bundles with Rollup 2, which treats the
+        // object form as extra entry points and cannot resolve bare package names.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (/react-markdown|remark-gfm|remark-math|rehype-katex|[/\\]katex[/\\]/.test(id)) return 'vendor-markdown'
+          if (id.includes('@radix-ui')) return 'vendor-radix'
+          if (/[/\\]node_modules[/\\](ai|@ai-sdk[/\\])/.test(id)) return 'vendor-ai'
+          if (id.includes('@opentelemetry') || id.includes('@arizeai')) return 'vendor-otel'
         },
       },
     },

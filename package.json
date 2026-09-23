@@ -4,9 +4,10 @@
   "version": "0.3.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm bundle-commands && vite",
-    "build": "pnpm bundle-commands && tsc -b && vite build",
+    "dev": "pnpm bundle-commands && pnpm bundle-skills && vite",
+    "build": "pnpm bundle-commands && pnpm bundle-skills && tsc -b && vite build",
     "bundle-commands": "tsx scripts/bundle-commands.ts",
+    "bundle-skills": "tsx scripts/bundle-skills.ts",
     "sync-manifest-version": "tsx scripts/sync-manifest-version.ts",
     "version": "tsx scripts/sync-manifest-version.ts",
     "lint": "eslint .",

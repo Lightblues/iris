@@ -1,7 +1,6 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
-import { AgentSelector, type AgentMode } from './AgentSelector'
 import { ModelCombobox } from './ModelCombobox'
 import type { IrisMessage } from '@/lib/types'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
@@ -11,8 +10,6 @@ import { getSessionUsage, formatModelShort, formatCost, formatTokenCount } from 
 interface ChatHeaderProps {
   onNewChat: () => void
   newChatTitle?: string
-  agentMode: AgentMode
-  onAgentModeChange: (mode: AgentMode) => void
   messages: IrisMessage[]
   models: ModelConfig[]
   favourites: string[]
@@ -25,8 +22,6 @@ interface ChatHeaderProps {
 export const ChatHeader = memo(function ChatHeader({
   onNewChat,
   newChatTitle = 'New Chat',
-  agentMode,
-  onAgentModeChange,
   messages,
   models,
   favourites,
@@ -41,8 +36,6 @@ export const ChatHeader = memo(function ChatHeader({
 
   return (
     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30">
-      <AgentSelector value={agentMode} onChange={onAgentModeChange} />
-
       {mcpStatus && mcpStatus !== 'disconnected' && (
         <div
           className={`w-2 h-2 rounded-full shrink-0 ${

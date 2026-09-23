@@ -13,6 +13,7 @@ export interface ProviderMetadataRef {
 export interface CreateAgentResult {
   agent: InstanceType<typeof ToolLoopAgent>
   providerMetadataRef: ProviderMetadataRef
+  mcpConnected: boolean
 }
 
 export async function createAgent(
@@ -34,15 +35,19 @@ export async function createAgent(
     },
   })
 
-  // Merge: browserTools (static) + mcpTools (dynamic)
+  // Merge: browser tools (static) + MCP tools when the local server is up.
   let tools: Record<string, any> = { ...(config.browserTools ?? {}) }
-  let mcpHeld = false
+  let mcpConnected = false
   try {
     if (config.mcpEnabled) {
-      const endpoint = settings.mcpEndpoint || 'http://localhost:8765/mcp'
-      const mcpTools = await connectMcp(endpoint)
-      mcpHeld = true
-      tools = { ...tools, ...mcpTools }
+      try {
+        const endpoint = settings.mcpEndpoint || 'http://localhost:8765/mcp'
+        const mcpTools = await connectMcp(endpoint)
+        mcpConnected = true
+        tools = { ...tools, ...mcpTools }
+      } catch (err) {
+        console.warn('[Agent] MCP unavailable, continuing without those tools:', err)
+      }
     }
 
     const maxSteps = settings.maxSteps ?? config.maxSteps ?? 20
@@ -78,9 +83,9 @@ export async function createAgent(
     })
 
     console.log('[Agent] Created:', agent.id, 'tools:', Object.keys(tools))
-    return { agent, providerMetadataRef }
+    return { agent, providerMetadataRef, mcpConnected }
   } catch (err) {
-    if (mcpHeld) await releaseMcp()
+    if (mcpConnected) await releaseMcp()
     throw err
   }
 }

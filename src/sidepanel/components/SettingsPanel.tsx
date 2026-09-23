@@ -319,7 +319,7 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
             }}
             className="h-8 text-sm font-mono"
           />
-          <p className="text-xs text-muted-foreground">Max tool-calling iterations for agent modes (Tab Agent, Automation)</p>
+          <p className="text-xs text-muted-foreground">Max tool-calling iterations per reply</p>
         </div>
       </div>
 
@@ -693,9 +693,8 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
             <section>
               <h4 className="font-semibold mb-1">How to Use</h4>
               <div className="text-xs text-muted-foreground space-y-1.5">
-                <p><code className="bg-muted px-1 rounded">/summarize</code> — Summarize the current page</p>
-                <p><code className="bg-muted px-1 rounded">/translate Spanish</code> — Translate selected text to Spanish</p>
-                <p><code className="bg-muted px-1 rounded">/eason:review</code> — Use a custom command from "eason" namespace</p>
+                <p><code className="bg-muted px-1 rounded">/summarize</code> — 用中文总结当前页面</p>
+                <p><code className="bg-muted px-1 rounded">/eason:review</code> — Use a custom command from the "eason" namespace</p>
               </div>
             </section>
 
@@ -735,7 +734,7 @@ Target language: $ARGUMENTS`}</pre>
                 <p><code className="bg-muted px-1 rounded">!\`selection\`</code> — Currently selected text</p>
                 <p><code className="bg-muted px-1 rounded">!\`url\`</code> — Current page URL</p>
                 <p><code className="bg-muted px-1 rounded">!\`title\`</code> — Page title</p>
-                <p><code className="bg-muted px-1 rounded">$ARGUMENTS</code> — Text after command name (e.g., "Spanish" in <code>/translate Spanish</code>)</p>
+                <p><code className="bg-muted px-1 rounded">$ARGUMENTS</code> — Text after the command name (e.g. "只看方法" in <code>/summarize 只看方法</code>)</p>
               </div>
             </section>
 
