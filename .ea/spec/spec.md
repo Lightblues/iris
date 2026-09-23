@@ -23,7 +23,7 @@ New work must answer at least one: *does this help act on the current browsing c
 
 Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page’s content is injected automatically. Cmd+click from an Iris tab joins the same session. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent.
 
-The one background actuator that *is* in scope: **browser relay**. External ea-tools agents call `browser_fetch` / tab tools; the service worker executes them and returns. No LLM loop runs in the background. Spec: [browser-relay.md](browser-relay.md).
+The one background actuator that *is* in scope: **browser relay**. External agents call `browser_*` tools and `iris_call` for Iris methods (chat export, notes, conversations, tracing, settings). The service worker executes them and returns. No LLM loop runs in the background. Spec: [browser-relay.md](browser-relay.md).
 
 ## Scope
 
@@ -32,7 +32,7 @@ The one background actuator that *is* in scope: **browser relay**. External ea-t
 | **Agent** | Core | Primary surface. Side-panel copilot with pluggable tools. | [agent.md](agent.md) |
 | **Knowledge** | Maintain | Local capture and tracing. Notes, highlights, conversations, and events stay in the extension. | [knowledge.md](knowledge.md) |
 | **Page enhancements** | Maintain | FAB, site jumps, command menu, patches. Do not expand unless they serve Agent or Knowledge. | [page-enhancements.md](page-enhancements.md) |
-| **Browser relay** | Core-adjacent | WS client for ea-tools `browser_*` tools. Real-browser fetch for external agents. | [browser-relay.md](browser-relay.md) |
+| **Browser relay** | Core-adjacent | WS client. Page/tab tools plus `iris.*` methods for external agents. | [browser-relay.md](browser-relay.md) |
 
 Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
 

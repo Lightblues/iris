@@ -10,6 +10,7 @@ import { initZhihu } from './zhihu'
 import { showCommandMenu } from './commandMenu'
 import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements, setFabCustomActions } from './floatingSidebar'
 import { getAdapterForUrl } from './chatExport'
+import { handleIrisChatApi } from './chatExport/relayApi'
 import { exportCurrent, exportAll } from './chatExport/runExport'
 import { saveHighlight, restoreHighlights, initSelectionPopup } from './highlights'
 import { extractAndConvertPage, convertSelectionToMarkdown, copyToClipboard } from '../lib/markdown'
@@ -36,6 +37,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   } else if (message.type === 'extract-selection-content') {
     handleExtractSelectionContent().then(sendResponse)
+    return true
+  } else if (message.type === 'iris_chat_api') {
+    handleIrisChatApi(message)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }))
     return true
   } else if (message.type === 'save-highlight') {
     // Unified highlight save: capture selection + send to background + apply mark

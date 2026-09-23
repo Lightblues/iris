@@ -24,6 +24,16 @@ export async function recordEvent(
   await chrome.storage.local.set({ [key]: events })
 }
 
+export async function loadAllEvents(): Promise<Record<string, TracingEvent[]>> {
+  const all = await chrome.storage.local.get(null)
+  const out: Record<string, TracingEvent[]> = {}
+  for (const [key, value] of Object.entries(all)) {
+    if (!key.startsWith(EVENTS_KEY_PREFIX)) continue
+    out[key.slice(EVENTS_KEY_PREFIX.length)] = (value as TracingEvent[]) || []
+  }
+  return out
+}
+
 export async function getEvents(date: Date): Promise<TracingEvent[]> {
   const key = getStorageKey(date)
   const result = await chrome.storage.local.get(key)

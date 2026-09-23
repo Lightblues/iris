@@ -1,6 +1,6 @@
 # Browser Relay
 
-Iris is the **browser-side half** of ea-tools `browser_*` tools. External agents fetch anti-scraping pages (WeChat, Xiaohongshu, Twitter) through this real browser — cookies and login state included.
+Iris is the **browser-side half** of the ea-tools relay. External agents fetch pages through this browser, and call `iris.*` methods for chat export and data that lives in the extension.
 
 This is request-response, not an autonomous browser-use loop. No LLM runs in the service worker. The relay server and MCP tools stay in ea-tools; Iris only owns the extension client.
 
@@ -13,32 +13,83 @@ The standalone `EA Browser Relay` extension is deprecated. Same permissions (`ta
 ## Architecture
 
 ```
-Agent ──MCP──► ea-tools browser_fetch
-                  │ HTTP POST :33007/fetch
+Agent ──MCP iris_call / browser_*──► ea-tools
+                  │ HTTP  :33007/call  or  /fetch, /tabs, ...
                   ▼
             Relay Server (ea-tools)
                   │ WS  ← Iris SW connects here
                   ▼
             Iris service worker
-                  │ tabs.create (foreground) → poll innerText → extract → tabs.remove
+                  │ method table
                   ▼
-            { title, url, content }
+            browser.*  tabs / page extract
+            iris.*     chat export, notes, conversations, tracing, settings
 ```
 
-Chrome service workers cannot listen on a TCP/WS port. Both Iris and the MCP tool are clients of the localhost relay.
+Chrome service workers cannot listen on a TCP/WS port. Both Iris and the MCP tool are clients of the localhost relay. One socket carries every method. A new capability is a new method name, not a new port or a new socket.
 
-## What Iris implements
+## Protocol
 
-`src/background/browserRelay.ts`, started from the service worker.
+Request from the server, response from the extension. `v` defaults to 1.
 
-| WS action | MCP tool | Behavior |
-|-----------|----------|----------|
-| `fetch` | `browser_fetch` | Open URL in a **foreground** tab, wait for stable `innerText`, extract, close, restore previous tab |
-| `list_tabs` | `browser_list_tabs` | All open tabs |
-| `get_tab_content` | `browser_get_tab_content` | Extract an already-open tab |
-| `close_tab` / `activate_tab` | matching tools | Tab control |
+```json
+{ "v": 1, "id": 12, "method": "iris.chat.export", "params": { "platform": "chatgpt", "id": "abc" } }
+```
 
-Extract modes: `text` (`innerText`), `html` (`outerHTML`), `markdown` (DOM walk). Relay-created tabs are excluded from tracing.
+```json
+{ "v": 1, "id": 12, "result": {} }
+```
+
+```json
+{ "v": 1, "id": 12, "error": { "code": "method_not_found", "message": "iris.chat.export" } }
+```
+
+`ping` / `pong` stay unnumbered. On connect the extension sends `{ "v": 1, "method": "hello", "params": { "methods": ["..."] } }`. The server records that list on `GET /status` and ignores unknown messages that have no `id`.
+
+Legacy browser actions (`fetch`, `list_tabs`, `get_tab_content`, `close_tab`, `activate_tab`) still use `{ "id", "action", "params" }` and reply `{ "id", "result" }` or `{ "id", "error": "string" }`. The same functions are also registered as `browser.*` and then use the versioned envelope.
+
+Long calls may emit several frames with the same `id`:
+
+```json
+{ "v": 1, "id": 12, "event": "chunk", "result": {} }
+{ "v": 1, "id": 12, "event": "end", "result": { "count": 3 } }
+```
+
+`POST /call` folds those into `{ "chunks": [], "result": {} }`. A unary method returns `result` directly. An error after chunks is terminal: the HTTP call fails and chunks already received are dropped with the request.
+
+Error codes: `method_not_found`, `invalid_params`, `not_logged_in`, `platform_unavailable`, `internal`.
+
+## Methods
+
+| Method | Params | Result |
+|--------|--------|--------|
+| `iris.capabilities` | — | `{ methods }` |
+| `browser.fetch` | `url`, `wait?`, `extract?` | `{ title, url, content }` |
+| `browser.list_tabs` | — | tab list |
+| `browser.get_tab_content` | `tabId`, `extract?` | `{ title, url, content }` |
+| `browser.close_tab` / `browser.activate_tab` | `tabId` | `{ success: true }` |
+| `iris.chat.platforms` | — | which of ChatGPT / DeepSeek / Gemini already have a tab |
+| `iris.chat.list` | `platform` | session id, title, `updatedAt` |
+| `iris.chat.export` | `platform`, `id` | one raw conversation |
+| `iris.chat.export_all` | `platform`, `ids?`, `since?` | one chunk per conversation, then `{ count }` |
+| `iris.knowledge.export` | — | local notes |
+| `iris.conversations.export` | — | Iris agent transcripts |
+| `iris.tracing.export` | — | `{ days }` of browsing events |
+| `iris.settings.get` | `includeSecrets?` | settings. API key and relay token are omitted unless `includeSecrets` is true |
+
+`platform` is `chatgpt`, `deepseek`, or `gemini`. Chat methods run the existing content-script adapters inside a tab on that origin, so the site's own cookies apply. An already-open tab is reused. Otherwise Iris opens a background tab and leaves it open. The relay returns JSON. It does not write the user's export directory. The on-page FAB export still does.
+
+Page extract modes: `text` (`innerText`), `html` (`outerHTML`), `markdown` (DOM walk). `browser.fetch` opens a foreground tab, waits until `innerText` is stable, then closes it. Those tabs are excluded from tracing.
+
+## Adding a method
+
+1. `registerRelayMethod("iris.example", handler)` from the feature's module. Import that module from `src/background/browserRelay.ts` so it registers before connect.
+2. The name shows up in `hello` and `iris.capabilities`.
+3. Call it with `iris_call`. ea-tools does not need a new route or a new MCP tool.
+
+Handlers live in `src/background/relayIris.ts` (Iris data and chat) and `src/background/browserRelay.ts` (page and tabs). The table is `src/background/relayRegistry.ts`. Chat reads go through `content/chatExport/relayApi.ts`.
+
+Server side, in ea-tools: `POST /call` with `{ "method", "params", "timeout?" }` forwards one versioned request. MCP tool `iris_call` is that endpoint. Named `browser_*` tools keep their old HTTP routes.
 
 ## MV3 survival
 
@@ -49,7 +100,7 @@ Chrome kills idle service workers (~30s). `setTimeout` does not count as an even
 - Reconnect via `chrome.alarms`, not `setTimeout` (timers do not keep or survive the SW).
 - Idle alarm every 30s: reconnect if the socket is down, or ping/pong and force-reconnect after 60s silence (sleep/wake)
 
-Foreground tabs are required: background tabs are JS-throttled and SPAs never finish rendering. Content readiness is polled every 500ms until `innerText.length` is stable for 1.5s (budget `max(wait, 3s) + 10s`).
+`browser.fetch` needs a foreground tab: background tabs are JS-throttled and SPAs never finish rendering. Content readiness is polled every 500ms until `innerText.length` is stable for 1.5s (budget `max(wait, 3s) + 10s`).
 
 ## Settings
 

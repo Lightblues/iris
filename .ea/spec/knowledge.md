@@ -44,6 +44,8 @@ FAB on a matched origin offers export current / export all. Incremental export-a
 
 Directory is chosen in Settings → Chat Export (File System Access). After an extension reload Chrome may drop the grant; reconnect from Settings. The service worker keep-alive port exists so a long export does not lose the handle mid-run.
 
+The same adapters answer relay methods `iris.chat.list`, `iris.chat.export`, and `iris.chat.export_all`. Those return JSON to the caller and do not touch the export directory. See [browser-relay.md](browser-relay.md).
+
 Key files: `content/chatExport/`, `lib/chatExportStore.ts`, `lib/fileSystemAccess.ts`.
 
 ## Browsing tracing
@@ -58,7 +60,7 @@ Passive local log of browsing and agent activity. Events are enriched with conte
 
 - Keys: `iris_events_YYYY-MM-DD`
 - Retention: 30 days (daily alarm)
-- Stays in the browser
+- Stays in the browser. `iris.tracing.export` can read it back over the relay
 - Toggle: `tracingEnabled` in Settings
 
 Key files: `lib/tracing.ts`, `background/index.ts`.

@@ -3,6 +3,8 @@
 // localhost relay (default :33007). Request-response only; no agent loop.
 
 import { loadSettings, SETTINGS_KEY, type SidePanelSettings } from '../lib/sidepanelSettings'
+import { callRelayMethod, listRelayMethods, registerRelayMethod, RelayError, type RelayHandler } from './relayRegistry'
+import './relayIris'
 
 const DEFAULT_PORT = 33007
 const DEFAULT_TOKEN = 'ea-browser-relay-local'
@@ -117,6 +119,7 @@ async function connect(): Promise<void> {
       scheduleReconnect()
     }
     socket.onerror = () => console.error('[Iris relay] ws error')
+    send({ v: 1, method: 'hello', params: { methods: listRelayMethods() } })
   } catch (e) {
     console.error('[Iris relay] connect failed:', (e as Error).message)
     if (ws && ws.readyState !== WebSocket.OPEN) ws = null
@@ -149,7 +152,7 @@ function disconnect(): void {
 }
 
 async function handleMessage(raw: string): Promise<void> {
-  let msg: { action?: string; id?: number; params?: Record<string, unknown> }
+  let msg: { v?: number; action?: string; method?: string; id?: number; params?: Record<string, unknown> }
   try {
     msg = JSON.parse(raw)
   } catch {
@@ -157,11 +160,11 @@ async function handleMessage(raw: string): Promise<void> {
     return
   }
 
-  if (msg.action === 'ping') {
+  if (msg.action === 'ping' || msg.method === 'ping') {
     send({ action: 'pong' })
     return
   }
-  if (msg.action === 'pong') {
+  if (msg.action === 'pong' || msg.method === 'pong') {
     lastPongTime = Date.now()
     return
   }
@@ -170,32 +173,63 @@ async function handleMessage(raw: string): Promise<void> {
     return
   }
 
+  const name = msg.method || msg.action
+  const modern = typeof msg.method === 'string' || (!!name && name.includes('.'))
+  let streamed = false
+  const chunk = (result: unknown) => {
+    streamed = true
+    send(modern
+      ? { v: 1, id: msg.id, event: 'chunk', result }
+      : { id: msg.id, event: 'chunk', result })
+  }
+
   try {
-    const result = await dispatch(msg.action, msg.params || {})
-    send({ id: msg.id, result })
+    const result = await callRelayMethod(name, msg.params || {}, chunk)
+    if (!modern) {
+      send({ id: msg.id, result })
+      return
+    }
+    send(streamed
+      ? { v: 1, id: msg.id, event: 'end', result }
+      : { v: 1, id: msg.id, result })
   } catch (e) {
-    send({ id: msg.id, error: (e as Error).message || String(e) })
+    if (!modern) {
+      const message = e instanceof RelayError && e.code === 'method_not_found'
+        ? `unknown action: ${name}`
+        : (e as Error).message || String(e)
+      send({ id: msg.id, error: message })
+      return
+    }
+    const code = e instanceof RelayError ? e.code : 'internal'
+    send({ v: 1, id: msg.id, error: { code, message: (e as Error).message || String(e) } })
   }
 }
 
-async function dispatch(action: string | undefined, params: Record<string, unknown>): Promise<unknown> {
-  switch (action) {
-    case 'fetch':
-      return fetchPage(params as { url?: string; wait?: number; extract?: ExtractMode })
-    case 'list_tabs':
-      return listTabs()
-    case 'get_tab_content':
-      return getTabContent(params as { tabId?: number; extract?: ExtractMode })
-    case 'close_tab':
-      await closeTab(params as { tabId?: number })
-      return { success: true }
-    case 'activate_tab':
-      await activateTab(params as { tabId?: number })
-      return { success: true }
-    default:
-      throw new Error(`unknown action: ${action}`)
+function registerBrowserMethods(): void {
+  const fetch: RelayHandler = (params) => fetchPage(params as { url?: string; wait?: number; extract?: ExtractMode })
+  const list: RelayHandler = () => listTabs()
+  const content: RelayHandler = (params) => getTabContent(params as { tabId?: number; extract?: ExtractMode })
+  const close: RelayHandler = async (params) => {
+    await closeTab(params as { tabId?: number })
+    return { success: true }
   }
+  const activate: RelayHandler = async (params) => {
+    await activateTab(params as { tabId?: number })
+    return { success: true }
+  }
+  registerRelayMethod('fetch', fetch)
+  registerRelayMethod('list_tabs', list)
+  registerRelayMethod('get_tab_content', content)
+  registerRelayMethod('close_tab', close)
+  registerRelayMethod('activate_tab', activate)
+  registerRelayMethod('browser.fetch', fetch)
+  registerRelayMethod('browser.list_tabs', list)
+  registerRelayMethod('browser.get_tab_content', content)
+  registerRelayMethod('browser.close_tab', close)
+  registerRelayMethod('browser.activate_tab', activate)
 }
+
+registerBrowserMethods()
 
 async function fetchPage({ url, wait = 3, extract = 'text' }: {
   url?: string
