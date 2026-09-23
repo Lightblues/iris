@@ -8,7 +8,6 @@ import { automationTools } from '../lib/automationEngine';
 import { cleanupExpired } from '../lib/tabTrash';
 import { recordEvent, detectSearchQuery, cleanupOldEvents } from '../lib/tracing';
 import { loadSettings } from '../lib/sidepanelSettings';
-import { syncToVesta } from '../lib/vestaSync';
 import { saveChatExport, readChatExportIndex, checkChatExportReady } from '../lib/chatExportStore';
 import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse, ChatExportSaveMessage } from '../lib/types';
 
@@ -29,6 +28,8 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
+chrome.alarms.clear('vesta-sync');
+
 initSidePanel();
 initBrowserRelay();
 
@@ -46,9 +47,6 @@ chrome.runtime.onInstalled.addListener(() => {
   // Tracing alarms
   chrome.alarms.create('flush-tracing', { periodInMinutes: 5 });
   chrome.alarms.create('cleanup-events', { periodInMinutes: 24 * 60, when: Date.now() + 120000 });
-
-  // Vesta sync alarm (daily)
-  chrome.alarms.create('vesta-sync', { periodInMinutes: 24 * 60, when: Date.now() + 180000 });
 });
 
 // Setup context menus for markdown conversion and notes
@@ -173,14 +171,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   } else if (alarm.name === 'cleanup-events') {
     const removed = await cleanupOldEvents(30);
     console.log(`[Iris] Cleaned up ${removed} old event days`);
-  } else if (alarm.name === 'vesta-sync') {
-    try {
-      const result = await syncToVesta();
-      console.log(`[Iris] Vesta auto-sync: ${result.eventsSynced} events, ${result.entriesSynced} entries`);
-    } catch (err) {
-      // Silent failure for auto-sync — error is stored in sync state
-      console.log('[Iris] Vesta auto-sync skipped:', (err as Error).message);
-    }
   }
 });
 
@@ -290,33 +280,30 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
     return true;
   }
 
-  // Preflight so long exports fail fast rather than at the last item.
   if (message.type === 'chat_export_check') {
     checkChatExportReady()
       .then(sendResponse)
       .catch((error) => {
-   sendResponse({ ready: false, error: error?.message || 'Unknown error' });
+        sendResponse({ ready: false, error: error?.message || 'Unknown error' });
       });
-return true;
+    return true;
   }
 
-  // Report what's already exported, so export-all can skip unchanged chats.
   if (message.type === 'chat_export_index') {
     readChatExportIndex(message.platform)
       .then((entries) => sendResponse({ success: true, entries }))
- .catch((error) => {
+      .catch((error) => {
         sendResponse({ success: false, error: error?.message || 'Unknown error' });
       });
     return true;
   }
 
-  // Persist a raw chat conversation exported by a content script to disk.
   if (message.type === 'chat_export_save') {
     saveChatExport(message as ChatExportSaveMessage)
       .then((r) => sendResponse({ ...r, swInstance: SW_INSTANCE }))
       .catch((error) => {
         sendResponse({ success: false, error: error?.message || 'Unknown error' });
-});
+      });
     return true;
   }
 

@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle, CloudUpload, Unlink, Star, Loader2 } from 'lucide-react'
+import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle, Unlink, Star, Loader2 } from 'lucide-react'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings, maskApiKey } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
@@ -14,16 +14,12 @@ import {
   verifyDirectoryPermission,
   importCommandsFromDirectory,
   clearDirectoryHandle,
-  getVestaDirectoryHandle,
-  requestVestaDirectoryAccess,
-  clearVestaDirectoryHandle,
   getChatExportDirectoryHandle,
   requestChatExportDirectoryAccess,
   clearChatExportDirectoryHandle,
   queryDirectoryPermission,
 } from '@/lib/fileSystemAccess'
 import { getCommandDisplayName } from '@/lib/slashCommands'
-import { syncToVesta, getSyncState, type VestaSyncState } from '@/lib/vestaSync'
 import { fetchModels, clearModelCache } from '@/lib/modelRegistry'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
 
@@ -72,10 +68,6 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
   const [selectedCommand, setSelectedCommand] = useState<SlashCommand | null>(null)
   const [showCommandPreview, setShowCommandPreview] = useState(false)
   const [showCommandsHelp, setShowCommandsHelp] = useState(false)
-  const [vestaDirName, setVestaDirName] = useState<string | null>(null)
-  const [vestaSyncState, setVestaSyncState] = useState<VestaSyncState | null>(null)
-  const [vestaSyncing, setVestaSyncing] = useState(false)
-  const [vestaSyncResult, setVestaSyncResult] = useState<string | null>(null)
   const [chatExportDirName, setChatExportDirName] = useState<string | null>(null)
   const [chatExportNeedsGrant, setChatExportNeedsGrant] = useState(false)
   const [apiKeyFocused, setApiKeyFocused] = useState(false)
@@ -89,16 +81,11 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
     getSavedDirectoryHandle().then(handle => {
       if (handle) setLinkedDirName(handle.name)
     })
-    getVestaDirectoryHandle().then(handle => {
-      if (handle) setVestaDirName(handle.name)
-    })
     getChatExportDirectoryHandle().then(async handle => {
       if (!handle) return
       setChatExportDirName(handle.name)
-      // Chrome downgrades handles to 'prompt' after an extension reload.
       setChatExportNeedsGrant((await queryDirectoryPermission(handle)) !== 'granted')
     })
-    getSyncState().then(setVestaSyncState)
     setRelayStatusKind('checking')
     setRelayStatus('Checking...')
     probeRelay(settings.browserRelayPort || 33007, settings.browserRelayToken || 'ea-browser-relay-local')
@@ -234,35 +221,18 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
     onCommandsChanged?.()
   }
 
-  // --- Vesta handlers ---
-  const handleLinkVesta = async () => {
-    try {
-      const handle = await requestVestaDirectoryAccess()
-      if (handle) setVestaDirName(handle.name)
-    } catch (err: any) {
-      setError(err.message || 'Failed to link Vesta directory')
-    }
-  }
-
-  const handleUnlinkVesta = async () => {
-  await clearVestaDirectoryHandle()
-    setVestaDirName(null)
-  }
-
-  // --- Chat export handlers ---
   const handleLinkChatExport = async () => {
     try {
       const handle = await requestChatExportDirectoryAccess()
       if (handle) {
-   setChatExportDirName(handle.name)
-setChatExportNeedsGrant(false)
+        setChatExportDirName(handle.name)
+        setChatExportNeedsGrant(false)
       }
     } catch (err: any) {
- setError(err.message || 'Failed to link chat export directory')
+      setError(err.message || 'Failed to link chat export directory')
     }
   }
 
-  // Re-grant permission on the SAVED handle — no need to re-pick the folder.
   const handleReconnectChatExport = async () => {
     const handle = await getChatExportDirectoryHandle()
     if (!handle) return
@@ -271,13 +241,14 @@ setChatExportNeedsGrant(false)
       setChatExportNeedsGrant(!ok)
       if (!ok) setError('Permission was not granted for the export directory')
     } catch (err: any) {
-    setError(err.message || 'Failed to reconnect export directory')
+      setError(err.message || 'Failed to reconnect export directory')
     }
   }
 
-const handleUnlinkChatExport = async () => {
- await clearChatExportDirectoryHandle()
+  const handleUnlinkChatExport = async () => {
+    await clearChatExportDirectoryHandle()
     setChatExportDirName(null)
+    setChatExportNeedsGrant(false)
   }
 
   const checkRelayStatus = async () => {
@@ -295,21 +266,6 @@ const handleUnlinkChatExport = async () => {
     setRelayStatusKind(r.kind)
     setRelayStatus(r.text)
     setRelayChecking(false)
-  }
-
-  const handleVestaSync = async () => {
-    setVestaSyncing(true)
-    setVestaSyncResult(null)
-    try {
-      const result = await syncToVesta()
-      setVestaSyncResult(`Synced ${result.eventsSynced} events, ${result.entriesSynced} entries, ${result.conversationsSynced} conversations`)
-      setVestaSyncState(await getSyncState())
-    } catch (err: any) {
-      setVestaSyncResult(`Error: ${err.message}`)
-      setVestaSyncState(await getSyncState())
-    } finally {
-      setVestaSyncing(false)
-    }
   }
 
   return (
@@ -542,7 +498,7 @@ const handleUnlinkChatExport = async () => {
           />
           <p className="text-xs text-muted-foreground">
             ea-tools MCP server SSE endpoint. Start with:{' '}
-            <code className="bg-muted px-1 rounded">ea-tools serve --transport http -k arxiv -k sn_proxy -k vesta</code>
+            <code className="bg-muted px-1 rounded">ea-tools serve --transport http -k arxiv -k sn_proxy</code>
           </p>
         </div>
       </section>
@@ -618,16 +574,15 @@ const handleUnlinkChatExport = async () => {
         </p>
       </section>
 
-      {/* ===== Vesta Sync ===== */}
       <section className="space-y-3">
-        <SectionHeader title="Vesta Sync" />
+        <SectionHeader title="Chat Export" />
 
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Directory:</span>
-          {vestaDirName ? (
+          {chatExportDirName ? (
             <>
-              <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">{vestaDirName}/</span>
-              <Button variant="ghost" size="sm" onClick={handleUnlinkVesta} className="h-5 px-1 text-destructive" title="Unlink Vesta directory">
+              <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">{chatExportDirName}/</span>
+              <Button variant="ghost" size="sm" onClick={handleUnlinkChatExport} className="h-5 px-1 text-destructive" title="Unlink chat export directory">
                 <Unlink className="h-3 w-3" />
               </Button>
             </>
@@ -636,84 +591,28 @@ const handleUnlinkChatExport = async () => {
           )}
         </div>
 
-        {vestaSyncState && vestaSyncState.lastSyncTime > 0 && (
-          <div className="text-[10px] text-muted-foreground space-y-0.5">
-            <p>Last sync: {new Date(vestaSyncState.lastSyncTime).toLocaleString()}</p>
-            <p>Total: {vestaSyncState.entriesSynced} entries, {vestaSyncState.conversationsSynced} conversations</p>
-            {vestaSyncState.lastError && <p className="text-destructive">Error: {vestaSyncState.lastError}</p>}
-          </div>
-        )}
-
-        {vestaSyncResult && (
-          <div className={`text-xs p-2 rounded ${
-            vestaSyncResult.startsWith('Error')
-              ? 'text-destructive bg-destructive/10'
-              : 'text-green-600 bg-green-500/10'
-          }`}>
-            {vestaSyncResult}
+        {chatExportNeedsGrant && chatExportDirName && (
+          <div className="text-xs p-2 rounded text-amber-600 bg-amber-500/10">
+            Access expired after extension reload. Click Reconnect to restore it.
           </div>
         )}
 
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleLinkVesta} className="h-7 text-xs flex-1" title="Link to ~/.ea/vesta/ directory">
-            <FolderOpen className="h-3 w-3 mr-1" />
-            {vestaDirName ? 'Re-link' : 'Link Directory'}
-          </Button>
-          <Button
-            variant="outline" size="sm" onClick={handleVestaSync}
-            disabled={vestaSyncing || !vestaDirName}
-            className="h-7 text-xs flex-1" title="Sync events and knowledge to Vesta"
-          >
-            <CloudUpload className={`h-3 w-3 mr-1 ${vestaSyncing ? 'animate-pulse' : ''}`} />
-            {vestaSyncing ? 'Syncing...' : 'Sync Now'}
-          </Button>
-        </div>
-
-         <p className="text-[10px] text-muted-foreground">
-          One-way sync: tracing events, knowledge entries, and conversations → Vesta. Auto-syncs daily.
-        </p>
-      </section>
-
-      {/* ===== Chat Export ===== */}
-      <section className="space-y-3">
-        <SectionHeader title="Chat Export" />
-
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Directory:</span>
- {chatExportDirName ? (
-            <>
-   <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">{chatExportDirName}/</span>
-            <Button variant="ghost" size="sm" onClick={handleUnlinkChatExport} className="h-5 px-1 text-destructive" title="Unlink chat export directory">
-           <Unlink className="h-3 w-3" />
-            </Button>
-        </>
-          ) : (
-       <span className="text-muted-foreground italic">None</span>
-)}
-        </div>
-
-        {chatExportNeedsGrant && chatExportDirName && (
-     <div className="text-xs p-2 rounded text-amber-600 bg-amber-500/10">
-            Access expired after extension reload - click Reconnect to restore it.
-    </div>
-        )}
-
-     <div className="flex gap-2">
           {chatExportNeedsGrant && chatExportDirName && (
             <Button variant="outline" size="sm" onClick={handleReconnectChatExport} className="h-7 text-xs flex-1" title="Re-grant access to the saved directory">
-    <RefreshCw className="h-3 w-3 mr-1" />
-    Reconnect
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Reconnect
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={handleLinkChatExport} className="h-7 text-xs flex-1" title="Pick the directory to export online AI chats into">
-        <FolderOpen className="h-3 w-3 mr-1" />
-         {chatExportDirName ? 'Re-link' : 'Choose Directory'}
+            <FolderOpen className="h-3 w-3 mr-1" />
+            {chatExportDirName ? 'Re-link' : 'Choose Directory'}
           </Button>
         </div>
 
         <p className="text-[10px] text-muted-foreground">
-           Export ChatGPT / DeepSeek / Gemini conversations as raw JSON via the on-page FAB (⬇ / 📦).
-      Pick <span className="font-mono">~/.ea/tools/chat-exports/</span> here first. Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
+          Export ChatGPT / DeepSeek / Gemini conversations as raw JSON via the on-page FAB.
+          Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
         </p>
       </section>
 
@@ -799,40 +698,6 @@ const handleUnlinkChatExport = async () => {
             Hide FAB on matching URLs (one glob per line). FAB is hidden on general sites by default and only appears on adapted pages (papers, GitHub, chat export).
             The X button only hides FAB for the current page session.
           </p>
-        </div>
-      </section>
-
-      {/* ===== Notion Sync ===== */}
-      <section className="space-y-3">
-        <SectionHeader title="Notion Sync" />
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Notion Token</label>
-          <Input
-            type="password"
-            value={settings.notionToken || ''}
-            onChange={(e) => onSettingsChange({ notionToken: e.target.value })}
-            placeholder="secret_..."
-            className="h-8 text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            Create an integration at{' '}
-            <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-              notion.so/my-integrations
-            </a>
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Database ID</label>
-          <Input
-            type="text"
-            value={settings.notionDatabaseId || ''}
-            onChange={(e) => onSettingsChange({ notionDatabaseId: e.target.value })}
-            placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            className="h-8 text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">Copy from database URL or share it with your integration</p>
         </div>
       </section>
 

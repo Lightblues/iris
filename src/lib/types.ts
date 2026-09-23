@@ -220,7 +220,6 @@ export interface KnowledgeEntry {
   tags: string[]
   createdAt: number
   updatedAt: number
-  syncedAt?: number
 }
 
 export interface KnowledgeStore {
@@ -256,8 +255,6 @@ export interface TracingEvent {
 }
 
 // Legacy Notes types removed — replaced by Knowledge system (KnowledgeEntry etc. above)
-
-// Notion Sync types live in lib/notionSync.ts
 
 // Slash Command types
 export type SlashCommandContextVar = 'pageContent' | 'selection' | 'url' | 'title' | 'ARGUMENTS';
@@ -297,29 +294,25 @@ export interface TabAgentResponse {
   error?: string;
 }
 
-// Chat Export types
 export type ChatExportPlatform = 'chatgpt' | 'deepseek' | 'gemini';
 
-// Sent from content script → background to persist one raw conversation to disk
 export interface ChatExportSaveMessage {
   type: 'chat_export_save';
   platform: ChatExportPlatform;
-  id: string;              // conversation id
+  id: string;
   title: string;
-  createTime?: number;     // unix seconds, platform-provided when available
-  updatedAt?: number;      // unix seconds; drives incremental export
-  raw: any;    // raw platform API JSON, stored verbatim
+  createTime?: number;
+  updatedAt?: number;
+  raw: any;
 }
 
 export interface ChatExportSaveResponse {
   success: boolean;
   filename?: string;
   error?: string;
-  /** Identifies the service-worker instance; changes if the SW restarted. */
   swInstance?: string;
 }
 
-// Preflight: is the export directory linked and still authorized?
 export interface ChatExportCheckMessage {
   type: 'chat_export_check';
 }
@@ -331,8 +324,6 @@ export interface ChatExportCheckResponse {
   error?: string;
 }
 
-// Sent from content script → background to read what's already on disk, so
-// export-all can skip conversations that haven't changed.
 export interface ChatExportIndexMessage {
   type: 'chat_export_index';
   platform: ChatExportPlatform;
@@ -340,7 +331,7 @@ export interface ChatExportIndexMessage {
 
 export interface ChatExportIndexEntry {
   id: string;
-  updatedAt?: number | null;   // conversation's own updated_at at export time
+  updatedAt?: number | null;
   exportedAt?: string;
 }
 

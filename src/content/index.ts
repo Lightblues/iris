@@ -115,24 +115,23 @@ async function init() {
   // Restore saved highlights for this page
   restoreHighlights(url).catch(() => {})
 
-  // Register chat-export FAB actions on supported AI platforms
   updateChatExportActions(url)
 }
 
 function updateChatExportActions(url: string): void {
   const adapter = getAdapterForUrl(url)
   if (!adapter) {
- setFabCustomActions([])
-  return
+    setFabCustomActions([])
+    return
   }
   const hasConversation = adapter.currentConversationId(url) != null
   setFabCustomActions([
     {
-    label: `Export current (${adapter.label})`,
+      label: `Export current (${adapter.label})`,
       icon: '⬇',
       disabled: !hasConversation,
       onClick: () => { exportCurrent(adapter).catch(err => console.warn('[Iris] export current failed:', err)) },
-},
+    },
     {
       label: `Export new/updated (${adapter.label})`,
       icon: '📦',

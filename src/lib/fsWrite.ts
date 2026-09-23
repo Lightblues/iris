@@ -1,5 +1,5 @@
 // Shared File System Access helpers for writing structured data to a picked
-// directory. Used by vestaSync.ts and chatExportStore.ts.
+// directory. Used by chatExportStore.ts.
 
 export async function ensureSubdirectory(
   root: FileSystemDirectoryHandle,

@@ -14,7 +14,7 @@ let fabMenu: HTMLDivElement | null = null
 let currentEnhancements: EnhancementResult[] = []
 let hiddenPatterns: string[] = []
 
-// Custom click-actions (e.g. chat export) injected by feature code.
+// Optional extra FAB menu actions. Chat export registers these on supported sites.
 export interface FabCustomAction {
   label: string
   icon: string
@@ -147,7 +147,7 @@ function rebuildMenu(): void {
   })
   fabMenu.appendChild(chatAction)
 
-  // Custom feature actions (e.g. chat export)
+  // Extra feature actions (chat export on supported sites).
   if (customActions.length > 0) {
     const divider = document.createElement('div')
     divider.className = 'iris-fab-menu-divider'

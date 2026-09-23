@@ -1,8 +1,8 @@
 # Knowledge
 
-The **sensor**: Iris captures browsing and agent work locally, then optionally writes it into ea. Iris is not a second knowledge base. Vesta (and ea-tools chat-export) own downstream processing.
+The **sensor**: Iris keeps its own highlights, notes, page snapshots, and browsing traces in `chrome.storage`. Third-party AI chats are a separate browser capability: the extension can read them because it runs inside the logged-in page, then write the raw JSON to a user-picked directory.
 
-This layer is **maintain**. Keep the pipe working; do not grow a notes product.
+This layer is **maintain**. Keep local capture and chat export working. A later zip export or sync service for Iris's own data is out of scope until asked.
 
 ## Capture
 
@@ -33,24 +33,16 @@ Key files: `lib/knowledge.ts`, `lib/highlights.ts`, `content/highlights.ts`.
 
 ## Chat export
 
-Sensor for **third-party** chats (not Iris agent history). Content-script adapters on the platform origin use first-party cookies, fetch raw API JSON, write to a user-linked directory.
+Reads third-party chats (ChatGPT, DeepSeek, Gemini) from the logged-in page. Content-script adapters use the page's cookies, fetch the platform's raw API JSON, and the service worker writes it to a user-linked directory.
 
 ```
-~/.ea/tools/chat-exports/<platform>/<id>.json     raw payload
-~/.ea/tools/chat-exports/<platform>/index.jsonl   upserted listing
+<user dir>/<platform>/<id>.json     raw payload
+<user dir>/<platform>/index.jsonl   upserted listing
 ```
 
-| Platform | Adapter |
-|----------|---------|
-| ChatGPT | `content/chatExport/chatgpt.ts` |
-| DeepSeek | `content/chatExport/deepseek.ts` |
-| Gemini | `content/chatExport/gemini.ts` |
-
-FAB on a matched origin offers export current / export all. Incremental export-all skips unchanged ids via `index.jsonl` + `updatedAt`.
+FAB on a matched origin offers export current / export all. Incremental export-all skips unchanged ids via `index.jsonl` and `updatedAt`.
 
 Directory is chosen in Settings → Chat Export (File System Access). After an extension reload Chrome may drop the grant; reconnect from Settings. The service worker keep-alive port exists so a long export does not lose the handle mid-run.
-
-This path is **not** Vesta inbox. Files land under `~/.ea/tools/chat-exports/` for other ea tools to consume.
 
 Key files: `content/chatExport/`, `lib/chatExportStore.ts`, `lib/fileSystemAccess.ts`.
 
@@ -66,31 +58,7 @@ Passive local log of browsing and agent activity. Events are enriched with conte
 
 - Keys: `iris_events_YYYY-MM-DD`
 - Retention: 30 days (daily alarm)
-- Stays in the browser unless Vesta sync is on
+- Stays in the browser
 - Toggle: `tracingEnabled` in Settings
 
 Key files: `lib/tracing.ts`, `background/index.ts`.
-
-## Vesta sync
-
-One-way export to `~/.ea/vesta/` via File System Access.
-
-```
-iris_events_*              → memory/events/iris/{date}.jsonl
-iris_knowledge             → inbox/iris/{date}-{id}.md + index.jsonl
-agent conversations        → memory/conversations/iris/{date}-{id}.jsonl + index.jsonl
-```
-
-- Iris writes, never reads. Vesta agents triage independently.
-- Knowledge lands in `inbox/iris/` for later filing.
-- Iris runs fully without Vesta.
-- Events overwrite the daily JSONL; entries dedup by id.
-- Events embed full content so a day’s file is self-contained.
-
-Trigger: Settings → Sync Now, or a daily alarm.
-
-Key files: `lib/vestaSync.ts`, `lib/fileSystemAccess.ts`.
-
-## Notion
-
-Settings still accept a Notion token/database; `NotesTab` can push entries. Vesta is the intended ea downstream. Do not add a third sync target.

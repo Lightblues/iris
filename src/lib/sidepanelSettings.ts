@@ -14,9 +14,6 @@ export interface SidePanelSettings {
   maxOutputTokens?: number // Max output tokens
   maxSteps?: number // Agent loop max steps (default 20)
   phoenixEndpoint?: string // Phoenix tracing endpoint (optional)
-  notionToken?: string // Notion integration token
-  notionDatabaseId?: string // Notion database ID for notes sync
-  notionSyncEnabled?: boolean // Enable/disable auto sync
   fabSitePatterns?: string[] // Glob blocklist; FAB is hidden except on adapted sites
   tracingEnabled?: boolean // Enable/disable passive tracing (default true)
   mcpEndpoint?: string // ea-tools MCP server URL (default: http://localhost:8000/sse)
@@ -41,9 +38,6 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
   favouriteModels: DEFAULT_FAVOURITE_MODELS,
   usePageContext: true,
   phoenixEndpoint: '',
-  notionToken: '',
-  notionDatabaseId: '',
-  notionSyncEnabled: false,
   tracingEnabled: true,
   browserRelayEnabled: true,
   browserRelayPort: 33007,
@@ -167,9 +161,6 @@ export function importSettings(jsonString: string): { success: true; settings: S
       maxOutputTokens: parsed.maxOutputTokens,
       maxSteps: parsed.maxSteps,
       phoenixEndpoint: parsed.phoenixEndpoint,
-      notionToken: parsed.notionToken,
-      notionDatabaseId: parsed.notionDatabaseId,
-      notionSyncEnabled: parsed.notionSyncEnabled,
       fabSitePatterns: parsed.fabSitePatterns,
       tracingEnabled: parsed.tracingEnabled,
       mcpEndpoint: parsed.mcpEndpoint,

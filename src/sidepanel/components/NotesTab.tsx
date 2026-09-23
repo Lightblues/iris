@@ -20,9 +20,6 @@ import {
   Pencil,
   Copy,
   Check,
-  Cloud,
-  CloudOff,
-  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { KnowledgeEntry, KnowledgeEntryType } from '@/lib/types'
@@ -35,10 +32,6 @@ import {
   exportEntryAsMarkdown,
   importEntries,
 } from '@/lib/knowledge'
-import {
-  syncAllEntriesToNotion,
-} from '@/lib/notionSync'
-import { loadSettings } from '@/lib/sidepanelSettings'
 
 // Lazy load markdown renderer
 const MarkdownContent = lazy(() =>
@@ -86,21 +79,11 @@ export function NotesTab() {
   const [filterType, setFilterType] = useState<KnowledgeEntryType | 'all'>('all')
   const [filterTag, setFilterTag] = useState<string>('All')
   const [copied, setCopied] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 })
-  const [notionConfigured, setNotionConfigured] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load notes on mount
   useEffect(() => {
     loadNotes()
-    checkNotionConfig()
   }, [])
-
-  const checkNotionConfig = async () => {
-    const settings = await loadSettings()
-    setNotionConfigured(!!(settings.notionToken && settings.notionDatabaseId))
-  }
 
   const loadNotes = async () => {
     const allEntries = await getAllEntries()
@@ -175,42 +158,6 @@ export function NotesTab() {
     }
   }
 
-  const handleSyncToNotion = async () => {
-    const settings = await loadSettings()
-    if (!settings.notionToken || !settings.notionDatabaseId) {
-      alert('Please configure Notion settings first')
-      return
-    }
-
-    setSyncing(true)
-    setSyncProgress({ current: 0, total: notes.length })
-
-    try {
-      const result = await syncAllEntriesToNotion(
-        {
-          token: settings.notionToken,
-          databaseId: settings.notionDatabaseId,
-        },
-        notes,
-        (current, total) => {
-          setSyncProgress({ current, total })
-        }
-      )
-
-      alert(
-        `Sync complete!\nCreated: ${result.success}\nSkipped: ${result.skipped}\nFailed: ${result.failed}${
-          result.errors.length > 0 ? '\n\nErrors:\n' + result.errors.map(e => e.error).join('\n') : ''
-        }`
-      )
-    } catch (error) {
-      alert(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setSyncing(false)
-      setSyncProgress({ current: 0, total: 0 })
-    }
-  }
-
-  // Filter notes
   const filteredNotes = notes.filter((note) => {
     const matchesSearch =
       !searchQuery ||
@@ -232,28 +179,6 @@ export function NotesTab() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-8 text-sm flex-1"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0"
-            onClick={handleSyncToNotion}
-            disabled={!notionConfigured || syncing}
-            title={
-              !notionConfigured
-                ? 'Configure Notion in Settings'
-                : syncing
-                ? `Syncing ${syncProgress.current}/${syncProgress.total}...`
-                : 'Sync all notes to Notion'
-            }
-          >
-            {syncing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : notionConfigured ? (
-              <Cloud className="h-4 w-4" />
-            ) : (
-              <CloudOff className="h-4 w-4" />
-            )}
-          </Button>
           <Button
             variant="outline"
             size="sm"

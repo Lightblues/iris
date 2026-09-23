@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle, CloudUpload, Unlink } from 'lucide-react'
+import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle } from 'lucide-react'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings } from '@/lib/sidepanelSettings'
 import type { SlashCommand } from '@/lib/types'
@@ -14,12 +14,8 @@ import {
   verifyDirectoryPermission,
   importCommandsFromDirectory,
   clearDirectoryHandle,
-  getVestaDirectoryHandle,
-  requestVestaDirectoryAccess,
-  clearVestaDirectoryHandle,
 } from '@/lib/fileSystemAccess'
 import { getCommandDisplayName } from '@/lib/slashCommands'
-import { syncToVesta, getSyncState, type VestaSyncState } from '@/lib/vestaSync'
 
 interface SettingsPanelProps {
   settings: SidePanelSettings
@@ -39,22 +35,13 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
   const [selectedCommand, setSelectedCommand] = useState<SlashCommand | null>(null)
   const [showCommandPreview, setShowCommandPreview] = useState(false)
   const [showCommandsHelp, setShowCommandsHelp] = useState(false)
-  const [vestaDirName, setVestaDirName] = useState<string | null>(null)
-  const [vestaSyncState, setVestaSyncState] = useState<VestaSyncState | null>(null)
-  const [vestaSyncing, setVestaSyncing] = useState(false)
-  const [vestaSyncResult, setVestaSyncResult] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load commands, linked directory, and vesta state on mount
   useEffect(() => {
     loadAllCommands().then(setCommands)
     getSavedDirectoryHandle().then(handle => {
       if (handle) setLinkedDirName(handle.name)
     })
-    getVestaDirectoryHandle().then(handle => {
-      if (handle) setVestaDirName(handle.name)
-    })
-    getSyncState().then(setVestaSyncState)
   }, [])
 
   const handleAddModel = () => {
@@ -184,36 +171,6 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
     onCommandsChanged?.()
   }
 
-  // Vesta sync handlers
-  const handleLinkVesta = async () => {
-    try {
-      const handle = await requestVestaDirectoryAccess()
-      if (handle) setVestaDirName(handle.name)
-    } catch (err: any) {
-      setError(err.message || 'Failed to link Vesta directory')
-    }
-  }
-
-  const handleUnlinkVesta = async () => {
-    await clearVestaDirectoryHandle()
-    setVestaDirName(null)
-  }
-
-  const handleVestaSync = async () => {
-    setVestaSyncing(true)
-    setVestaSyncResult(null)
-    try {
-      const result = await syncToVesta()
-      setVestaSyncResult(`Synced ${result.eventsSynced} events, ${result.entriesSynced} entries, ${result.conversationsSynced} conversations`)
-      setVestaSyncState(await getSyncState())
-    } catch (err: any) {
-      setVestaSyncResult(`Error: ${err.message}`)
-      setVestaSyncState(await getSyncState())
-    } finally {
-      setVestaSyncing(false)
-    }
-  }
-
   return (
     <div className="border-b p-3 bg-muted/30 space-y-3">
       {error && (
@@ -321,121 +278,6 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
           />
           <p className="text-xs text-muted-foreground">Max tool-calling iterations per reply</p>
         </div>
-      </div>
-
-      <div className="pt-2 border-t space-y-3">
-        <h3 className="text-sm font-semibold">Notion Sync</h3>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Notion Token</label>
-          <Input
-            type="password"
-            value={settings.notionToken || ''}
-            onChange={(e) => onSettingsChange({ notionToken: e.target.value })}
-            placeholder="secret_..."
-            className="h-8 text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            Create an integration at{' '}
-            <a
-              href="https://www.notion.so/my-integrations"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              notion.so/my-integrations
-            </a>
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium">Database ID</label>
-          <Input
-            type="text"
-            value={settings.notionDatabaseId || ''}
-            onChange={(e) => onSettingsChange({ notionDatabaseId: e.target.value })}
-            placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            className="h-8 text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            Copy from database URL or share it with your integration
-          </p>
-        </div>
-      </div>
-
-      {/* Vesta Sync Section */}
-      <div className="pt-2 border-t space-y-3">
-        <h3 className="text-sm font-semibold">Vesta Sync</h3>
-
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Directory:</span>
-          {vestaDirName ? (
-            <>
-              <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">
-                {vestaDirName}/
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleUnlinkVesta}
-                className="h-5 px-1 text-destructive"
-                title="Unlink Vesta directory"
-              >
-                <Unlink className="h-3 w-3" />
-              </Button>
-            </>
-          ) : (
-            <span className="text-muted-foreground italic">None</span>
-          )}
-        </div>
-
-        {vestaSyncState && vestaSyncState.lastSyncTime > 0 && (
-          <div className="text-[10px] text-muted-foreground space-y-0.5">
-            <p>Last sync: {new Date(vestaSyncState.lastSyncTime).toLocaleString()}</p>
-            <p>Total: {vestaSyncState.entriesSynced} entries, {vestaSyncState.conversationsSynced} conversations</p>
-            {vestaSyncState.lastError && (
-              <p className="text-destructive">Error: {vestaSyncState.lastError}</p>
-            )}
-          </div>
-        )}
-
-        {vestaSyncResult && (
-          <div className={`text-xs p-2 rounded ${
-            vestaSyncResult.startsWith('Error')
-              ? 'text-destructive bg-destructive/10'
-              : 'text-green-600 bg-green-500/10'
-          }`}>
-            {vestaSyncResult}
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLinkVesta}
-            className="h-7 text-xs flex-1"
-            title="Link to ~/.ea/vesta/ directory"
-          >
-            <FolderOpen className="h-3 w-3 mr-1" />
-            {vestaDirName ? 'Re-link' : 'Link Directory'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleVestaSync}
-            disabled={vestaSyncing || !vestaDirName}
-            className="h-7 text-xs flex-1"
-            title="Sync events and knowledge to Vesta"
-          >
-            <CloudUpload className={`h-3 w-3 mr-1 ${vestaSyncing ? 'animate-pulse' : ''}`} />
-            {vestaSyncing ? 'Syncing...' : 'Sync Now'}
-          </Button>
-        </div>
-
-        <p className="text-[10px] text-muted-foreground">
-          One-way sync: tracing events, knowledge entries, and conversations → Vesta. Auto-syncs daily.
-        </p>
       </div>
 
       {/* Content Script / FAB Section */}

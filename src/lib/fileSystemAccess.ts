@@ -4,7 +4,6 @@ import { parseCommandFile } from './slashCommands'
 const DB_NAME = 'iris_fs_handles'
 const STORE_NAME = 'handles'
 const COMMANDS_DIR_KEY = 'commands_directory'
-const VESTA_DIR_KEY = 'vesta_directory'
 const CHAT_EXPORT_DIR_KEY = 'chat_export_directory'
 
 // IndexedDB helpers for storing FileSystemDirectoryHandle
@@ -69,35 +68,6 @@ async function clearHandle(key: string): Promise<void> {
   })
 }
 
-// --- Vesta directory handle ---
-export async function saveVestaDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  return saveHandle(VESTA_DIR_KEY, handle)
-}
-
-export async function getVestaDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
-  return getHandle(VESTA_DIR_KEY)
-}
-
-export async function clearVestaDirectoryHandle(): Promise<void> {
-  return clearHandle(VESTA_DIR_KEY)
-}
-
-export async function requestVestaDirectoryAccess(): Promise<FileSystemDirectoryHandle | null> {
-  try {
-    // @ts-expect-error - showDirectoryPicker is not in all TS definitions
-    const handle = await window.showDirectoryPicker({
-      id: 'iris-vesta',
-      mode: 'readwrite',
-      startIn: 'documents',
-    })
-    await saveVestaDirectoryHandle(handle)
-    return handle
-  } catch (err: any) {
-    if (err?.name === 'AbortError') return null
-    throw err
-  }
-}
-
 // --- Chat export directory handle ---
 export async function saveChatExportDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
   return saveHandle(CHAT_EXPORT_DIR_KEY, handle)
@@ -146,18 +116,17 @@ export async function requestDirectoryAccess(): Promise<FileSystemDirectoryHandl
   }
 }
 
-// Read-only permission check — safe to call from a service worker (never
-// prompts). requestPermission() needs user activation, which a SW never has,
-// so background code should query and report rather than try to request.
+// Read-only permission check. Safe from a service worker: requestPermission()
+// needs a user gesture, which the SW never has.
 export async function queryDirectoryPermission(
   handle: FileSystemDirectoryHandle,
 ): Promise<'granted' | 'prompt' | 'denied'> {
   try {
     // @ts-expect-error - queryPermission not in all TS defs
-  return await handle.queryPermission({ mode: 'readwrite' })
+    return await handle.queryPermission({ mode: 'readwrite' })
   } catch {
     return 'denied'
-}
+  }
 }
 
 // Verify we still have permission to access the directory

@@ -27,7 +27,6 @@
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.4",
-    "@tryfabric/martian": "^1.2.4",
     "ai": "^6.0.99",
     "katex": "^0.16.11",
     "lucide-react": "^0.562.0",

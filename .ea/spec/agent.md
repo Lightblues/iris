@@ -101,7 +101,7 @@ One agent. The prompt contains only the catalog. `load_skill` returns the `SKILL
 |-------|------------------------------|
 | `tabs` | Query / group / close / archive / restore tabs |
 | `automation` | Drive the dedicated background tab |
-| `paper` | Read arXiv papers and save notes via MCP |
+| `paper` | Read arXiv papers and search related work via MCP |
 
 Bundled from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`. Add a scenario by adding a skill folder, not a mode.
 
@@ -144,7 +144,7 @@ createAgent() → connectMcp(endpoint)
   → merge into ToolLoopAgent
 ```
 
-Header MCP dot: green / yellow / red. If MCP fails, paper tools are absent and the rest of the agent still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy -k vesta`.
+Header MCP dot: green / yellow / red. If MCP fails, paper tools are absent and the rest of the agent still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
 
 ## Slash commands
 
