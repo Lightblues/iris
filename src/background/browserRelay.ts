@@ -201,7 +201,10 @@ async function handleMessage(raw: string): Promise<void> {
       return
     }
     const code = e instanceof RelayError ? e.code : 'internal'
-    send({ v: 1, id: msg.id, error: { code, message: (e as Error).message || String(e) } })
+    const error: Record<string, unknown> = { code, message: (e as Error).message || String(e) }
+    if (e instanceof RelayError && e.schema) error.schema = e.schema
+    if (e instanceof RelayError && e.methods) error.methods = e.methods
+    send({ v: 1, id: msg.id, error })
   }
 }
 
@@ -217,16 +220,40 @@ function registerBrowserMethods(): void {
     await activateTab(params as { tabId?: number })
     return { success: true }
   }
-  registerRelayMethod('fetch', fetch)
-  registerRelayMethod('list_tabs', list)
-  registerRelayMethod('get_tab_content', content)
-  registerRelayMethod('close_tab', close)
-  registerRelayMethod('activate_tab', activate)
-  registerRelayMethod('browser.fetch', fetch)
-  registerRelayMethod('browser.list_tabs', list)
-  registerRelayMethod('browser.get_tab_content', content)
-  registerRelayMethod('browser.close_tab', close)
-  registerRelayMethod('browser.activate_tab', activate)
+  const fetchDoc = {
+    description: 'Open a URL in a foreground tab, extract the page, then close the tab.',
+    params: [
+      { name: 'url', type: 'string' as const, required: true, description: 'Page URL' },
+      { name: 'wait', type: 'number' as const, description: 'Extra seconds after load before reading the page' },
+      { name: 'extract', type: 'string' as const, description: 'text, markdown, or html' },
+    ],
+  }
+  const listDoc = { description: 'List open browser tabs.', params: [] }
+  const contentDoc = {
+    description: 'Extract an already-open tab. Does not navigate.',
+    params: [
+      { name: 'tabId', type: 'number' as const, required: true, description: 'Tab id from browser.list_tabs' },
+      { name: 'extract', type: 'string' as const, description: 'text, markdown, or html' },
+    ],
+  }
+  const closeDoc = {
+    description: 'Close a browser tab.',
+    params: [{ name: 'tabId', type: 'number' as const, required: true, description: 'Tab id to close' }],
+  }
+  const activateDoc = {
+    description: 'Focus a browser tab.',
+    params: [{ name: 'tabId', type: 'number' as const, required: true, description: 'Tab id to activate' }],
+  }
+  registerRelayMethod('fetch', fetch, fetchDoc)
+  registerRelayMethod('list_tabs', list, listDoc)
+  registerRelayMethod('get_tab_content', content, contentDoc)
+  registerRelayMethod('close_tab', close, closeDoc)
+  registerRelayMethod('activate_tab', activate, activateDoc)
+  registerRelayMethod('browser.fetch', fetch, fetchDoc)
+  registerRelayMethod('browser.list_tabs', list, listDoc)
+  registerRelayMethod('browser.get_tab_content', content, contentDoc)
+  registerRelayMethod('browser.close_tab', close, closeDoc)
+  registerRelayMethod('browser.activate_tab', activate, activateDoc)
 }
 
 registerBrowserMethods()

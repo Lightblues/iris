@@ -59,23 +59,11 @@ Long calls may emit several frames with the same `id`:
 
 Error codes: `method_not_found`, `invalid_params`, `not_logged_in`, `platform_unavailable`, `internal`.
 
+`invalid_params` and other failures of a known method include `error.schema` for that method. `method_not_found` includes `error.methods`.
+
 ## Methods
 
-| Method | Params | Result |
-|--------|--------|--------|
-| `iris.capabilities` | — | `{ methods }` |
-| `browser.fetch` | `url`, `wait?`, `extract?` | `{ title, url, content }` |
-| `browser.list_tabs` | — | tab list |
-| `browser.get_tab_content` | `tabId`, `extract?` | `{ title, url, content }` |
-| `browser.close_tab` / `browser.activate_tab` | `tabId` | `{ success: true }` |
-| `iris.chat.platforms` | — | which of ChatGPT / DeepSeek / Gemini already have a tab |
-| `iris.chat.list` | `platform` | session id, title, `updatedAt` |
-| `iris.chat.export` | `platform`, `id` | one raw conversation |
-| `iris.chat.export_all` | `platform`, `ids?`, `since?` | one chunk per conversation, then `{ count }` |
-| `iris.knowledge.export` | — | local notes |
-| `iris.conversations.export` | — | Iris agent transcripts |
-| `iris.tracing.export` | — | `{ days }` of browsing events |
-| `iris.settings.get` | `includeSecrets?` | settings. API key and relay token are omitted unless `includeSecrets` is true |
+Each method is registered with a description and parameter list. `iris.capabilities` returns that list. A failed call for a known method includes `error.schema`. `method_not_found` includes `error.methods`, the same list.
 
 `platform` is `chatgpt`, `deepseek`, or `gemini`. Chat methods run the existing content-script adapters inside a tab on that origin, so the site's own cookies apply. An already-open tab is reused. Otherwise Iris opens a background tab and leaves it open. The relay returns JSON. It does not write the user's export directory. The on-page FAB export still does.
 
@@ -83,7 +71,7 @@ Page extract modes: `text` (`innerText`), `html` (`outerHTML`), `markdown` (DOM 
 
 ## Adding a method
 
-1. `registerRelayMethod("iris.example", handler)` from the feature's module. Import that module from `src/background/browserRelay.ts` so it registers before connect.
+1. `registerRelayMethod("iris.example", handler, { description, params })` from the feature's module. Import that module from `src/background/browserRelay.ts` so it registers before connect.
 2. The name shows up in `hello` and `iris.capabilities`.
 3. Call it with `iris_call`. ea-tools does not need a new route or a new MCP tool.
 

@@ -3,7 +3,7 @@ import { getAllEntries } from '../lib/knowledge'
 import { loadSettings } from '../lib/sidepanelSettings'
 import { loadAllEvents } from '../lib/tracing'
 import type { ChatExportPlatform } from '../lib/types'
-import { RelayError, registerRelayMethod, listRelayMethods, type RelayChunk } from './relayRegistry'
+import { RelayError, registerRelayMethod, listRelaySchemas, type RelayChunk } from './relayRegistry'
 
 interface PlatformSpec {
   id: ChatExportPlatform
@@ -130,7 +130,17 @@ async function fetchOne(spec: PlatformSpec, id: string, tabId: number) {
   }
 }
 
-registerRelayMethod('iris.capabilities', async () => ({ methods: listRelayMethods() }))
+const platformParam = {
+  name: 'platform',
+  type: 'string' as const,
+  required: true,
+  description: 'chatgpt, deepseek, or gemini',
+}
+
+registerRelayMethod('iris.capabilities', async () => ({ methods: listRelaySchemas() }), {
+  description: 'List every relay method with its description and parameters. Call this before other iris.* methods.',
+  params: [],
+})
 
 registerRelayMethod('iris.chat.platforms', async () => {
   const tabs = await chrome.tabs.query({})
@@ -140,6 +150,9 @@ registerRelayMethod('iris.chat.platforms', async () => {
       return { id: spec.id, label: spec.label, origin: spec.origin, open: !!open, tabId: open?.id }
     }),
   }
+}, {
+  description: 'Which chat sites already have an open tab. Does not open a new tab.',
+  params: [],
 })
 
 registerRelayMethod('iris.chat.list', async (params) => {
@@ -148,6 +161,9 @@ registerRelayMethod('iris.chat.list', async (params) => {
   const res = await callPlatformTab(tab.tabId, { platform: spec.id, op: 'list' })
   if (res.ok !== true) raiseChatError(res.error)
   return { platform: spec.id, tabId: tab.tabId, opened: tab.opened, sessions: res.sessions }
+}, {
+  description: 'List conversations for a logged-in chat site. Reuses an open tab, or opens a background tab.',
+  params: [platformParam],
 })
 
 registerRelayMethod('iris.chat.export', async (params) => {
@@ -156,13 +172,19 @@ registerRelayMethod('iris.chat.export', async (params) => {
   if (typeof id !== 'string' || !id) throw new RelayError('invalid_params', 'id is required')
   const tab = await ensurePlatformTab(spec)
   return { ...(await fetchOne(spec, id, tab.tabId)), tabId: tab.tabId, opened: tab.opened }
+}, {
+  description: 'Fetch one conversation as raw platform JSON. Does not write a local directory.',
+  params: [
+    platformParam,
+    { name: 'id', type: 'string', required: true, description: 'Conversation id from iris.chat.list' },
+  ],
 })
 
 registerRelayMethod('iris.chat.export_all', async (params, chunk: RelayChunk) => {
   const spec = requirePlatform(params)
   const only = asStringList(params.ids)
   const since = params.since
-  if (since != null && typeof since !== 'number') throw new RelayError('invalid_params', 'since must be a unix timestamp')
+  if (since != null && typeof since !== 'number') throw new RelayError('invalid_params', 'since must be a number (unix seconds)')
   const tab = await ensurePlatformTab(spec)
 
   let ids = only
@@ -179,16 +201,41 @@ registerRelayMethod('iris.chat.export_all', async (params, chunk: RelayChunk) =>
     chunk(await fetchOne(spec, id, tab.tabId))
   }
   return { platform: spec.id, count: ids.length, tabId: tab.tabId, opened: tab.opened }
+}, {
+  description: 'Fetch many conversations. Each one is a chunk; the final result is the count. Omit ids to export every session.',
+  streams: true,
+  params: [
+    platformParam,
+    { name: 'ids', type: 'string[]', description: 'Conversation ids to export. Omit to export all.' },
+    { name: 'since', type: 'number', description: 'Unix seconds. Skip sessions last updated before this.' },
+  ],
 })
 
-registerRelayMethod('iris.knowledge.export', async () => ({ entries: await getAllEntries() }))
+registerRelayMethod('iris.knowledge.export', async () => ({ entries: await getAllEntries() }), {
+  description: 'Export Iris notes and highlights stored in the extension.',
+  params: [],
+})
 
-registerRelayMethod('iris.conversations.export', async () => loadAllConversations())
+registerRelayMethod('iris.conversations.export', async () => loadAllConversations(), {
+  description: 'Export Iris agent transcripts stored in the extension.',
+  params: [],
+})
 
-registerRelayMethod('iris.tracing.export', async () => ({ days: await loadAllEvents() }))
+registerRelayMethod('iris.tracing.export', async () => ({ days: await loadAllEvents() }), {
+  description: 'Export browsing traces stored in the extension, keyed by day.',
+  params: [],
+})
 
 registerRelayMethod('iris.settings.get', async (params) => {
+  if (params.includeSecrets != null && typeof params.includeSecrets !== 'boolean') {
+    throw new RelayError('invalid_params', 'includeSecrets must be a boolean')
+  }
   const { apiKey, browserRelayToken, ...rest } = await loadSettings()
   if (params.includeSecrets === true) return { ...rest, apiKey, browserRelayToken }
   return rest
+}, {
+  description: 'Read Iris settings. API key and relay token are omitted unless includeSecrets is true.',
+  params: [
+    { name: 'includeSecrets', type: 'boolean', description: 'Include apiKey and browserRelayToken.' },
+  ],
 })
