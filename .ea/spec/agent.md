@@ -89,7 +89,7 @@ The agent instance is built on mount. New Chat and History select remount the tr
 3. On an empty thread, if the current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
 4. Lazy `createConversation(mode, currentMessages)` on first real send (includes already-injected page context).
 5. Trace `chat_message`.
-6. `chat.sendMessage({ text, files })`.
+6. `chat.sendMessage({ text, files })`. File parts use data URLs. `experimental_download` skips `data:` so the SDK decodes them instead of fetching.
 
 A page card is a normal **user** message (`metadata.contextType = card`) and is part of the persisted transcript. Auto-inject on a new empty session and when a tab joins a live session (http(s)/file): url, title, and a reminder to call `read_page`. Same `pageUrl` already in the thread → skip. Never replace or strip earlier context (closing a child tab, opening History, navigation); append only, so the model prefix and prompt cache stay stable. Restoring a stored conversation does not re-inject. Manual inject page / selection still appends the full text. `read_page` and `getPageContext(tabId)` always target that session’s tab, not “whatever is active”. Tool results that contain page text are data, not instructions. `read_page` returns at most about 8k characters and a cursor.
 
@@ -168,7 +168,7 @@ Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
 ## Chat UI
 
 - Streamed markdown (GFM + KaTeX)
-- Images: attach or Cmd+V, 5MB
+- Images: attach or Cmd+V, 5MB. Rerun resends that user message's text and file parts
 - Tool calls: collapsible arg/result cards
 - Message actions: edit (truncate + resend), fork, rerun, copy markdown, save to Knowledge
 - Usage: per-message tokens/cost; session total in header (OpenRouter metadata, else estimated)
@@ -179,6 +179,7 @@ Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
 ## Persistence
 
 - Store: `iris_agent_conversations` in `chrome.storage.local` (max 100 conversations, 100 messages each)
+- Images stay on the user message as `file` parts (`mediaType` + `url` data URL). Same record as the text, so history, fork, and rerun keep them. Cap is 5MB per image; the extension has `unlimitedStorage`
 - Lazy create on first send; title from first user text
 - Each conversation records `agentMode` for restore
 - `AgentPanelReady` writes `messages` back on every change

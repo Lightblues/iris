@@ -8,6 +8,7 @@ import { createLoadTools, createToolSession } from '@/lib/scriptTools'
 import type { TabRef } from '@/lib/pageTools'
 import { recordEvent } from '@/lib/tracing'
 import { isTelemetryEnabled } from '@/lib/telemetryState'
+import { downloadChatAssets } from './downloadAssets'
 
 export interface ProviderMetadataRef {
   current: any
@@ -62,6 +63,7 @@ export async function createAgent(
         openai: { reasoningEffort: 'high' },
       },
       experimental_telemetry: { isEnabled: isTelemetryEnabled() },
+      experimental_download: downloadChatAssets,
       onStepFinish({ providerMetadata }) {
         if (providerMetadata) providerMetadataRef.current = providerMetadata
       },

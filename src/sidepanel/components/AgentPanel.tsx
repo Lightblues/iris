@@ -7,9 +7,25 @@ import { useAgentTransport, useAgentChat } from '@/agent/useAgentChat'
 import { updateConversation } from '@/agent/history'
 import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
-import type { SlashCommand } from '@/lib/types'
+import type { ChatImageAttachment, SlashCommand } from '@/lib/types'
 import { createConversation } from '@/agent/history'
 import { useThrottledValue } from '../useThrottledValue'
+
+function imageAttachments(message: IrisMessage): ChatImageAttachment[] | undefined {
+  const images: ChatImageAttachment[] = []
+  for (const part of message.parts) {
+    if (part.type !== 'file' || !part.mediaType.startsWith('image/')) continue
+    const comma = part.url.indexOf(',')
+    const payload = comma >= 0 ? part.url.slice(comma + 1) : part.url
+    images.push({
+      id: `${message.id}-file-${images.length}`,
+      data: part.url,
+      mimeType: part.mediaType,
+      size: Math.floor(payload.length * 0.75),
+    })
+  }
+  return images.length > 0 ? images : undefined
+}
 
 export interface AgentPanelProps {
   tabId: number
@@ -252,11 +268,15 @@ function AgentPanelReady(props: AgentPanelProps & {
   useEffect(() => {
     if (!conversation?.id || messages.length === 0) return
     if (!isLoading) {
-      updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+      updateConversation(conversation.id, messages as IrisMessage[]).catch(err => {
+        console.error('[Iris] Failed to save conversation', err)
+      })
       return
     }
     const t = setTimeout(() => {
-      updateConversation(conversation.id, messages as IrisMessage[]).catch(() => {})
+      updateConversation(conversation.id, messages as IrisMessage[]).catch(err => {
+        console.error('[Iris] Failed to save conversation', err)
+      })
     }, 400)
     return () => clearTimeout(t)
   }, [messages, conversation?.id, isLoading])
@@ -298,12 +318,15 @@ function AgentPanelReady(props: AgentPanelProps & {
     }
     if (userMsgIdx === -1) return
     const userMsg = messages[userMsgIdx]
-    const textPart = userMsg.parts.find((p: any) => p.type === 'text')
-    const content = textPart?.type === 'text' ? textPart.text : ''
-    if (!content) return
+    const content = userMsg.parts
+      .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
+      .map(p => p.text)
+      .join('')
+    const images = imageAttachments(userMsg)
+    if (!content.trim() && !images) return
     // Truncate to just before the user message, then resend
     setMessages(messages.slice(0, userMsgIdx) as IrisMessage[])
-    setTimeout(() => sendMessage(content), 0)
+    setTimeout(() => sendMessage(content, images), 0)
   }, [messages, setMessages, sendMessage])
 
   const handleSendMessage = useCallback(async (
