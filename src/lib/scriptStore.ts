@@ -19,6 +19,45 @@ export interface StoredScript {
 
 const KEY = 'iris_scripts'
 const SEEDED = 'iris_scripts_seeded'
+const HISTORY_KEY = 'iris_script_history'
+const HISTORY_CAP = 8
+
+export interface ScriptRevision {
+  version: string
+  savedAt: number
+  source: string
+}
+
+async function readHistory(): Promise<Record<string, ScriptRevision[]>> {
+  const bag = await chrome.storage.local.get(HISTORY_KEY)
+  return (bag[HISTORY_KEY] as Record<string, ScriptRevision[]> | undefined) ?? {}
+}
+
+export async function listScriptHistory(id: string): Promise<ScriptRevision[]> {
+  const all = await readHistory()
+  return all[id] ?? []
+}
+
+async function rememberPrior(id: string, priorSource: string, nextSource: string): Promise<void> {
+  if (priorSource === nextSource) return
+  const parsed = parseScript(priorSource)
+  const version = 'error' in parsed ? 'unknown' : parsed.version
+  const all = await readHistory()
+  all[id] = [{ version, savedAt: Date.now(), source: priorSource }, ...(all[id] ?? [])].slice(0, HISTORY_CAP)
+  await chrome.storage.local.set({ [HISTORY_KEY]: all })
+}
+
+async function dropHistory(id: string): Promise<void> {
+  const all = await readHistory()
+  if (!all[id]) return
+  delete all[id]
+  await chrome.storage.local.set({ [HISTORY_KEY]: all })
+}
+
+export async function resyncScripts(): Promise<string | null> {
+  await sync()
+  return scriptRegisterError()
+}
 
 export interface ScriptRecord extends StoredScript {
   meta: ScriptMeta
@@ -56,6 +95,7 @@ export async function writeScript(source: string, enabled?: boolean): Promise<Sc
     return !('error' in meta) && meta.name === parsed.name
   })
   const id = prior?.id ?? `s_${crypto.randomUUID()}`
+  if (prior && prior.source !== source) await rememberPrior(id, prior.source, source)
   const next = { id, source, enabled: enabled ?? prior?.enabled ?? true }
   const rest = rows.filter(row => row.id !== id)
   await chrome.storage.local.set({ [KEY]: [...rest, next] })
@@ -78,12 +118,14 @@ export async function setScriptEnabled(idOrName: string, enabled: boolean): Prom
 
 export async function deleteScript(idOrName: string): Promise<void> {
   const rows = await listStoredScripts()
-  const next = rows.filter(r => {
-    if (r.id === idOrName) return false
+  const removed = rows.filter(r => {
+    if (r.id === idOrName) return true
     const meta = parseScript(r.source)
-    return 'error' in meta || meta.name !== idOrName
+    return !('error' in meta) && meta.name === idOrName
   })
-  if (next.length === rows.length) throw new Error(`Script not found: ${idOrName}`)
-  await chrome.storage.local.set({ [KEY]: next })
+  if (removed.length === 0) throw new Error(`Script not found: ${idOrName}`)
+  const removedIds = new Set(removed.map(r => r.id))
+  await chrome.storage.local.set({ [KEY]: rows.filter(r => !removedIds.has(r.id)) })
+  await Promise.all(removed.map(r => dropHistory(r.id)))
   await sync()
 }

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 
-export type TabType = 'agent' | 'agent-history' | 'tabs' | 'bookmarks' | 'reading-list' | 'notes' | 'settings'
+export type TabType = 'agent' | 'agent-history' | 'tabs' | 'bookmarks' | 'reading-list' | 'notes' | 'scripts' | 'settings'
 
 interface TabSwitcherProps {
   activeTab: TabType
@@ -14,17 +14,18 @@ const TABS: { id: TabType; label: string }[] = [
   { id: 'bookmarks', label: 'Bookmarks' },
   { id: 'reading-list', label: 'Reading' },
   { id: 'notes', label: 'Notes' },
+  { id: 'scripts', label: 'Scripts' },
 ]
 
 export function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {
   return (
-    <div className="flex bg-muted rounded-md p-0.5">
+    <div className="flex bg-muted rounded-md p-0.5 overflow-x-auto min-w-0">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
           className={cn(
-            'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+            'px-2.5 py-1 text-xs font-medium rounded transition-colors shrink-0',
             activeTab === tab.id
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:text-foreground'

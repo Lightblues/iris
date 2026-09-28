@@ -6,13 +6,13 @@ FAB visibility is not derived from these scripts. See [page-enhancements.md](pag
 
 ## Store
 
-`chrome.storage.local` key `iris_scripts`: `{ id, source, enabled }[]`.
+`chrome.storage.local` key `iris_scripts`: `{ id, source, enabled }[]`. Replacing a script keeps up to eight previous copies under `iris_script_history`, keyed by script id.
 
 The source is the file text. `write_script` upserts by `@name`. Import and export are that text (`.user.js` or `.agent.js`). Unknown `@` lines are kept, so a ScriptCat-only field survives a round trip.
 
 On first run Iris inserts three seed userscripts (Zhihu unwrap, arXiv host links, GitHub ↔ DeepWiki) and sets `iris_scripts_seeded`. Deleting a seed does not bring it back.
 
-The service worker registers enabled scripts with `chrome.userScripts` on startup and after every write. Registration failure (Allow user scripts is off) is stored and shown in Settings. The scripts stay saved.
+The service worker registers enabled scripts with `chrome.userScripts` on startup and after every write. Registration failure (Allow user scripts is off, or the extension was not reloaded after turning it on) is stored and shown on the Scripts tab. The scripts stay saved.
 
 ## UserScript
 
@@ -75,7 +75,7 @@ AgentScripts may use the same `GM_*` grants as userscripts.
 | `reload_tab` | Reload so scripts inject again |
 | `read_console` | `GM_log` buffer for a tab |
 
-Settings → Scripts lists them, matching the current URL first, with enable, delete, import, and export. There is no editor.
+The Scripts tab lists them, with scripts that match the current URL first. Each row has an enable switch. Opening a script shows a read-only source preview and earlier saved versions. Import, export, and delete stay on that tab. There is no editor.
 
 ## What does not belong here
 

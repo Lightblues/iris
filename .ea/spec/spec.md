@@ -83,7 +83,7 @@ Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Backgrou
 | History | Core-adjacent | Conversation list, import/export |
 | Notes | Maintain | Browse local knowledge entries |
 | Tabs / Bookmarks / Reading List | Maintain | Thin Chrome wrappers; not a product line |
-| Settings | Shared | LLM, MCP, Browser relay, scripts, slash-command folder, FAB blocklist, chat-export dir |
+| Settings | Shared | LLM, MCP, Browser relay, slash-command folder, FAB blocklist, chat-export dir |
 
 Chrome may leave a newly opened side panel blank until a second UI gesture (shortcut / FAB / inspect). This is a Chromium scheduling bug, not Iris logic. Repro: `experiments/sidepanel-repro/`. Workaround: trigger open a second time.
 

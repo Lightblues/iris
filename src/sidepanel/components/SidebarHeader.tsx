@@ -18,7 +18,7 @@ export function SidebarHeader({
   const isSettings = activeTab === 'settings'
 
   return (
-    <div className="flex items-center justify-between p-2 border-b bg-background">
+    <div className="flex items-center justify-between gap-2 p-2 border-b bg-background">
       {isSettings ? (
         <button
           onClick={onSettingsBack}
@@ -28,7 +28,9 @@ export function SidebarHeader({
           Settings
         </button>
       ) : (
-        <TabSwitcher activeTab={activeTab} onTabChange={onTabChange} />
+        <div className="min-w-0 flex-1">
+          <TabSwitcher activeTab={activeTab} onTabChange={onTabChange} />
+        </div>
       )}
 
       <div className="flex items-center gap-1">

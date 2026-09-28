@@ -6,6 +6,12 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // `localhost` binds ::1 only here. The extension fetches http://localhost:5173 via 127.0.0.1.
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+  },
   plugins: [react(), crx({ manifest }) as unknown as PluginOption],
   resolve: {
     alias: {

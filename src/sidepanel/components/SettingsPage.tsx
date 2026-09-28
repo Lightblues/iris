@@ -22,7 +22,6 @@ import {
 import { getCommandDisplayName } from '@/lib/slashCommands'
 import { fetchModels, clearModelCache } from '@/lib/modelRegistry'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
-import { ScriptLibrary } from './ScriptLibrary'
 
 interface SettingsPageProps {
   settings: SidePanelSettings
@@ -681,9 +680,6 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
 
       {/* ===== Content Script ===== */}
       <section className="space-y-3">
-        <SectionHeader title="Scripts" />
-        <ScriptLibrary />
-
         <SectionHeader title="Content Script" />
 
         <div className="space-y-1">
