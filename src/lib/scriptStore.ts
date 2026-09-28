@@ -1,9 +1,10 @@
 import { parseScript, type ScriptMeta } from './scriptMeta'
+import { syncUserScripts } from './scriptRuntime'
 import { SEED_SCRIPTS } from './scriptSeeds'
 
 async function sync(): Promise<void> {
+  // Service workers cannot dynamic-import, and cannot message themselves.
   if (typeof window === 'undefined') {
-    const { syncUserScripts } = await import('./scriptRuntime')
     await syncUserScripts()
     return
   }
