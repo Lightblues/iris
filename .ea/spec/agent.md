@@ -105,7 +105,7 @@ Skills live in `chrome.storage.local` (`iris_skills`). A record is a virtual dir
 | `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
 | `summarize` | Chinese summary of the current page. Call `read_page` first |
 
-Bundled skills are copied from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`, then inserted into storage when that name is absent. An existing name is never overwritten. Builtin skills can be disabled, not deleted or replaced. Replacing a skill keeps the previous `files` in `iris_skill_history` (8 revisions). The Skills tab lists, previews, toggles, and deletes them.
+Bundled skills are copied from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`, then inserted into storage when that name is absent. An existing name is never overwritten. Builtin skills can be disabled, not deleted or replaced. Replacing a skill keeps the previous `files` in `iris_skill_history` (8 revisions). The Skills tab lists, toggles, and deletes them. Opening one previews every file in that version (`SKILL.md`, `reference.md`, `references/…`, `scripts/…`) as text. Iris does not run those scripts.
 
 `write_skill` and `delete_skill` return `needs_confirmation` until `confirmed` is true. The runtime sets `author` to `agent`. A skill saved in the current chat is callable with `load_skill` immediately; the system-prompt catalog refreshes the next time the agent is created.
 

@@ -48,6 +48,7 @@ export function SkillsTab() {
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [history, setHistory] = useState<SkillRevision[]>([])
   const [preview, setPreview] = useState<SkillRevision | null>(null)
+  const [filePath, setFilePath] = useState('SKILL.md')
   const [copied, setCopied] = useState(false)
 
   const refresh = async () => {
@@ -61,6 +62,7 @@ export function SkillsTab() {
   useEffect(() => {
     if (!selectedName) return
     setPreview(null)
+    setFilePath('SKILL.md')
     listSkillHistory(selectedName).then(setHistory).catch(err => setError(err.message))
   }, [selectedName])
 
@@ -85,7 +87,14 @@ export function SkillsTab() {
   }
 
   if (selected) {
-    const showing = preview?.files['SKILL.md'] ?? selected.files['SKILL.md'] ?? ''
+    const files = preview?.files ?? selected.files
+    const paths = Object.keys(files).sort((a, b) => {
+      if (a === 'SKILL.md') return -1
+      if (b === 'SKILL.md') return 1
+      return a.localeCompare(b)
+    })
+    const activePath = paths.includes(filePath) ? filePath : 'SKILL.md'
+    const showing = files[activePath] ?? ''
     return (
       <div className="flex-1 min-h-0 flex flex-col">
         <div className="flex items-center gap-2 px-3 py-2 border-b">
@@ -151,7 +160,22 @@ export function SkillsTab() {
             </ul>
           </section>
           <section className="space-y-1">
-            <h3 className="text-xs font-medium">{preview ? 'Preview' : 'SKILL.md'}</h3>
+            <h3 className="text-xs font-medium">Files</h3>
+            <div className="flex flex-wrap gap-1">
+              {paths.map(path => (
+                <button
+                  key={path}
+                  type="button"
+                  onClick={() => setFilePath(path)}
+                  className={cn(
+                    'px-2 py-0.5 text-[11px] rounded-full border font-mono',
+                    activePath === path ? 'bg-foreground text-background border-foreground' : 'text-muted-foreground',
+                  )}
+                >
+                  {path}
+                </button>
+              ))}
+            </div>
             <pre className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all rounded-md border bg-muted/30 p-2 max-h-[50vh] overflow-auto">{showing}</pre>
           </section>
         </div>
@@ -192,7 +216,10 @@ export function SkillsTab() {
                   <span className={cn('text-sm truncate', !row.enabled && 'text-muted-foreground')}>/{row.name}</span>
                   <span className="text-[10px] text-muted-foreground shrink-0">{row.author}</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground truncate">{row.description}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {row.description}
+                  {Object.keys(row.files).length > 1 ? ` · ${Object.keys(row.files).length} files` : ''}
+                </div>
               </button>
               <EnableSwitch enabled={row.enabled} onClick={() => toggle(row)} />
             </div>
