@@ -5,6 +5,7 @@
 import { loadSettings, SETTINGS_KEY, type SidePanelSettings } from '../lib/sidepanelSettings'
 import { callRelayMethod, listRelayMethods, registerRelayMethod, RelayError, type RelayHandler } from './relayRegistry'
 import './relayIris'
+import './relayAgentTools'
 
 const DEFAULT_PORT = 33007
 const DEFAULT_TOKEN = 'ea-browser-relay-local'

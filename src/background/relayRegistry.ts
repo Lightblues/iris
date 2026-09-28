@@ -1,6 +1,6 @@
 export interface RelayParamSchema {
   name: string
-  type: 'string' | 'number' | 'boolean' | 'string[]'
+  type: 'string' | 'number' | 'boolean' | 'string[]' | 'object'
   required?: boolean
   description: string
 }

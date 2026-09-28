@@ -2,6 +2,11 @@ import { parseScript, type ScriptMeta } from './scriptMeta'
 import { SEED_SCRIPTS } from './scriptSeeds'
 
 async function sync(): Promise<void> {
+  if (typeof window === 'undefined') {
+    const { syncUserScripts } = await import('./scriptRuntime')
+    await syncUserScripts()
+    return
+  }
   await chrome.runtime.sendMessage({ type: 'iris_sync_scripts' })
 }
 

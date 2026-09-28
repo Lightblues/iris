@@ -75,6 +75,8 @@ AgentScripts may use the same `GM_*` grants as userscripts.
 | `reload_tab` | Reload so scripts inject again |
 | `read_console` | `GM_log` buffer for a tab |
 
+The same tools are callable from an external agent through `iris.tools.list` and `iris.tools.call`. See [browser-relay.md](browser-relay.md). `load_skill` and `load_tools` stay on the side panel.
+
 The Scripts tab lists them, with scripts that match the current URL first. Each row has an enable switch. Opening a script shows a read-only source preview and earlier saved versions. Import, export, and delete stay on that tab. There is no editor.
 
 ## What does not belong here
