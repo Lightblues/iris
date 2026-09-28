@@ -98,17 +98,21 @@ One agent. The prompt contains only enabled names and descriptions. `load_skill`
 
 Skills live in `chrome.storage.local` (`iris_skills`). A record is a virtual directory: `name`, `description`, `enabled`, `author` (`builtin` | `user` | `agent`), and `files` (at least `SKILL.md`, body capped at 8KB). There is no linked folder.
 
+`SKILL.md` must open with YAML frontmatter, per the [Agent Skills spec](https://agentskills.io/specification). Every write path validates it: `name` 1-64 chars, lowercase alphanumerics and single hyphens, no leading / trailing / doubled hyphen, and equal to the skill name; `description` a non-empty single line up to 1024 chars; a non-empty body. `write_skill` generates the block (quoting the description when plain YAML would misread it); `patch_skill` and `pnpm bundle-skills` reject a file that violates it, so a skill cannot silently drift into a frontmatter-less state. The parser reads top-level `key: value` lines only — nested fields such as `metadata:` are preserved as text, not interpreted.
+
 | Skill | When the description matches |
 |-------|------------------------------|
 | `tabs` | Group / archive / restore tabs. `list_tabs` and `close_tabs` are already core |
 | `automation` | Click, type, and snapshot a tab. Defaults to the session tab |
 | `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
 | `summarize` | Chinese summary of the current page. Call `read_page` first |
-| `create-skill` | Create or revise a skill. `write_skill` for a new one, `patch_skill` to change one file |
+| `create-skill` | Create or revise a skill. `write_skill` for a new one, `patch_skill` `edits` to change part of a file |
 
 `skills/<name>/` is the source. `pnpm bundle-skills` copies it into `src/agent/builtinSkills.json`, which the extension imports. On startup, a missing name is inserted. A skill whose `author` is still `builtin` is refreshed from that bundle, and its enabled flag is kept. `author: agent` records are left alone.
 
-`write_skill` replaces the whole file set. `patch_skill` writes only the paths it is given and keeps the rest. Both apply immediately. Builtin skills cannot be edited or deleted. Each change stores the previous `files` in `iris_skill_history` (8 revisions). The Skills tab lists, toggles, and deletes them, and previews every file as text. Iris does not run `scripts/`.
+`write_skill` replaces the whole file set. `patch_skill` keeps the rest and takes three kinds of change: `edits` (exact `old_string` → `new_string` in an existing file, unique match required unless `replace_all`), `files` (whole-file write, for adding a file or a deliberate rewrite), and `remove`. Edits are the documented default; whole-file writes are what used to silently drop content. They apply in that order and all apply immediately. Builtin skills cannot be edited or deleted.
+
+Each change stores the files it replaced in `iris_skill_history` (16 revisions). Saves within 5 minutes of the last snapshot are one burst and do not push a new entry, so a multi-step edit leaves one revision holding the pre-burst state instead of consuming the whole ring. `read_skill_history` lets the agent list snapshots and read a file out of one; rolling back is reading the old text and writing it back with `patch_skill`. The Skills tab lists, toggles, and deletes skills, and previews every file of the current version or any snapshot. Iris does not run `scripts/`.
 
 `author` is `builtin` for bundled skills and `agent` for anything `write_skill` or `patch_skill` saves. `user` is unused. A skill saved in this chat is callable with `load_skill` immediately; the system-prompt catalog refreshes the next time the agent is created.
 
@@ -126,7 +130,8 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `list_scripts` / `write_script` / `toggle_script` | Userscript and AgentScript store. See [scripts.md](scripts.md) |
 | `reload_tab` / `read_console` | Re-inject scripts / read `GM_log` |
 | `list_skills` / `load_skill` / `read_skill_file` | Skill catalog and file reads |
-| `write_skill` / `patch_skill` / `delete_skill` | Create, edit one file, or delete. Applies immediately. Builtins rejected |
+| `read_skill_history` | List snapshots of a skill, or read one file out of a revision |
+| `write_skill` / `patch_skill` / `delete_skill` | Create, edit (string `edits` or whole `files`), or delete. Applies immediately. Builtins rejected |
 | `toggle_skill` | Enable or disable, including builtins |
 | `load_tools` | Activate `tabs`, `automation`, `screenshot`, `site`, `mcp` |
 
