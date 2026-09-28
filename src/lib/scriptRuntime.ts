@@ -121,7 +121,7 @@ function wrapScript(id: string, meta: ScriptMeta, required: string, source: stri
   if (meta.kind === 'agent') {
     lines.push(AGENT_SCOPE_START)
     lines.push(source)
-    lines.push('})();')
+    lines.push(AGENT_SCOPE_END)
   } else {
     lines.push(source)
   }
@@ -189,14 +189,23 @@ const POLYFILL = `
 })();
 `
 
+/**
+ * Shadows `document` / `navigator` with proxies that gate `modelContext.registerTool` on the
+ * `@webmcp` grants. The shadows are function parameters, not `const`: declaring them in the same
+ * scope that reads the real globals puts those reads in the temporal dead zone, which threw before
+ * the script body ran a single line. Traps read through the real target so DOM getters and methods
+ * keep their brand checks.
+ */
 const AGENT_SCOPE_START = `
-(function () {
-  const __pageDocument = document;
-  const __pageNavigator = navigator;
+const __irisScope = (function (__pageDocument, __pageNavigator) {
   function __irisGuard(mc) {
+    if (!mc) return mc;
     return new Proxy(mc, {
-      get: function (t, p, r) {
-        if (p !== 'registerTool') return Reflect.get(t, p, r);
+      get: function (t, p) {
+        if (p !== 'registerTool') {
+          const v = t[p];
+          return typeof v === 'function' ? v.bind(t) : v;
+        }
         return function (tool) {
           const perm = __irisGrants[tool.name];
           if (!perm || perm === 'deny') throw new Error('webmcp not granted: ' + tool.name);
@@ -208,18 +217,26 @@ const AGENT_SCOPE_START = `
       }
     });
   }
-  const document = new Proxy(__pageDocument, {
-    get: function (target, prop, recv) {
-      if (prop !== 'modelContext') return Reflect.get(target, prop, recv);
-      return __irisGuard(target.modelContext);
-    }
-  });
-  const navigator = new Proxy(__pageNavigator, {
-    get: function (target, prop, recv) {
-      if (prop !== 'modelContext') return Reflect.get(target, prop, recv);
-      return __irisGuard(target.modelContext || __pageDocument.modelContext);
-    }
-  });
+  function __irisShadow(target, modelContext) {
+    return new Proxy(target, {
+      get: function (t, p) {
+        if (p === 'modelContext') return __irisGuard(modelContext());
+        const v = t[p];
+        return typeof v === 'function' ? v.bind(t) : v;
+      },
+      set: function (t, p, v) { t[p] = v; return true; },
+    });
+  }
+  return [
+    __irisShadow(__pageDocument, function () { return __pageDocument.modelContext; }),
+    __irisShadow(__pageNavigator, function () { return __pageNavigator.modelContext || __pageDocument.modelContext; }),
+  ];
+})(document, navigator);
+(function (document, navigator) {
+`
+
+const AGENT_SCOPE_END = `
+})(__irisScope[0], __irisScope[1]);
 `
 
 async function gmBag(): Promise<Record<string, Record<string, unknown>>> {

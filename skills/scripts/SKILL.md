@@ -52,4 +52,6 @@ Every tool needs a grant line in the header, or `registerTool` throws:
 
 Tool names are global on the tab and share the namespace with tools the site registers itself, so prefix them (`gh_`, `zh_`). To use them, `load_tools({ groups: ["site"] })` on that tab; the schemas arrive on the next step. Keep `inputSchema` flat and `execute` returning JSON-serializable data.
 
+To check whether registration worked, reload the tab and call `load_tools({ groups: ["site"] })` — that is the authoritative list. Do not try to introspect the registry from `eval`: `document.modelContext.getTools()` returns a **promise**, so `Object.keys` on it reads `{}` and looks like an empty registry when it is not. `await document.modelContext.getTools()` is the readable form.
+
 `reference.md` has a complete userscript, a complete AgentScript, and a checklist for a script that does not run. Read it before writing your first script in a conversation.

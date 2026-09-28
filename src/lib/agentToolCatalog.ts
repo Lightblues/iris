@@ -222,12 +222,14 @@ const TOOLS: ToolDef[] = [
     name: 'read_console',
     group: 'scripts',
     needsTab: true,
-    description: 'Read GM_log lines captured on a tab since it loaded.',
+    description: 'Read GM_log lines captured on a tab since it loaded. Empty means no script logged anything — check that the script is enabled and matches the URL.',
     inputSchema: schema({ tabId: tabField }),
     async run(params, ctx) {
       const tabId = requireTab(params, ctx)
-      const lines = await chrome.tabs.sendMessage(tabId, { type: 'iris-gm-log' }).catch((err: Error) => ({ error: err.message }))
-      return { untrusted: true, lines }
+      const res = await chrome.tabs.sendMessage(tabId, { type: 'iris-gm-log' }).catch((err: Error) => ({ error: err.message }))
+      if (res && typeof res === 'object' && 'error' in res) return { untrusted: true, tabId, error: (res as { error: string }).error }
+      const lines = Array.isArray((res as { lines?: unknown })?.lines) ? (res as { lines: unknown[] }).lines : []
+      return { untrusted: true, tabId, lines }
     },
   },
   {

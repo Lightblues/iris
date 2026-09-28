@@ -46,6 +46,8 @@ Values are stored per script id under `iris_gm_values`.
 
 They are injected in the MAIN world. A polyfill defines `document.modelContext` when Chrome has not, and points `navigator.modelContext` at the same object. No `#enable-webmcp-testing` flag.
 
+The body runs inside a wrapper that shadows `document` and `navigator` with proxies, so `registerTool` can be checked against the `@webmcp` grants. The shadows are **function parameters**: declaring them as `const` in the scope that also reads the real globals puts those reads in the temporal dead zone, and the script throws before its first line. The traps read through the real target and bind methods to it, because forwarding a DOM getter or method with the proxy as receiver fails the brand check.
+
 ```javascript
 document.modelContext.registerTool({
   name, description, inputSchema, annotations, execute,

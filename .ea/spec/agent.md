@@ -124,7 +124,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | Tool | Description |
 |------|-------------|
 | `read_page` | Session tab. `card` (default), `text` (markdown slice + cursor), or `selector`. ~8k cap |
-| `eval` | MAIN-world JS on the session tab, or `tabId` |
+| `eval` | MAIN-world JS on the session tab, or `tabId`. The body is an async function body, so `await` works at the top level |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
 | `open_url` | New tab. `background: true` leaves the user where they are |
 | `focus_tab` | Activate a tab |

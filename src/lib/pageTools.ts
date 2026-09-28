@@ -65,17 +65,32 @@ export async function evalInPage(tabId: number, code: string): Promise<unknown> 
   const [hit] = await chrome.scripting.executeScript({
     target: { tabId },
     world: 'MAIN',
-    func: (body: string) => {
+    func: async (body: string) => {
+      const key = '__iris_eval_' + Math.random().toString(36).slice(2)
+      let parseError: string | null = null
+      const onError = (ev: ErrorEvent) => { parseError = ev.message }
       try {
+        // The body becomes an async function, so it may use await at the top level.
+        window.addEventListener('error', onError)
         const script = document.createElement('script')
-        script.textContent = `window.__iris_eval_result = (function() { try { return { result: (function() { ${body} })() } } catch (e) { return { error: e.message } } })();`
+        script.textContent = `window[${JSON.stringify(key)}] = (async function () { ${body} })();`
         document.documentElement.appendChild(script)
         script.remove()
-        const r = (window as any).__iris_eval_result
-        delete (window as any).__iris_eval_result
-        return r || { error: 'No result' }
-      } catch (e: any) {
-        return { error: e.message }
+      } catch (e) {
+        return { error: (e as Error).message }
+      } finally {
+        window.removeEventListener('error', onError)
+      }
+      const bag = window as unknown as Record<string, unknown>
+      const pending = bag[key]
+      delete bag[key]
+      // An inline <script> that fails to parse never assigns, so nothing is pending.
+      if (!pending) return { error: parseError ? `Script error: ${parseError}` : 'The code did not parse. Check for a syntax error.' }
+      try {
+        const value = await pending
+        return { result: value === undefined ? null : value }
+      } catch (e) {
+        return { error: String((e as Error)?.message ?? e) }
       }
     },
     args: [code],
