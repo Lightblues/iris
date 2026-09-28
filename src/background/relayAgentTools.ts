@@ -17,7 +17,7 @@ registerRelayMethod('iris.tools.list', async (params) => {
   const site = await listPageWebmcp(tabId)
   return { tools, tabId, site }
 }, {
-  description: 'List Iris agent tools (page, scripts, skills, tabs, automation, screenshot). Pass tabId to also list WebMCP tools on that tab. Does not include load_tools or MCP. write_skill and delete_skill return needs_confirmation until params.confirmed is true.',
+  description: 'List Iris agent tools (page, scripts, skills, tabs, automation, screenshot). Pass tabId to also list WebMCP tools on that tab. Does not include load_tools or MCP.',
   params: [
     { name: 'tabId', type: 'number', description: 'When set, also return site tools registered on this tab.' },
   ],

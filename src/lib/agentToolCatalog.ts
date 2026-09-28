@@ -5,6 +5,7 @@ import {
   deleteSkill,
   getSkill,
   listSkills,
+  patchSkill,
   readSkillFile,
   setSkillEnabled as setStoredSkillEnabled,
   skillBodyOf,
@@ -49,6 +50,26 @@ function requireTab(params: Record<string, unknown>, ctx: ToolCtx): number {
 
 function optTab(params: Record<string, unknown>, ctx: ToolCtx): number | undefined {
   return typeof params.tabId === 'number' ? params.tabId : ctx.tabId
+}
+
+function skillFileEdits(value: unknown): { path: string; content: string }[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap(file => {
+    if (!file || typeof file !== 'object') return []
+    const row = file as { path?: unknown; content?: unknown }
+    if (typeof row.path !== 'string' || typeof row.content !== 'string') return []
+    return [{ path: row.path, content: row.content }]
+  })
+}
+
+const skillFileSchema = {
+  type: 'array',
+  description: 'Files to write. Each item replaces that path only.',
+  items: {
+    type: 'object',
+    properties: { path: str('Relative path, such as SKILL.md or reference.md'), content: str('Full new text of that file') },
+    required: ['path', 'content'],
+  },
 }
 
 async function auto(action: keyof typeof automationTools, params: object): Promise<unknown> {
@@ -244,70 +265,61 @@ const TOOLS: ToolDef[] = [
     name: 'write_skill',
     group: 'skills',
     needsTab: false,
-    description: 'Create or replace a user skill. Returns needs_confirmation until confirmed is true and the user has agreed. Builtin names are rejected. author is recorded as agent.',
+    description: 'Create a skill, or replace its entire file set. Applies immediately. For a one-file edit use patch_skill. Builtin names are rejected. author is recorded as agent.',
     inputSchema: schema({
       name: str('Skill name: lowercase letters, digits, and hyphens'),
       description: str('When to use this skill. Single line.'),
       instructions: str('SKILL.md body. Max 8KB.'),
-      files: {
-        type: 'array',
-        description: 'Extra files, such as references/notes.md. SKILL.md is written from instructions.',
-        items: {
-          type: 'object',
-          properties: { path: str('Relative path'), content: str('File text') },
-          required: ['path', 'content'],
-        },
-      },
-      confirmed: bool('Set true only after the user agrees to save this skill.'),
+      files: skillFileSchema,
     }, ['name', 'description', 'instructions']),
     async run(params) {
       if (typeof params.name !== 'string' || typeof params.description !== 'string' || typeof params.instructions !== 'string') {
         throw new Error('name, description, and instructions are required')
       }
-      const extra = Array.isArray(params.files)
-        ? params.files.flatMap(file => {
-          if (!file || typeof file !== 'object') return []
-          const row = file as { path?: unknown; content?: unknown }
-          if (typeof row.path !== 'string' || typeof row.content !== 'string') return []
-          return [{ path: row.path, content: row.content }]
-        })
-        : undefined
       const existing = await getSkill(params.name)
       if (existing?.author === 'builtin') throw new Error(`Builtin skill '${existing.name}' cannot be overwritten`)
-      if (params.confirmed !== true) {
-        return {
-          status: 'needs_confirmation',
-          name: params.name,
-          description: params.description,
-          instructions: params.instructions.slice(0, 500),
-        }
-      }
       const skill = await writeSkill({
         name: params.name,
         description: params.description,
         instructions: params.instructions,
-        extraFiles: extra,
+        extraFiles: skillFileEdits(params.files),
       })
-      return { name: skill.name, author: skill.author, enabled: skill.enabled }
+      return { name: skill.name, author: skill.author, enabled: skill.enabled, files: Object.keys(skill.files) }
+    },
+  },
+  {
+    name: 'patch_skill',
+    group: 'skills',
+    needsTab: false,
+    description: 'Update one or more files in an existing skill. Other files stay. Applies immediately and keeps the previous files as a history revision. Builtin skills are rejected.',
+    inputSchema: schema({
+      name: str('Skill name'),
+      files: skillFileSchema,
+      remove: { type: 'array', items: { type: 'string' }, description: 'Paths to delete. SKILL.md cannot be removed.' },
+    }, ['name']),
+    async run(params) {
+      if (typeof params.name !== 'string') throw new Error('name is required')
+      const skill = await patchSkill({
+        name: params.name,
+        files: skillFileEdits(params.files),
+        remove: Array.isArray(params.remove) ? params.remove.filter((path): path is string => typeof path === 'string') : [],
+      })
+      return { name: skill.name, author: skill.author, enabled: skill.enabled, files: Object.keys(skill.files) }
     },
   },
   {
     name: 'delete_skill',
     group: 'skills',
     needsTab: false,
-    description: 'Delete a user or agent skill. Returns needs_confirmation until confirmed is true. Builtin skills are rejected.',
-    inputSchema: schema({
-      name: str('Skill name'),
-      confirmed: bool('Set true only after the user agrees to delete this skill.'),
-    }, ['name']),
+    description: 'Delete a skill the agent created. Applies immediately. Builtin skills are rejected.',
+    inputSchema: schema({ name: str('Skill name') }, ['name']),
     async run(params) {
       if (typeof params.name !== 'string') throw new Error('name is required')
       const existing = await getSkill(params.name)
       if (!existing) throw new Error(`Skill not found: ${params.name}`)
       if (existing.author === 'builtin') throw new Error(`Builtin skill '${existing.name}' cannot be deleted`)
-      if (params.confirmed !== true) return { status: 'needs_confirmation', name: existing.name }
       await deleteSkill(params.name)
-      return { name: params.name, deleted: true }
+      return { name: existing.name, deleted: true }
     },
   },
   {

@@ -79,23 +79,40 @@ async function writeSkills(skills: StoredSkill[]): Promise<void> {
   await chrome.storage.local.set({ [KEY]: skills })
 }
 
-/** Insert bundled skills whose names are absent. An existing name is left as stored. */
+function descriptionFromMarkdown(markdown: string, fallback: string): string {
+  const fm = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  const line = fm?.[1].split('\n').find(item => item.startsWith('description:'))
+  const value = line?.slice('description:'.length).trim()
+  return value || fallback
+}
+
+/** Add bundled skills that are missing, and refresh files of skills that are still builtin. */
 export async function ensureSeedSkills(): Promise<void> {
   const existing = await readSkills()
-  const names = new Set(existing.map(skill => skill.name))
+  const bundled = skillsJson as BundledSkill[]
+  const known = new Set(existing.map(skill => skill.name))
   const now = Date.now()
-  const added = (skillsJson as BundledSkill[])
-    .filter(skill => !names.has(skill.name))
-    .map(skill => ({
-      name: skill.name,
-      description: skill.description,
+  let changed = false
+  const next = existing.map(skill => {
+    const source = bundled.find(item => item.name === skill.name)
+    if (!source || skill.author !== 'builtin') return skill
+    if (skill.description === source.description && filesEqual(skill.files, source.files)) return skill
+    changed = true
+    return { ...skill, description: source.description, files: source.files, updatedAt: now }
+  })
+  for (const source of bundled) {
+    if (known.has(source.name)) continue
+    changed = true
+    next.push({
+      name: source.name,
+      description: source.description,
       enabled: true,
-      author: 'builtin' as const,
-      files: skill.files,
+      author: 'builtin',
+      files: source.files,
       updatedAt: now,
-    }))
-  if (added.length === 0) return
-  await writeSkills([...existing, ...added])
+    })
+  }
+  if (changed) await writeSkills(next)
 }
 
 export async function listSkills(): Promise<StoredSkill[]> {
@@ -160,6 +177,42 @@ export async function writeSkill(input: {
     name,
     description,
     enabled: prior?.enabled ?? true,
+    author: 'agent',
+    files,
+    updatedAt: Date.now(),
+  }
+  await writeSkills([...skills.filter(skill => skill.name !== name), next])
+  return next
+}
+
+export async function patchSkill(input: {
+  name: string
+  files?: { path: string; content: string }[]
+  remove?: string[]
+}): Promise<StoredSkill> {
+  const name = assertSkillName(input.name)
+  const edits = input.files ?? []
+  const remove = input.remove ?? []
+  if (edits.length === 0 && remove.length === 0) throw new Error('files or remove is required')
+  const skills = await listSkills()
+  const prior = skills.find(skill => skill.name === name)
+  if (!prior) throw new Error(`Skill not found: ${name}. Use write_skill to create it.`)
+  if (prior.author === 'builtin') throw new Error(`Builtin skill '${name}' cannot be edited`)
+  const files = { ...prior.files }
+  for (const path of remove) {
+    if (path === 'SKILL.md') throw new Error('SKILL.md cannot be removed')
+    assertRelPath(path)
+    delete files[path]
+  }
+  for (const file of edits) {
+    assertRelPath(file.path)
+    files[file.path] = file.content
+  }
+  assertSkillFiles(files)
+  if (!filesEqual(prior.files, files)) await rememberPrior(name, prior.files)
+  const next: StoredSkill = {
+    ...prior,
+    description: descriptionFromMarkdown(files['SKILL.md'], prior.description),
     author: 'agent',
     files,
     updatedAt: Date.now(),
