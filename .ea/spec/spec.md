@@ -79,11 +79,9 @@ Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Backgrou
 
 | Tab | Status | Notes |
 |-----|--------|-------|
-| Agent | Core | `AgentPanel` |
-| History | Core-adjacent | Conversation list, import/export |
-| Notes | Maintain | Browse local knowledge entries |
-| Tabs / Bookmarks / Reading List | Maintain | Thin Chrome wrappers; not a product line |
-| Settings | Shared | LLM, MCP, Browser relay, slash-command folder, FAB blocklist, chat-export dir |
+| Agent, History, Skills, Scripts | Core | Primary tab bar |
+| Tabs, Bookmarks, Reading, Notes | Maintain | Secondary menu on the tab bar. Thin wrappers, not a product line |
+| Settings | Shared | LLM, MCP, Browser relay, FAB blocklist, chat-export dir |
 
 Chrome may leave a newly opened side panel blank until a second UI gesture (shortcut / FAB / inspect). This is a Chromium scheduling bug, not Iris logic. Repro: `experiments/sidepanel-repro/`. Workaround: trigger open a second time.
 
@@ -96,7 +94,7 @@ Chrome may leave a newly opened side panel blank until a second UI gesture (shor
 | Browser relay | Enabled, port (33007), token (`ea-browser-relay-local`). Must match ea-tools `browser_relay.*` |
 | Per-chat model | Searchable combobox in the chat header; favourites pinned |
 
-Other settings (slash-command folder, FAB patterns, chat-export directory) are documented in the layer that owns them.
+Other settings (FAB patterns, chat-export directory) are documented in the layer that owns them. Skills are in [agent.md](agent.md).
 
 ## Reading order
 

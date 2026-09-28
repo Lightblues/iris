@@ -14,13 +14,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { DirectChatTransport } from 'ai'
 import type { IrisMessage, IrisMessageMetadata, AgentMode, Conversation } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import type { SlashCommand } from '@/lib/types'
 import { irisAgent } from './registry'
 import { createAgent, type ProviderMetadataRef } from './createAgent'
 import { createTransport } from './transport'
 import { createConversation } from './history'
 import { recordEvent } from '@/lib/tracing'
-import { parseSlashInput, findCommand, expandCommand, createDefaultContextFetcher } from '@/lib/slashCommands'
+import { expandSkillSlash, listSkills, matchSkillSlash } from '@/lib/skillStore'
 import { extractArxivId } from '@/content/enhancements/arxiv'
 import { getPageContext, getSelectionContext, isInjectableUrl, waitForTabLoad } from '@/lib/context'
 import { estimateTokens } from '@/lib/tokenUtils'
@@ -80,7 +79,6 @@ export interface UseAgentChatOptions {
   settings: SidePanelSettings
   chatModel: string | null
   conversation: Conversation | null
-  slashCommands: SlashCommand[]
   tabId: number
   onConversationCreated: (conv: Conversation) => void
   onError: (msg: string) => void
@@ -90,7 +88,7 @@ export function useAgentChat(
   transport: DirectChatTransport,
   options: UseAgentChatOptions,
 ) {
-  const { agentMode, settings, chatModel, conversation, slashCommands, tabId, onConversationCreated, onError } = options
+  const { agentMode, settings, chatModel, conversation, tabId, onConversationCreated, onError } = options
   const activeModel = chatModel ?? settings.model
   const conversationRef = useRef(conversation)
   conversationRef.current = conversation
@@ -126,18 +124,11 @@ export function useAgentChat(
     if (!content.trim() && !attachedImages?.length) return
     if (!settings.apiKey) { onError('Please enter your API key'); return }
 
-    // Slash command expansion
     let processedContent = content.trim()
-    if (content.startsWith('/')) {
-      const parsed = parseSlashInput(content)
-      if (parsed) {
-        const command = findCommand(slashCommands, parsed.name, parsed.namespace)
-        if (command) {
-          try {
-            processedContent = await expandCommand(command, parsed.args, createDefaultContextFetcher(tabId))
-          } catch { onError('Failed to expand slash command'); return }
-        }
-      }
+    if (processedContent.startsWith('/')) {
+      const skills = await listSkills()
+      const match = matchSkillSlash(processedContent, skills.filter(skill => skill.enabled))
+      if (match) processedContent = expandSkillSlash(match)
     }
 
     // On an arXiv tab, name the paper so the paper skill can fetch it.
@@ -184,7 +175,7 @@ export function useAgentChat(
       ...(files?.length ? { files } : {}),
       metadata: { timestamp: Date.now() } as IrisMessageMetadata,
     } as any)
-  }, [settings.apiKey, slashCommands, agentMode, chat, onConversationCreated, onError, tabId])
+  }, [settings.apiKey, agentMode, chat, onConversationCreated, onError, tabId])
 
   const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number; card?: boolean }): Promise<boolean> => {
     const silent = opts?.silent === true

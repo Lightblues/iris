@@ -26,7 +26,7 @@ To survive panel-close, streaming would have to move into the service worker wit
 
 ```
 ChatInput
-  → slash expand / image attach / arXiv id prepend when the tab is an arXiv paper
+  → skill slash expand / image attach / arXiv id prepend when the tab is an arXiv paper
   → useAgentChat.sendMessage()
   → useChat + DirectChatTransport
   → ToolLoopAgent (model + instructions + tools)
@@ -36,15 +36,14 @@ ChatInput
   → chrome.storage.local
 ```
 
-The system prompt lists skill names and a static catalog of tool groups. Core tools are always attached. Tab cleanup, automation, screenshots, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card, plus `/summarize` or a custom slash command when the user asks for the full page.
+The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached. Tab cleanup, automation, screenshots, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
 
 ## Modules (`src/agent/`)
 
 | File | Role |
 |------|------|
-| `registry.ts` | The single agent: catalog prompt, browser tools, MCP flag |
-| `skills.ts` | Bundled skill catalog, `loadSkill`, `readSkillFile` |
-| `skillTools.ts` | `load_skill` and `read_skill_file` |
+| `registry.ts` | The single agent id. The live catalog is built in `createAgent` |
+| `skills.ts` | Builds the system prompt from enabled skills in storage |
 | `createAgent.ts` | Provider + merged tools + `ToolLoopAgent` |
 | `transport.ts` | `DirectChatTransport`; writes token/cost metadata on finish |
 | `useAgentChat.ts` | `useAgentTransport` (async init) + `useAgentChat` (send / inject) |
@@ -85,7 +84,7 @@ The agent instance is built on mount. New Chat and History select remount the tr
 `useAgentChat.sendMessage()`:
 
 1. Require API key.
-2. If input starts with `/`, expand the slash template (page/selection/url/title/`$ARGUMENTS`).
+2. If input starts with `/` and matches an enabled skill, rewrite it as an instruction to call `load_skill`. Text after the name is additional input. The page is not injected.
 3. On an empty thread, if the current tab is arXiv → prepend `[Context: arXiv paper {id}]`.
 4. Lazy `createConversation(mode, currentMessages)` on first real send (includes already-injected page context).
 5. Trace `chat_message`.
@@ -95,15 +94,20 @@ A page card is a normal **user** message (`metadata.contextType = card`) and is 
 
 ## Skills
 
-One agent. The prompt contains only the catalog. `load_skill` returns the `SKILL.md` body and the skill directory. `read_skill_file` reads another bundled file (`tabs/reference.md`). Paths that leave the skill directory are rejected.
+One agent. The prompt contains only enabled names and descriptions. `load_skill` returns the `SKILL.md` body. `read_skill_file` reads another file in that skill (`name` + relative path). Paths that leave the skill are rejected.
+
+Skills live in `chrome.storage.local` (`iris_skills`). A record is a virtual directory: `name`, `description`, `enabled`, `author` (`builtin` | `user` | `agent`), and `files` (at least `SKILL.md`, body capped at 8KB). There is no linked folder.
 
 | Skill | When the description matches |
 |-------|------------------------------|
 | `tabs` | Group / archive / restore tabs. `list_tabs` and `close_tabs` are already core |
 | `automation` | Click, type, and snapshot a tab. Defaults to the session tab |
 | `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
+| `summarize` | Chinese summary of the current page. Call `read_page` first |
 
-Bundled from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`. Add a scenario by adding a skill folder, not a mode.
+Bundled skills are copied from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`, then inserted into storage when that name is absent. An existing name is never overwritten. Builtin skills can be disabled, not deleted or replaced. Replacing a skill keeps the previous `files` in `iris_skill_history` (8 revisions). The Skills tab lists, previews, toggles, and deletes them.
+
+`write_skill` and `delete_skill` return `needs_confirmation` until `confirmed` is true. The runtime sets `author` to `agent`. A skill saved in the current chat is callable with `load_skill` immediately; the system-prompt catalog refreshes the next time the agent is created.
 
 ### Core tools
 
@@ -118,7 +122,9 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `focus_tab` | Activate a tab |
 | `list_scripts` / `write_script` / `toggle_script` | Userscript and AgentScript store. See [scripts.md](scripts.md) |
 | `reload_tab` / `read_console` | Re-inject scripts / read `GM_log` |
-| `load_skill` / `read_skill_file` | Skill catalog |
+| `list_skills` / `load_skill` / `read_skill_file` | Skill catalog and file reads |
+| `write_skill` / `delete_skill` | Create, replace, or delete. Confirm first. Builtins rejected |
+| `toggle_skill` | Enable or disable, including builtins |
 | `load_tools` | Activate `tabs`, `automation`, `screenshot`, `site`, `mcp` |
 
 `tabs` group (after `load_tools`): `query_tabs`, `create_tab_group`, `smart_organize`, `archive_inactive`, `list_closed_tabs`, `restore_tab`.
@@ -154,16 +160,11 @@ load_tools({ groups: ["mcp"] }) → connectMcp(endpoint)
 
 Startup does not connect. Header MCP dot: green / yellow / red, updated when a connect finishes. If MCP fails, that group stays unloaded and chat still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
 
-## Slash commands
+## Slash skills
 
 Typed in chat input, not the page command menu. Spec of the menu: [page-enhancements.md](page-enhancements.md).
 
-- `/` → filter → Tab/Enter → optional args → Enter to send
-- Built-in: `/summarize` (`commands/iris/summarize.md`) — Chinese summary of the current page; text after the command narrows the focus
-- Custom: Settings → Slash Commands → link a local folder
-- Variables: `` !`pageContent` ``, `` !`selection` ``, `` !`url` ``, `` !`title` ``, `$ARGUMENTS`
-
-Key files: `lib/slashCommands.ts`, `lib/commandStorage.ts`.
+`/` filters enabled skills. Tab or Enter inserts `/name `. Sending rewrites the message to call `load_skill` and follow it. Text after the name is additional input. The skill asks for `read_page` when it needs the page. Disabled skills are absent from the list and rejected by `load_skill`.
 
 ## Chat UI
 

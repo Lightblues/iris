@@ -256,31 +256,6 @@ export interface TracingEvent {
 
 // Legacy Notes types removed — replaced by Knowledge system (KnowledgeEntry etc. above)
 
-// Slash Command types
-export type SlashCommandContextVar = 'pageContent' | 'selection' | 'url' | 'title' | 'ARGUMENTS';
-
-export interface SlashCommand {
-  id: string;                    // e.g., "eason:review"
-  namespace: string;             // e.g., "eason"
-  name: string;                  // e.g., "review"
-  description: string;           // From frontmatter
-  icon: string;                  // From frontmatter, default "⚡"
-  template: string;              // Full markdown template
-  contextVariables: SlashCommandContextVar[];  // Auto-detected from template
-  source: 'builtin' | 'user';    // Origin
-}
-
-export interface SlashCommandState {
-  isActive: boolean;
-  query: string;
-  selectedIndex: number;
-}
-
-export interface SlashCommandFrontmatter {
-  description?: string;
-  icon?: string;
-}
-
 // Tab Agent types
 export interface TabAgentMessage {
   type: 'tab_agent_action';

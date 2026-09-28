@@ -7,7 +7,8 @@ import { useAgentTransport, useAgentChat } from '@/agent/useAgentChat'
 import { updateConversation } from '@/agent/history'
 import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
-import type { ChatImageAttachment, SlashCommand } from '@/lib/types'
+import type { ChatImageAttachment } from '@/lib/types'
+import type { SkillSlashItem } from './ChatInput'
 import { createConversation } from '@/agent/history'
 import { useThrottledValue } from '../useThrottledValue'
 
@@ -39,7 +40,7 @@ export interface AgentPanelProps {
   conversation: Conversation | null
   onConversationCreated: (conv: Conversation) => void
   onNewChat: () => void
-  slashCommands: SlashCommand[]
+  skills: SkillSlashItem[]
   onOpenSettings: () => void
 }
 
@@ -53,7 +54,7 @@ export function AgentPanel(props: AgentPanelProps) {
   const {
     tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat,
-    slashCommands, onOpenSettings,
+    skills, onOpenSettings,
   } = props
 
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +118,7 @@ export function AgentPanel(props: AgentPanelProps) {
           onInjectSelection={async () => {}}
           defaultValue=""
           onDefaultValueConsumed={() => {}}
-          slashCommands={slashCommands}
+          skills={skills}
           autoFocus={autoFocus}
         />
       </>
@@ -138,7 +139,7 @@ export function AgentPanel(props: AgentPanelProps) {
       conversation={conversation}
       onConversationCreated={onConversationCreated}
       onNewChat={onNewChat}
-      slashCommands={slashCommands}
+      skills={skills}
       onOpenSettings={onOpenSettings}
       mcpStatus={mcpStatus}
       pendingMessage={pendingRef.current}
@@ -159,7 +160,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   const {
     transport, tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat,
-    slashCommands, onOpenSettings, mcpStatus, pendingMessage,
+    skills, onOpenSettings, mcpStatus, pendingMessage,
   } = props
 
   const [error, setError] = useState<string | null>(null)
@@ -178,7 +179,6 @@ function AgentPanelReady(props: AgentPanelProps & {
     settings,
     chatModel,
     conversation,
-    slashCommands,
     tabId,
     onConversationCreated,
     onError: setError,
@@ -407,7 +407,7 @@ function AgentPanelReady(props: AgentPanelProps & {
         onInjectSelection={injectSelection}
         defaultValue={editingContent}
         onDefaultValueConsumed={handleClearEditingContent}
-        slashCommands={slashCommands}
+        skills={skills}
         autoFocus={autoFocus}
       />
     </>

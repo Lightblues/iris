@@ -6,9 +6,8 @@ import {
   loadAllConversations as loadAgentConversations,
   setActiveConversation as setAgentActiveConversation,
 } from '@/agent/history'
-import type { SlashCommand } from '@/lib/types'
 import type { Conversation as AgentConversation } from '@/agent/types'
-import { loadAllCommands } from '@/lib/commandStorage'
+import { listSkills, type StoredSkill } from '@/lib/skillStore'
 import { fetchModels } from '@/lib/modelRegistry'
 import { cn } from '@/lib/utils'
 import { useAgentSessions } from './useAgentSessions'
@@ -19,6 +18,7 @@ const ReadingListTab = lazy(() => import('./components/ReadingListTab').then(m =
 const TabsTab = lazy(() => import('./components/TabsTab').then(m => ({ default: m.TabsTab })))
 const NotesTab = lazy(() => import('./components/NotesTab').then(m => ({ default: m.NotesTab })))
 const ScriptsTab = lazy(() => import('./components/ScriptsTab').then(m => ({ default: m.ScriptsTab })))
+const SkillsTab = lazy(() => import('./components/SkillsTab').then(m => ({ default: m.SkillsTab })))
 const AgentHistoryTab = lazy(() => import('./components/AgentHistoryTab').then(m => ({ default: m.AgentHistoryTab })))
 const AgentPanel = lazy(() => import('./components/AgentPanel').then(m => ({ default: m.AgentPanel })))
 
@@ -47,7 +47,7 @@ const TAB_STORAGE_KEY = 'sidepanel_active_tab'
 export default function SidePanelApp() {
   const [activeTab, setActiveTab] = useState<TabType>('agent')
   const [settings, setSettings] = useState<SidePanelSettings>(DEFAULT_SETTINGS)
-  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([])
+  const [skills, setSkills] = useState<StoredSkill[]>([])
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const previousTabRef = useRef<TabType>('agent')
 
@@ -72,15 +72,20 @@ export default function SidePanelApp() {
         }
       })
     })
-    loadAllCommands().then((cmds) => {
-      console.log('[Iris] Loaded', cmds.length, 'slash commands')
-      setSlashCommands(cmds)
-    })
+    const refreshSkills = () => {
+      listSkills().then(setSkills).catch(err => console.warn('[Iris] Failed to load skills:', err))
+    }
+    refreshSkills()
+    const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === 'local' && changes.iris_skills) refreshSkills()
+    }
+    chrome.storage.onChanged.addListener(onStorage)
     chrome.storage.local.get(TAB_STORAGE_KEY).then((result) => {
       if (result[TAB_STORAGE_KEY]) setActiveTab(result[TAB_STORAGE_KEY] as TabType)
     })
 
     return () => {
+      chrome.storage.onChanged.removeListener(onStorage)
       shutdownTelemetryIfLoaded()
     }
   }, [])
@@ -134,12 +139,10 @@ export default function SidePanelApp() {
     }
   }
 
-  const handleCommandsChanged = useCallback(() => {
-    loadAllCommands().then((cmds) => {
-      console.log('[Iris] Commands reloaded:', cmds.length)
-      setSlashCommands(cmds)
-    })
-  }, [])
+  const enabledSkills = skills.filter(skill => skill.enabled).map(skill => ({
+    name: skill.name,
+    description: skill.description,
+  }))
 
   const sessionList = Object.values(sessions)
 
@@ -179,7 +182,7 @@ export default function SidePanelApp() {
                   conversation={s.conversation}
                   onConversationCreated={(conv) => handleAgentConversationCreated(s.tabIds[0], conv)}
                   onNewChat={() => currentTabId != null && handleAgentNewChat(currentTabId)}
-                  slashCommands={slashCommands}
+                  skills={enabledSkills}
                   onOpenSettings={handleOpenSettings}
                 />
               </div>
@@ -195,7 +198,6 @@ export default function SidePanelApp() {
               <SettingsPage
                 settings={settings}
                 onSettingsChange={handleSettingsChange}
-                onCommandsChanged={handleCommandsChanged}
               />
             </Suspense>
           ) : activeTab === 'agent-history' ? (
@@ -214,6 +216,8 @@ export default function SidePanelApp() {
             <Suspense fallback={<TabFallback />}><ReadingListTab /></Suspense>
           ) : activeTab === 'scripts' ? (
             <Suspense fallback={<TabFallback />}><ScriptsTab /></Suspense>
+          ) : activeTab === 'skills' ? (
+            <Suspense fallback={<TabFallback />}><SkillsTab /></Suspense>
           ) : (
             <Suspense fallback={<TabFallback />}><NotesTab /></Suspense>
           )}

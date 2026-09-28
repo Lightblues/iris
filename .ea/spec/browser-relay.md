@@ -69,7 +69,7 @@ Each method is registered with a description and parameter list. `iris.capabilit
 
 Page extract modes: `text` (`innerText`), `html` (`outerHTML`), `markdown` (DOM walk). `browser.fetch` opens a foreground tab, waits until `innerText` is stable, then closes it. Those tabs are excluded from tracing.
 
-`iris.tools.list` and `iris.tools.call` expose the same page, script, tab, automation, and screenshot tools the side panel agent runs. One implementation lives in `src/lib/agentToolCatalog.ts`. The side panel wraps it as model tools; the relay calls it directly in the service worker. Pass `tabId` for page tools. `iris.tools.list` with `tabId` also returns WebMCP tools registered on that tab, and `iris.tools.call` runs them. `prompt` tools return `needs_confirmation` until `params.confirmed` is true. `load_skill`, `load_tools`, and the MCP group are not on the relay: an external agent already has its own model loop and MCP servers.
+`iris.tools.list` and `iris.tools.call` expose the same page, script, skill, tab, automation, and screenshot tools the side panel agent runs. One implementation lives in `src/lib/agentToolCatalog.ts`. The side panel wraps it as model tools; the relay calls it directly in the service worker. Pass `tabId` for page tools. `iris.tools.list` with `tabId` also returns WebMCP tools registered on that tab, and `iris.tools.call` runs them. `prompt` tools, `write_skill`, and `delete_skill` return `needs_confirmation` until `params.confirmed` is true. `load_tools` and the MCP group are not on the relay: an external agent already has its own model loop and MCP servers. Skill records stay in extension storage.
 
 ## Adding a method
 

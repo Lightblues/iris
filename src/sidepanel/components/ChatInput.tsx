@@ -2,9 +2,12 @@ import { useState, useRef, useEffect, useMemo, type KeyboardEvent, type Clipboar
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Send, Square, FileText, Scissors, Paperclip, X } from 'lucide-react'
-import type { ChatImageAttachment, SlashCommand, SlashCommandState } from '@/lib/types'
-import { filterCommands } from '@/lib/slashCommands'
-import { SlashCommandDropdown } from './SlashCommandDropdown'
+import type { ChatImageAttachment } from '@/lib/types'
+
+export interface SkillSlashItem {
+  name: string
+  description: string
+}
 
 interface ChatInputProps {
   onSend: (message: string, images?: ChatImageAttachment[]) => void
@@ -16,7 +19,7 @@ interface ChatInputProps {
   onInjectSelection: () => void
   defaultValue?: string
   onDefaultValueConsumed?: () => void
-  slashCommands?: SlashCommand[]
+  skills?: SkillSlashItem[]
   autoFocus?: boolean
 }
 
@@ -29,12 +32,12 @@ export function ChatInput({
   onInjectSelection,
   defaultValue,
   onDefaultValueConsumed,
-  slashCommands = [],
+  skills = [],
   autoFocus = false,
 }: ChatInputProps) {
   const [value, setValue] = useState('')
   const [images, setImages] = useState<ChatImageAttachment[]>([])
-  const [slashState, setSlashState] = useState<SlashCommandState>({
+  const [slashState, setSlashState] = useState({
     isActive: false,
     query: '',
     selectedIndex: 0,
@@ -75,10 +78,12 @@ export function ChatInput({
   }, [value])
 
   // Filter commands based on query
-  const filteredCommands = useMemo(() => {
+  const filteredSkills = useMemo(() => {
     if (!slashState.isActive) return []
-    return filterCommands(slashState.query, slashCommands)
-  }, [slashState.isActive, slashState.query, slashCommands])
+    const query = slashState.query.toLowerCase()
+    if (!query) return skills
+    return skills.filter(skill => skill.name.startsWith(query))
+  }, [slashState.isActive, slashState.query, skills])
 
   // Detect slash command input
   const handleChange = (newValue: string) => {
@@ -98,10 +103,8 @@ export function ChatInput({
     }
   }
 
-  const handleSelectCommand = (command: SlashCommand) => {
-    // Insert command with its full id (namespace:name) if not iris
-    const commandText = command.namespace === 'iris' ? `/${command.name} ` : `/${command.id} `
-    setValue(commandText)
+  const handleSelectSkill = (skill: SkillSlashItem) => {
+    setValue(`/${skill.name} `)
     setSlashState({ isActive: false, query: '', selectedIndex: 0 })
     textareaRef.current?.focus()
   }
@@ -191,12 +194,12 @@ export function ChatInput({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Handle slash command navigation when dropdown is active
-    if (slashState.isActive && filteredCommands.length > 0) {
+    if (slashState.isActive && filteredSkills.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         setSlashState(prev => ({
           ...prev,
-          selectedIndex: Math.min(prev.selectedIndex + 1, filteredCommands.length - 1),
+          selectedIndex: Math.min(prev.selectedIndex + 1, filteredSkills.length - 1),
         }))
         return
       }
@@ -210,10 +213,8 @@ export function ChatInput({
       }
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault()
-        const selected = filteredCommands[slashState.selectedIndex]
-        if (selected) {
-          handleSelectCommand(selected)
-        }
+        const selected = filteredSkills[slashState.selectedIndex]
+        if (selected) handleSelectSkill(selected)
         return
       }
       if (e.key === 'Escape') {
@@ -231,13 +232,24 @@ export function ChatInput({
 
   return (
     <div className="relative border-t p-2 bg-background space-y-1.5">
-      {/* Slash command dropdown */}
-      <SlashCommandDropdown
-        commands={filteredCommands}
-        selectedIndex={slashState.selectedIndex}
-        onSelect={handleSelectCommand}
-        visible={slashState.isActive}
-      />
+      {slashState.isActive && filteredSkills.length > 0 && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 bg-popover border border-border rounded-lg shadow-lg overflow-hidden z-50 max-h-64 overflow-y-auto">
+          {filteredSkills.map((skill, index) => (
+            <button
+              key={skill.name}
+              type="button"
+              className={`flex w-full items-center gap-3 px-3 py-2 text-left transition-colors ${
+                index === slashState.selectedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-muted'
+              }`}
+              onMouseDown={(e) => { e.preventDefault(); handleSelectSkill(skill) }}
+              onMouseEnter={() => setSlashState(prev => ({ ...prev, selectedIndex: index }))}
+            >
+              <span className="font-mono text-sm">/{skill.name}</span>
+              <span className="text-xs text-muted-foreground truncate">{skill.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Image previews */}
       {images.length > 0 && (

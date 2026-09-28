@@ -2,7 +2,7 @@ import { ToolLoopAgent, stepCountIs } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { AgentConfig } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import { skillTools } from './skillTools'
+import { skillsCatalogPrompt } from './skills'
 import { bindAgentTools } from '@/lib/bindAgentTools'
 import { createLoadTools, createToolSession } from '@/lib/scriptTools'
 import type { TabRef } from '@/lib/pageTools'
@@ -42,7 +42,6 @@ export async function createAgent(
 
   const sessionTab: TabRef = tabRef ?? { current: 0 }
   const tools: Record<string, any> = {
-    ...skillTools,
     ...bindAgentTools(() => sessionTab.current),
   }
   const session = createToolSession(tools)
@@ -53,7 +52,7 @@ export async function createAgent(
   const agent = new ToolLoopAgent({
       id: `iris-${config.id}`,
       model: provider.chat(modelId),
-      instructions: config.systemPrompt,
+      instructions: await skillsCatalogPrompt(),
       tools,
       stopWhen: stepCountIs(maxSteps),
       temperature: settings.temperature,

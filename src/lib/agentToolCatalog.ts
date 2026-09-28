@@ -1,6 +1,15 @@
 import { automationTools } from './automationEngine'
 import { evalInPage, focusTab, openUrl, readPage } from './pageTools'
 import { describeScripts, setScriptEnabled, writeScript } from './scriptStore'
+import {
+  deleteSkill,
+  getSkill,
+  listSkills,
+  readSkillFile,
+  setSkillEnabled as setStoredSkillEnabled,
+  skillBodyOf,
+  writeSkill,
+} from './skillStore'
 import { tabTools } from './tabTools'
 
 export interface ToolCtx {
@@ -171,6 +180,149 @@ const TOOLS: ToolDef[] = [
       const tabId = requireTab(params, ctx)
       const lines = await chrome.tabs.sendMessage(tabId, { type: 'iris-gm-log' }).catch((err: Error) => ({ error: err.message }))
       return { untrusted: true, lines }
+    },
+  },
+  {
+    name: 'list_skills',
+    group: 'skills',
+    needsTab: false,
+    description: 'List skills by name, description, author, and enabled flag. Does not return file contents.',
+    inputSchema: schema({}),
+    async run() {
+      const skills = await listSkills()
+      return skills.map(skill => ({
+        name: skill.name,
+        description: skill.description,
+        author: skill.author,
+        enabled: skill.enabled,
+        files: Object.keys(skill.files),
+      }))
+    },
+  },
+  {
+    name: 'load_skill',
+    group: 'skills',
+    needsTab: false,
+    description: 'Load an enabled skill\'s SKILL.md body. Full instructions stay out of context until this is called.',
+    inputSchema: schema({ name: str('Skill name from the available-skills list') }, ['name']),
+    async run(params) {
+      if (typeof params.name !== 'string') throw new Error('name is required')
+      const skill = await getSkill(params.name)
+      if (!skill) return { error: `Skill '${params.name}' not found` }
+      if (!skill.enabled) return { error: `Skill '${skill.name}' is disabled` }
+      const skillMd = skill.files['SKILL.md']
+      if (!skillMd) return { error: `Skill '${skill.name}' has no SKILL.md` }
+      const refs = Object.keys(skill.files).filter(path => path !== 'SKILL.md')
+      return {
+        skillDirectory: skill.name,
+        content: skillBodyOf(skillMd),
+        ...(refs.length ? { files: refs } : {}),
+      }
+    },
+  },
+  {
+    name: 'read_skill_file',
+    group: 'skills',
+    needsTab: false,
+    description: 'Read a file inside a skill, such as references/foo.md.',
+    inputSchema: schema({
+      name: str('Skill name'),
+      path: str('Relative path inside the skill, e.g. reference.md'),
+    }, ['name', 'path']),
+    async run(params) {
+      if (typeof params.name !== 'string' || typeof params.path !== 'string') throw new Error('name and path are required')
+      const skill = await getSkill(params.name)
+      if (!skill) return { error: `Skill '${params.name}' not found` }
+      try {
+        return { path: `${skill.name}/${params.path}`, content: readSkillFile(skill, params.path) }
+      } catch (err) {
+        return { error: (err as Error).message, files: Object.keys(skill.files) }
+      }
+    },
+  },
+  {
+    name: 'write_skill',
+    group: 'skills',
+    needsTab: false,
+    description: 'Create or replace a user skill. Returns needs_confirmation until confirmed is true and the user has agreed. Builtin names are rejected. author is recorded as agent.',
+    inputSchema: schema({
+      name: str('Skill name: lowercase letters, digits, and hyphens'),
+      description: str('When to use this skill. Single line.'),
+      instructions: str('SKILL.md body. Max 8KB.'),
+      files: {
+        type: 'array',
+        description: 'Extra files, such as references/notes.md. SKILL.md is written from instructions.',
+        items: {
+          type: 'object',
+          properties: { path: str('Relative path'), content: str('File text') },
+          required: ['path', 'content'],
+        },
+      },
+      confirmed: bool('Set true only after the user agrees to save this skill.'),
+    }, ['name', 'description', 'instructions']),
+    async run(params) {
+      if (typeof params.name !== 'string' || typeof params.description !== 'string' || typeof params.instructions !== 'string') {
+        throw new Error('name, description, and instructions are required')
+      }
+      const extra = Array.isArray(params.files)
+        ? params.files.flatMap(file => {
+          if (!file || typeof file !== 'object') return []
+          const row = file as { path?: unknown; content?: unknown }
+          if (typeof row.path !== 'string' || typeof row.content !== 'string') return []
+          return [{ path: row.path, content: row.content }]
+        })
+        : undefined
+      const existing = await getSkill(params.name)
+      if (existing?.author === 'builtin') throw new Error(`Builtin skill '${existing.name}' cannot be overwritten`)
+      if (params.confirmed !== true) {
+        return {
+          status: 'needs_confirmation',
+          name: params.name,
+          description: params.description,
+          instructions: params.instructions.slice(0, 500),
+        }
+      }
+      const skill = await writeSkill({
+        name: params.name,
+        description: params.description,
+        instructions: params.instructions,
+        extraFiles: extra,
+      })
+      return { name: skill.name, author: skill.author, enabled: skill.enabled }
+    },
+  },
+  {
+    name: 'delete_skill',
+    group: 'skills',
+    needsTab: false,
+    description: 'Delete a user or agent skill. Returns needs_confirmation until confirmed is true. Builtin skills are rejected.',
+    inputSchema: schema({
+      name: str('Skill name'),
+      confirmed: bool('Set true only after the user agrees to delete this skill.'),
+    }, ['name']),
+    async run(params) {
+      if (typeof params.name !== 'string') throw new Error('name is required')
+      const existing = await getSkill(params.name)
+      if (!existing) throw new Error(`Skill not found: ${params.name}`)
+      if (existing.author === 'builtin') throw new Error(`Builtin skill '${existing.name}' cannot be deleted`)
+      if (params.confirmed !== true) return { status: 'needs_confirmation', name: existing.name }
+      await deleteSkill(params.name)
+      return { name: params.name, deleted: true }
+    },
+  },
+  {
+    name: 'toggle_skill',
+    group: 'skills',
+    needsTab: false,
+    description: 'Enable or disable a skill by name, including builtins.',
+    inputSchema: schema({
+      name: str('Skill name'),
+      enabled: bool('Whether the skill is offered to the agent and the slash list'),
+    }, ['name', 'enabled']),
+    async run(params) {
+      if (typeof params.name !== 'string' || typeof params.enabled !== 'boolean') throw new Error('name and enabled are required')
+      const skill = await setStoredSkillEnabled(params.name, params.enabled)
+      return { name: skill.name, enabled: skill.enabled }
     },
   },
   {

@@ -1,7 +1,0 @@
-[
-  {
-    "namespace": "iris",
-    "name": "summarize",
-    "content": "---\ndescription: 用中文总结当前页面\nicon: 📝\n---\n\n请用中文总结下面的页面。先给 3–6 条要点，再写一段不超过 120 字的概述。保留专有名词、数字和结论，不要逐段复述。\n\n若有补充要求，只覆盖那一部分：\n$ARGUMENTS\n\n**!`title`**\nURL: !`url`\n\n---\n\n!`pageContent`\n"
-  }
-]

@@ -1,48 +1,23 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Download, Upload, Plus, Trash2, FolderOpen, RefreshCw, Terminal, HelpCircle } from 'lucide-react'
+import { Download, Upload, Plus, Trash2 } from 'lucide-react'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings } from '@/lib/sidepanelSettings'
-import type { SlashCommand } from '@/lib/types'
-import { loadAllCommands, saveUserCommands } from '@/lib/commandStorage'
-import {
-  requestDirectoryAccess,
-  getSavedDirectoryHandle,
-  verifyDirectoryPermission,
-  importCommandsFromDirectory,
-  clearDirectoryHandle,
-} from '@/lib/fileSystemAccess'
-import { getCommandDisplayName } from '@/lib/slashCommands'
 
 interface SettingsPanelProps {
   settings: SidePanelSettings
   onSettingsChange: (settings: Partial<SidePanelSettings>) => void
-  onCommandsChanged?: () => void
 }
 
-export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onSettingsChange }: SettingsPanelProps) {
   const [showAddModel, setShowAddModel] = useState(false)
   const [newModelName, setNewModelName] = useState('')
   const [newModelId, setNewModelId] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [commandsError, setCommandsError] = useState<string | null>(null)
-  const [commands, setCommands] = useState<SlashCommand[]>([])
-  const [linkedDirName, setLinkedDirName] = useState<string | null>(null)
-  const [isLoadingCommands, setIsLoadingCommands] = useState(false)
-  const [selectedCommand, setSelectedCommand] = useState<SlashCommand | null>(null)
-  const [showCommandPreview, setShowCommandPreview] = useState(false)
-  const [showCommandsHelp, setShowCommandsHelp] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    loadAllCommands().then(setCommands)
-    getSavedDirectoryHandle().then(handle => {
-      if (handle) setLinkedDirName(handle.name)
-    })
-  }, [])
 
   const handleAddModel = () => {
     if (!newModelName.trim() || !newModelId.trim()) {
@@ -112,63 +87,6 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }
-
-  // Link to a commands directory
-  const handleLinkDirectory = async () => {
-    setCommandsError(null)
-    setIsLoadingCommands(true)
-    try {
-      const handle = await requestDirectoryAccess()
-      if (handle) {
-        setLinkedDirName(handle.name)
-        const imported = await importCommandsFromDirectory(handle)
-        await saveUserCommands(imported)
-        setCommands(await loadAllCommands())
-        onCommandsChanged?.()
-      }
-    } catch (err: any) {
-      setCommandsError(err.message || 'Failed to link directory')
-    } finally {
-      setIsLoadingCommands(false)
-    }
-  }
-
-  // Sync commands from linked directory
-  const handleSyncCommands = async () => {
-    setCommandsError(null)
-    setIsLoadingCommands(true)
-    try {
-      const handle = await getSavedDirectoryHandle()
-      if (!handle) {
-        setCommandsError('No directory linked. Click "Link Folder" first.')
-        return
-      }
-      const hasPermission = await verifyDirectoryPermission(handle)
-      if (!hasPermission) {
-        setCommandsError('Permission denied. Please re-link the directory.')
-        setLinkedDirName(null)
-        await clearDirectoryHandle()
-        return
-      }
-      const imported = await importCommandsFromDirectory(handle)
-      await saveUserCommands(imported)
-      setCommands(await loadAllCommands())
-      onCommandsChanged?.()
-    } catch (err: any) {
-      setCommandsError(err.message || 'Failed to sync commands')
-    } finally {
-      setIsLoadingCommands(false)
-    }
-  }
-
-  // Unlink directory
-  const handleUnlinkDirectory = async () => {
-    await clearDirectoryHandle()
-    await saveUserCommands([])
-    setLinkedDirName(null)
-    setCommands(await loadAllCommands())
-    onCommandsChanged?.()
   }
 
   return (
@@ -363,254 +281,6 @@ export function SettingsPanel({ settings, onSettingsChange, onCommandsChanged }:
           </SelectContent>
         </Select>
       </div>
-
-      {/* Slash Commands Section */}
-      <div className="pt-2 border-t space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5" />
-            Slash Commands
-            <button
-              onClick={() => setShowCommandsHelp(true)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-            </button>
-          </h3>
-          <span className="text-xs text-muted-foreground">{commands.length} loaded</span>
-        </div>
-
-        {commandsError && (
-          <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
-            {commandsError}
-          </div>
-        )}
-
-        {/* Linked Directory */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Linked:</span>
-          {linkedDirName ? (
-            <>
-              <span className="font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[120px]">
-                {linkedDirName}/
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleUnlinkDirectory}
-                className="h-5 px-1 text-destructive"
-                title="Unlink directory"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </>
-          ) : (
-            <span className="text-muted-foreground italic">None</span>
-          )}
-        </div>
-
-        {/* Command List */}
-        <div className="space-y-1 max-h-32 overflow-y-auto">
-          {commands.map((cmd) => (
-            <div
-              key={cmd.id}
-              className="flex items-center gap-2 bg-background p-1.5 rounded text-xs cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => {
-                setSelectedCommand(cmd)
-                setShowCommandPreview(true)
-              }}
-              title={cmd.description}
-            >
-              <span className="w-5 text-center">{cmd.icon}</span>
-              <span className="flex-1 font-mono truncate">{getCommandDisplayName(cmd)}</span>
-              <span className="text-muted-foreground truncate max-w-[80px] text-[10px]">
-                {cmd.description}
-              </span>
-              <span
-                className={`px-1 py-0.5 rounded text-[10px] shrink-0 ${
-                  cmd.source === 'user'
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {cmd.source}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Command Actions */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLinkDirectory}
-            disabled={isLoadingCommands}
-            className="h-7 text-xs flex-1"
-            title="Link to a folder containing .md command files"
-          >
-            <FolderOpen className="h-3 w-3 mr-1" />
-            Link Folder
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncCommands}
-            disabled={isLoadingCommands || !linkedDirName}
-            className="h-7 text-xs flex-1"
-            title="Re-import commands from linked folder"
-          >
-            <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingCommands ? 'animate-spin' : ''}`} />
-            Sync
-          </Button>
-        </div>
-      </div>
-
-      {/* Command Preview Dialog */}
-      <Dialog open={showCommandPreview} onOpenChange={setShowCommandPreview}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>{selectedCommand?.icon}</span>
-              <span className="font-mono">{selectedCommand && getCommandDisplayName(selectedCommand)}</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-            <p className="text-sm text-muted-foreground mb-3">{selectedCommand?.description}</p>
-            <div className="text-xs space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Source:</span>
-                <span className={`px-1.5 py-0.5 rounded ${
-                  selectedCommand?.source === 'user'
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : 'bg-muted text-muted-foreground'
-                }`}>
-                  {selectedCommand?.source}
-                </span>
-              </div>
-              {selectedCommand?.contextVariables && selectedCommand.contextVariables.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-muted-foreground">Variables:</span>
-                  {selectedCommand.contextVariables.map(v => (
-                    <code key={v} className="px-1.5 py-0.5 rounded bg-muted text-[10px]">
-                      {v === 'ARGUMENTS' ? '$ARGUMENTS' : `!\`${v}\``}
-                    </code>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="mt-3 p-3 bg-muted rounded text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-48">
-              {selectedCommand?.template}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setShowCommandPreview(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Slash Commands Help Dialog */}
-      <Dialog open={showCommandsHelp} onOpenChange={setShowCommandsHelp}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Terminal className="h-4 w-4" />
-              Slash Commands
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-4 text-sm">
-            {/* What are Slash Commands */}
-            <section>
-              <h4 className="font-semibold mb-1">What are Slash Commands?</h4>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Slash commands are reusable prompt templates that inject browser context into your messages.
-                Type <kbd className="px-1 py-0.5 rounded bg-muted text-foreground text-[10px]">/</kbd> in
-                the chat input to see available commands, then select one with arrow keys and Tab.
-              </p>
-            </section>
-
-            {/* How to Use */}
-            <section>
-              <h4 className="font-semibold mb-1">How to Use</h4>
-              <div className="text-xs text-muted-foreground space-y-1.5">
-                <p><code className="bg-muted px-1 rounded">/summarize</code> — 用中文总结当前页面</p>
-                <p><code className="bg-muted px-1 rounded">/eason:review</code> — Use a custom command from the "eason" namespace</p>
-              </div>
-            </section>
-
-            {/* Creating Custom Commands */}
-            <section>
-              <h4 className="font-semibold mb-1">Creating Custom Commands</h4>
-              <p className="text-muted-foreground text-xs leading-relaxed mb-2">
-                Commands are Markdown files with YAML frontmatter. Create a folder structure like:
-              </p>
-              <pre className="bg-muted p-2 rounded text-[10px] font-mono overflow-x-auto">{`~/.ea/iris/commands/
-├── eason/
-│   └── review.md    → /eason:review
-└── work/
-    └── standup.md   → /work:standup`}</pre>
-            </section>
-
-            {/* Command File Format */}
-            <section>
-              <h4 className="font-semibold mb-1">Command File Format</h4>
-              <pre className="bg-muted p-2 rounded text-[10px] font-mono overflow-x-auto">{`---
-description: Summarize page content
-icon: 📝
----
-
-Summarize this page: **!\`title\`**
-
-!\`pageContent\`
-
-Target language: $ARGUMENTS`}</pre>
-            </section>
-
-            {/* Context Variables */}
-            <section>
-              <h4 className="font-semibold mb-1">Context Variables</h4>
-              <div className="text-xs space-y-1">
-                <p><code className="bg-muted px-1 rounded">!\`pageContent\`</code> — Full page content as Markdown</p>
-                <p><code className="bg-muted px-1 rounded">!\`selection\`</code> — Currently selected text</p>
-                <p><code className="bg-muted px-1 rounded">!\`url\`</code> — Current page URL</p>
-                <p><code className="bg-muted px-1 rounded">!\`title\`</code> — Page title</p>
-                <p><code className="bg-muted px-1 rounded">$ARGUMENTS</code> — Text after the command name (e.g. "只看方法" in <code>/summarize 只看方法</code>)</p>
-              </div>
-            </section>
-
-            {/* Buttons Explanation */}
-            <section>
-              <h4 className="font-semibold mb-1">Settings Buttons</h4>
-              <div className="text-xs text-muted-foreground space-y-1.5">
-                <p><strong className="text-foreground">Link Folder</strong> — Connect to a local folder containing your command files. Use File System Access API to grant permissions.</p>
-                <p><strong className="text-foreground">Sync</strong> — Reload commands from the linked folder after you edit files in VSCode or another editor.</p>
-              </div>
-            </section>
-
-            {/* Reference Link */}
-            <section className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground">
-                Inspired by{' '}
-                <a
-                  href="https://docs.anthropic.com/en/docs/claude-code/slash-commands"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline"
-                >
-                  Claude Code Slash Commands
-                </a>
-              </p>
-            </section>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setShowCommandsHelp(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Settings Export/Import */}
       <div className="flex gap-2 pt-2 border-t">
