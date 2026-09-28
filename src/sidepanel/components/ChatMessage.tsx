@@ -113,9 +113,10 @@ export const ChatMessage = memo(function ChatMessage({
     const title = message.metadata?.pageTitle || 'Page Content'
     const truncatedTitle = title.length > 40 ? title.slice(0, 40) + '...' : title
     const isSelection = message.metadata?.contextType === 'selection'
+    const isCard = message.metadata?.contextType === 'card'
     const Icon = isSelection ? Scissors : FileText
     const iconColor = isSelection ? 'text-orange-500' : 'text-blue-500'
-    const label = isSelection ? 'Selected text' : 'Loaded content'
+    const label = isSelection ? 'Selected text' : isCard ? 'Page' : 'Loaded content'
     const estTokens = message.metadata?.estimatedTokens
 
     return (

@@ -2,13 +2,10 @@ console.log('[Iris] Content script loaded')
 
 import './commandMenu.css'
 import './floatingSidebar.css'
-import { enhancementRegistry } from './enhancements'
-import { createArxivEnhancement } from './enhancements/arxiv'
-import { createGitHubEnhancement } from './enhancements/github'
+import { readGmLogs } from './gmBridge'
 import { initDerivedTabOpens } from './derivedTabs'
-import { initZhihu } from './zhihu'
 import { showCommandMenu } from './commandMenu'
-import { initFloatingSidebar, toggleFloatingSidebar, updateEnhancements, setFabCustomActions } from './floatingSidebar'
+import { initFloatingSidebar, toggleFloatingSidebar, refreshFab, setFabCustomActions } from './floatingSidebar'
 import { getAdapterForUrl } from './chatExport'
 import { handleIrisChatApi } from './chatExport/relayApi'
 import { exportCurrent, exportAll } from './chatExport/runExport'
@@ -16,11 +13,7 @@ import { saveHighlight, restoreHighlights, initSelectionPopup } from './highligh
 import { extractAndConvertPage, convertSelectionToMarkdown, copyToClipboard } from '../lib/markdown'
 import type { MarkdownConvertMessage } from '../lib/types'
 
-// Register enhancements
-enhancementRegistry.register(createArxivEnhancement())
-enhancementRegistry.register(createGitHubEnhancement())
-
-initDerivedTabOpens()
+  initDerivedTabOpens()
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open-command-menu') {
@@ -43,6 +36,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then(sendResponse)
       .catch((err) => sendResponse({ ok: false, error: err?.message || String(err) }))
     return true
+  } else if (message.type === 'iris-gm-log') {
+    sendResponse({ lines: readGmLogs() })
   } else if (message.type === 'save-highlight') {
     // Unified highlight save: capture selection + send to background + apply mark
     saveHighlight().then((entryId) => {
@@ -100,22 +95,12 @@ async function init() {
   const url = window.location.href
   console.log('[Iris] Content script initialized on', url)
 
-  initZhihu()
-
-  // Get enhancement actions for current URL
-  const enhancements = enhancementRegistry.getActionsForUrl(url)
-  if (enhancements.length > 0) {
-    console.log('[Iris] Found enhancements:', enhancements.map(e => e.header).join(', '))
-  }
-
-  // Initialize or update floating sidebar with enhancements
   if (!isInitialized) {
-    await initFloatingSidebar(enhancements)
+    await initFloatingSidebar()
     initSelectionPopup()
     isInitialized = true
   } else {
-    // Update enhancements for URL change (SPA navigation)
-    updateEnhancements(enhancements)
+    refreshFab()
   }
 
   // Restore saved highlights for this page

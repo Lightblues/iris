@@ -43,10 +43,14 @@ export function AgentPanel(props: AgentPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const pendingRef = useRef<{ content: string; images?: any[] } | null>(null)
 
+  const tabRef = useRef(tabId)
+  tabRef.current = tabId
+
   const { transport, mcpStatus } = useAgentTransport({
     settings,
     chatModel,
     conversationId: conversation?.id,
+    tabRef,
     onError: setError,
   })
 
@@ -183,7 +187,7 @@ function AgentPanelReady(props: AgentPanelProps & {
     const injectMembers = async () => {
       for (const id of targets) {
         if (cancelled) return
-        const ok = await injectContext({ silent: true, tabId: id })
+        const ok = await injectContext({ silent: true, tabId: id, card: true })
         if (ok) injectTargetsRef.current.delete(id)
       }
       if (cancelled || flushedRef.current || !pendingMessage) return
@@ -195,7 +199,7 @@ function AgentPanelReady(props: AgentPanelProps & {
     const onUpdated = (id: number, info: { status?: string; url?: string }) => {
       if (!injectTargetsRef.current.has(id)) return
       if (info.status !== 'complete' && info.url == null) return
-      void injectContext({ silent: true, tabId: id }).then(ok => {
+      void injectContext({ silent: true, tabId: id, card: true }).then(ok => {
         if (ok) injectTargetsRef.current.delete(id)
       })
     }

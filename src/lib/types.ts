@@ -145,7 +145,7 @@ export interface IrisMessageMetadata {
   timestamp: number;
   pageUrl?: string;
   pageTitle?: string;
-  contextType?: 'page' | 'selection';  // Context injection type (mapped to user role)
+  contextType?: 'page' | 'selection' | 'card';  // Context injection type (mapped to user role)
   usage?: MessageUsage;  // Token usage from AI SDK stream (injected via DirectChatTransport messageMetadata)
   estimatedTokens?: number;  // Pre-send token estimate for context messages
 }

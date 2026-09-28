@@ -1,4 +1,4 @@
-import type { ArxivId, EnhancementHandler, EnhancementResult } from './types';
+import type { ArxivId } from './types';
 
 /**
  * Extract arXiv ID from URL
@@ -36,33 +36,4 @@ export function extractArxivId(url: string): ArxivId | null {
   }
 
   return null;
-}
-
-export function createArxivEnhancement(): EnhancementHandler {
-  const arxivDomains = [
-    'arxiv.org',
-    'alphaxiv.org',
-    'huggingface.co/papers',
-    'papers.cool/arxiv'
-  ];
-
-  return {
-    id: 'arxiv-enhancement',
-    name: 'arXiv Paper Enhancement',
-    match: (url: string) => arxivDomains.some(domain => url.includes(domain)) && /\d+\.\d+/.test(url),
-    getActions: (url: string): EnhancementResult | null => {
-      const arxivId = extractArxivId(url);
-      if (!arxivId) return null;
-
-      return {
-        header: `arXiv: ${arxivId.base}`,
-        actions: [
-          { name: 'arXiv', icon: '📝', url: `https://arxiv.org/abs/${arxivId.base}` },
-          { name: 'alphaXiv', icon: 'α', url: `https://www.alphaxiv.org/abs/${arxivId.base}` },
-          { name: 'papers.cool', icon: '🔬', url: `https://papers.cool/arxiv/${arxivId.base}` },
-          { name: 'HuggingFace', icon: '🤗', url: `https://huggingface.co/papers/${arxivId.base}` }
-        ]
-      };
-    }
-  };
 }

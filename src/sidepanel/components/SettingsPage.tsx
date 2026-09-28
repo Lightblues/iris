@@ -22,6 +22,7 @@ import {
 import { getCommandDisplayName } from '@/lib/slashCommands'
 import { fetchModels, clearModelCache } from '@/lib/modelRegistry'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
+import { ScriptLibrary } from './ScriptLibrary'
 
 interface SettingsPageProps {
   settings: SidePanelSettings
@@ -680,6 +681,9 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
 
       {/* ===== Content Script ===== */}
       <section className="space-y-3">
+        <SectionHeader title="Scripts" />
+        <ScriptLibrary />
+
         <SectionHeader title="Content Script" />
 
         <div className="space-y-1">
@@ -695,7 +699,7 @@ export function SettingsPage({ settings, onSettingsChange, onCommandsChanged }: 
             className="w-full text-xs font-mono bg-background border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground">
-            Hide FAB on matching URLs (one glob per line). FAB is hidden on general sites by default and only appears on adapted pages (papers, GitHub, chat export).
+            Hide FAB on matching URLs (one glob per line). The button only appears on the built-in allowlist (papers, GitHub, DeepWiki, chat sites), and never because a userscript matches.
             The X button only hides FAB for the current page session.
           </p>
         </div>

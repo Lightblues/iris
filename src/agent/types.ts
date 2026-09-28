@@ -28,7 +28,7 @@ export interface IrisMessageMetadata {
   tabId?: number
   pageUrl?: string
   pageTitle?: string
-  contextType?: 'page' | 'selection'
+  contextType?: 'page' | 'selection' | 'card'
   usage?: MessageUsage
   estimatedTokens?: number
 }

@@ -9,6 +9,8 @@ import { cleanupExpired } from '../lib/tabTrash';
 import { recordEvent, detectSearchQuery, cleanupOldEvents } from '../lib/tracing';
 import { loadSettings } from '../lib/sidepanelSettings';
 import { saveChatExport, readChatExportIndex, checkChatExportReady } from '../lib/chatExportStore';
+import { ensureSeedScripts } from '../lib/scriptStore';
+import { syncUserScripts, handleGmRequest } from '../lib/scriptRuntime';
 import type { BookmarkLink, ExecuteCommandMessage, CommandResultMessage, GetPageContextMessage, PageContextResponse, TabAgentMessage, TabAgentResponse, AutomationMessage, AutomationResponse, ChatExportSaveMessage } from '../lib/types';
 
 console.log('[Iris] Background script loaded');
@@ -32,6 +34,7 @@ chrome.alarms.clear('vesta-sync');
 
 initSidePanel();
 initBrowserRelay();
+ensureSeedScripts().then(() => syncUserScripts()).catch(err => console.warn('[Iris] scripts:', err));
 
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -305,6 +308,20 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
         sendResponse({ success: false, error: error?.message || 'Unknown error' });
       });
     return true;
+  }
+
+  if (message.type === 'iris_sync_scripts') {
+    syncUserScripts()
+      .then(error => sendResponse({ error }))
+      .catch(err => sendResponse({ error: err?.message || String(err) }))
+    return true
+  }
+
+  if (message.type === 'iris_gm') {
+    handleGmRequest(message.scriptId, message.method, message.payload)
+      .then(result => sendResponse({ ok: true, result }))
+      .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }))
+    return true
   }
 
   if (message.type === 'get-page-context') {

@@ -1,9 +1,9 @@
 // Floating FAB — visual entry point for the native Chrome side panel.
 // Previously injected an iframe into the page; now it only renders a button
 // (and hover menu) that asks the background to open chrome.sidePanel.
-// Shown only on adapted pages (paper sites, GitHub/DeepWiki, chat export).
+// Shown on the built-in allowlist (papers, GitHub, DeepWiki, chat sites), minus the FAB blocklist.
 
-import type { EnhancementResult } from './enhancements'
+import { fabAllowed } from '../lib/fabSites'
 
 const FAB_HIDDEN_KEY = 'iris_floating_fab_hidden'
 
@@ -11,7 +11,6 @@ let isFabHidden = false
 let fabButton: HTMLButtonElement | null = null
 let fabHideButton: HTMLButtonElement | null = null
 let fabMenu: HTMLDivElement | null = null
-let currentEnhancements: EnhancementResult[] = []
 let hiddenPatterns: string[] = []
 
 // Optional extra FAB menu actions. Chat export registers these on supported sites.
@@ -46,13 +45,11 @@ const hideIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
   <line x1="6" y1="6" x2="18" y2="18"></line>
 </svg>`
 
-export async function initFloatingSidebar(enhancements: EnhancementResult[] = []): Promise<void> {
+export async function initFloatingSidebar(): Promise<void> {
   // Don't inject on extension pages
   if (window.location.protocol === 'chrome-extension:' || window.location.protocol === 'chrome:') {
     return
   }
-
-  currentEnhancements = enhancements
 
   // Load settings & hidden flag in parallel
   const SETTINGS_KEY = 'sidepanel_settings'
@@ -78,19 +75,14 @@ export async function initFloatingSidebar(enhancements: EnhancementResult[] = []
   syncFabVisibility()
 }
 
-/** Update enhancements (called when URL changes) */
-export function updateEnhancements(enhancements: EnhancementResult[]): void {
-  currentEnhancements = enhancements
+export function refreshFab(): void {
   syncFabVisibility()
 }
 
-/** Show FAB only on adapted pages (enhancements / chat export), minus blocklist. */
+/** Show FAB on the allowlist, minus the blocklist. Scripts do not affect this. */
 function shouldShowFab(): boolean {
   if (isFabHidden) return false
-  if (hiddenPatterns.length > 0 && matchesSitePatterns(window.location.href, hiddenPatterns)) {
-    return false
-  }
-  return currentEnhancements.length > 0 || customActions.length > 0
+  return fabAllowed(window.location.href, hiddenPatterns)
 }
 
 function syncFabVisibility(): void {
@@ -167,30 +159,6 @@ function rebuildMenu(): void {
     }
   }
 
-  // Per-URL enhancement actions
-  if (currentEnhancements.length > 0) {
-    const divider = document.createElement('div')
-    divider.className = 'iris-fab-menu-divider'
-    fabMenu.appendChild(divider)
-
-    for (const enhancement of currentEnhancements) {
-      const header = document.createElement('div')
-      header.className = 'iris-fab-menu-header'
-      header.textContent = enhancement.header
-      fabMenu.appendChild(header)
-
-      for (const action of enhancement.actions) {
-        const link = document.createElement('a')
-        link.className = 'iris-fab-menu-item'
-        link.href = action.url
-        link.target = '_blank'
-        link.rel = 'noopener noreferrer'
-        link.innerHTML = `<span class="iris-fab-menu-icon">${action.icon}</span><span>${action.name}</span>`
-        link.addEventListener('click', (e) => e.stopPropagation())
-        fabMenu.appendChild(link)
-      }
-    }
-  }
 }
 
 function hideFab(): void {
@@ -204,14 +172,6 @@ function removeFab(): void {
   fabButton = null
   fabHideButton = null
   fabMenu = null
-}
-
-function matchesSitePatterns(url: string, patterns: string[]): boolean {
-  return patterns.some(p => {
-    const escaped = p.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp('^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$')
-    return regex.test(url)
-  })
 }
 
 export function showFab(): void {
@@ -243,5 +203,4 @@ export function toggleFloatingSidebar(): void {
 
 export function cleanupFloatingSidebar(): void {
   removeFab()
-  currentEnhancements = []
 }

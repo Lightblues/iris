@@ -1,40 +1,21 @@
 # Page Enhancements
 
-Stable **entry points and site patches**. Maintain only. They exist to open the Agent, capture into Knowledge, or fix a specific site — not as a third product.
+Stable **entry points**. Maintain only. They exist to open the Agent or capture into Knowledge — not as a third product, and not as the place site patches live.
 
-Slash commands live with the Agent: [agent.md](agent.md). Chat export lives with Knowledge: [knowledge.md](knowledge.md).
+Site patches and host jumps are scripts: [scripts.md](scripts.md). Slash commands live with the Agent: [agent.md](agent.md). Chat export lives with Knowledge: [knowledge.md](knowledge.md).
 
 ## FAB
 
-In-page button, bottom-right. Hidden by default; shown on adapted pages (paper sites, GitHub/DeepWiki, chat-export origins). `fabSitePatterns` is an extra glob **blocklist**.
+In-page button, bottom-right. It opens the side panel. It is compiled into the content script. Userscripts do not own it, do not show it, and do not add menu rows.
 
 - Click → toggle native side panel (content → background → `sidePanel.open`)
-- Hover → Chat, site actions, chat export
+- Hover → Chat, plus chat export on origins that have an adapter
 - Close → hide for this page session
 - `Cmd+Shift+Y` opens the side panel without the FAB
 
-Key files: `content/floatingSidebar.ts`, `content/floatingSidebar.css`.
+Visibility is an allowlist, not "this URL has a script". Default origins: arXiv and the paper hosts, GitHub, DeepWiki, ChatGPT, DeepSeek, Gemini. `fabSitePatterns` is a glob **blocklist** checked after the allowlist. A matching userscript neither shows nor hides the button.
 
-## Site enhancements
-
-URL match → actions in the FAB menu. `EnhancementRegistry` in `content/enhancements/`.
-
-| Pattern | Actions |
-|---------|---------|
-| arXiv / alphaXiv / HuggingFace Papers / papers.cool | Jump between paper hosts |
-| GitHub | Open DeepWiki |
-| DeepWiki | Open GitHub |
-
-## Site patches
-
-Always-on fixes, not FAB actions.
-
-| Site | Behavior |
-|------|----------|
-| Zhihu | Strip notification prefixes from the tab title |
-| Zhihu | Unwrap `link.zhihu.com/?target=` so external links open directly |
-
-Key files: `lib/zhihu.ts`, `content/zhihu.ts`, `content/zhihuRedirect.ts`.
+Key files: `content/floatingSidebar.ts`, `lib/fabSites.ts`, `content/floatingSidebar.css`.
 
 ## Command menu (`Cmd+Shift+P`)
 

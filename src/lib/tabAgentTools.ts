@@ -20,10 +20,8 @@ async function callTabAgent(action: string, params: any): Promise<any> {
   })
 }
 
-// Tab Tools in AI SDK tool format
-export const tabAgentTools = {
-  query_tabs: tool({
-    description: 'Query open browser tabs with filtering and pagination. Use this to see what tabs are currently open.',
+const listTabsTool = tool({
+  description: 'List open browser tabs. Filter by keyword or domain.',
     inputSchema: z.object({
       keyword: z.string().optional().describe('Search keyword to filter tabs by title or URL'),
       domain: z.string().optional().describe('Filter tabs by domain (e.g., "github.com")'),
@@ -53,7 +51,11 @@ export const tabAgentTools = {
         total: result.total
       }
     }
-  }),
+  })
+
+export const tabAgentTools = {
+  list_tabs: listTabsTool,
+  query_tabs: listTabsTool,
 
   create_tab_group: tool({
     description: 'Create a new tab group with specified tabs. Use this to organize tabs into named groups.',

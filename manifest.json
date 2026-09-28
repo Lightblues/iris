@@ -25,15 +25,11 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/index.ts"]
-    },
-    {
-      "matches": ["*://link.zhihu.com/*"],
-      "js": ["src/content/zhihuRedirect.ts"],
+      "js": ["src/content/index.ts"],
       "run_at": "document_start"
     }
   ],
-      "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "windows", "webNavigation", "unlimitedStorage", "alarms", "scripting"],
+  "permissions": ["storage", "activeTab", "readingList", "contextMenus", "clipboardWrite", "sidePanel", "tabs", "tabGroups", "windows", "webNavigation", "unlimitedStorage", "alarms", "scripting", "userScripts"],
   "host_permissions": ["<all_urls>"],
   "commands": {
     "open-command-menu": {

@@ -17,6 +17,15 @@ async function ensureAutomationTab(): Promise<number> {
   return automationTabId
 }
 
+async function tabFor(params?: object): Promise<number> {
+  const tabId = (params as { tabId?: number } | undefined)?.tabId
+  if (tabId != null) {
+    await chrome.tabs.get(tabId)
+    return tabId
+  }
+  return ensureAutomationTab()
+}
+
 export async function closeAutomationTab(): Promise<void> {
   if (automationTabId !== null) {
     try { await chrome.tabs.remove(automationTabId) } catch {}
@@ -73,7 +82,7 @@ export const automationTools = {
 
   navigate: {
     execute: async (params: { url: string }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       const loadPromise = waitForTabLoad(tabId)
       await chrome.tabs.update(tabId, { url: params.url })
       await loadPromise
@@ -84,7 +93,7 @@ export const automationTools = {
 
   page_snapshot: {
     execute: async (params: { selector?: string; maxLength?: number }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       const result = await executeInTab(tabId, (sel: string | null, maxLen: number) => {
         const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'LINK', 'META'])
         const MAX_DEPTH = 12
@@ -185,7 +194,7 @@ export const automationTools = {
 
   click: {
     execute: async (params: { selector: string }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       return await executeInTab(tabId, (sel: string) => {
         const el = document.querySelector(sel) as HTMLElement
         if (!el) return { clicked: false, error: `Element not found: ${sel}` }
@@ -197,7 +206,7 @@ export const automationTools = {
 
   type_text: {
     execute: async (params: { selector: string; text: string; clearFirst?: boolean }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       return await executeInTab(tabId, (sel: string, text: string, clear: boolean) => {
         const el = document.querySelector(sel) as HTMLInputElement | HTMLTextAreaElement
         if (!el) return { typed: false, error: `Element not found: ${sel}` }
@@ -218,7 +227,7 @@ export const automationTools = {
 
   extract_data: {
     execute: async (params: { selector?: string; extractAs?: 'text' | 'html' | 'list' | 'table' }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       return await executeInTab(tabId, (sel: string | null, mode: string) => {
         if (mode === 'list') {
           if (!sel) return { data: [] }
@@ -245,7 +254,7 @@ export const automationTools = {
 
   wait_for: {
     execute: async (params: { selector?: string; text?: string; timeout?: number }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       const timeout = Math.min(params.timeout || 5000, 15000)
       return await executeInTab(tabId, (sel: string | null, text: string | null, ms: number) => {
         return new Promise<{ found: boolean; elapsed: number }>((resolve) => {
@@ -270,7 +279,7 @@ export const automationTools = {
 
   scroll: {
     execute: async (params: { selector?: string; direction?: 'up' | 'down'; amount?: number }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       return await executeInTab(tabId, (sel: string | null, dir: string, amt: number) => {
         if (sel) {
           const el = document.querySelector(sel)
@@ -289,7 +298,7 @@ export const automationTools = {
 
   evaluate_js: {
     execute: async (params: { code: string }) => {
-      const tabId = await ensureAutomationTab()
+      const tabId = await tabFor(params)
       // Use MAIN world to bypass page CSP restrictions on eval
       const results = await chrome.scripting.executeScript({
         target: { tabId },
@@ -322,8 +331,8 @@ export const automationTools = {
   },
 
   take_screenshot: {
-    execute: async () => {
-      const tabId = await ensureAutomationTab()
+    execute: async (params: { tabId?: number } = {}) => {
+      const tabId = await tabFor(params)
       const tab = await chrome.tabs.get(tabId)
       // Temporarily activate the automation tab for captureVisibleTab
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })

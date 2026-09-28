@@ -9,6 +9,17 @@ const SCHEMA_SYMBOL = Symbol.for('vercel.ai.schema')
 let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null
 let cachedTools: ToolSet | null = null
 let status: McpStatus = 'disconnected'
+const statusListeners = new Set<(s: McpStatus) => void>()
+
+function setStatus(next: McpStatus) {
+  status = next
+  statusListeners.forEach(fn => fn(next))
+}
+
+export function onMcpStatus(fn: (s: McpStatus) => void): () => void {
+  statusListeners.add(fn)
+  return () => statusListeners.delete(fn)
+}
 let currentUrl: string | null = null
 let holdCount = 0
 let connectPromise: Promise<ToolSet> | null = null
@@ -66,7 +77,7 @@ async function openClient(url: string): Promise<ToolSet> {
   mcpClient = await createMCPClient({ transport: { type: transportType, url } })
   const rawTools = await mcpClient.tools()
   cachedTools = sanitizeTools(rawTools)
-  status = 'connected'
+  setStatus('connected')
   console.log('[Agent MCP] Connected, tools:', Object.keys(cachedTools))
   return cachedTools
 }
@@ -87,7 +98,7 @@ export async function connectMcp(url: string): Promise<ToolSet> {
   }
 
   currentUrl = url
-  status = 'connecting'
+  setStatus('connecting')
   connectPromise = openClient(url)
   try {
     const tools = await connectPromise
@@ -96,7 +107,7 @@ export async function connectMcp(url: string): Promise<ToolSet> {
   } catch (err) {
     console.error('[Agent MCP] Connection failed:', err)
     holdCount = 0
-    status = 'error'
+    setStatus('error')
     mcpClient = null
     cachedTools = null
     currentUrl = null
@@ -123,7 +134,7 @@ export async function disconnectMcp(): Promise<void> {
     mcpClient = null
   }
   cachedTools = null
-  status = 'disconnected'
+  setStatus('disconnected')
   currentUrl = null
 }
 

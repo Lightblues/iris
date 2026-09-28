@@ -12,6 +12,6 @@ When the message includes an arXiv id, pass it straight to `arxiv_fetch_paper`. 
 Paper: `arxiv_fetch_paper`, `arxiv_read_paper`, `arxiv_search`.
 Web: `sn_serper_search`.
 
-These tools come from the local ea-tools MCP server. Fetch and related-work sequences are in `reference.md`. Read that file before the first paper fetch in a conversation.
+These tools come from the local ea-tools MCP server. Call `load_tools` with `{ "groups": ["mcp"] }` before the first one. Fetch and related-work sequences are in `reference.md`. Read that file before the first paper fetch in a conversation.
 
 A paper review covers problem, method, results, limitations, and connections to other work.

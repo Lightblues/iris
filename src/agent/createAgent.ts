@@ -2,7 +2,11 @@ import { ToolLoopAgent, stepCountIs } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { AgentConfig } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import { connectMcp, releaseMcp } from './mcp'
+import { skillTools } from './skillTools'
+import { tabAgentTools } from '@/lib/tabAgentTools'
+import { createAutomationAgentTools } from '@/lib/automationTools'
+import { createPageTools, type TabRef } from '@/lib/pageTools'
+import { createLoadTools, createScriptTools, createToolSession } from '@/lib/scriptTools'
 import { recordEvent } from '@/lib/tracing'
 import { isTelemetryEnabled } from '@/lib/telemetryState'
 
@@ -21,6 +25,7 @@ export async function createAgent(
   settings: SidePanelSettings,
   modelOverride?: string,
   conversationId?: string,
+  tabRef?: TabRef,
 ): Promise<CreateAgentResult> {
   const modelId = modelOverride ?? settings.model
   const providerMetadataRef: ProviderMetadataRef = { current: undefined }
@@ -35,24 +40,20 @@ export async function createAgent(
     },
   })
 
-  // Merge: browser tools (static) + MCP tools when the local server is up.
-  let tools: Record<string, any> = { ...(config.browserTools ?? {}) }
-  let mcpConnected = false
-  try {
-    if (config.mcpEnabled) {
-      try {
-        const endpoint = settings.mcpEndpoint || 'http://localhost:8765/mcp'
-        const mcpTools = await connectMcp(endpoint)
-        mcpConnected = true
-        tools = { ...tools, ...mcpTools }
-      } catch (err) {
-        console.warn('[Agent] MCP unavailable, continuing without those tools:', err)
-      }
-    }
+  const sessionTab: TabRef = tabRef ?? { current: 0 }
+  const tools: Record<string, any> = {
+    ...skillTools,
+    ...tabAgentTools,
+    ...createPageTools(sessionTab),
+    ...createScriptTools(sessionTab),
+    ...createAutomationAgentTools(() => sessionTab.current),
+  }
+  const session = createToolSession(tools)
+  tools.load_tools = createLoadTools(session, sessionTab, settings.mcpEndpoint || 'http://localhost:8765/mcp')
+  const mcpConnected = false
+  const maxSteps = settings.maxSteps ?? config.maxSteps ?? 20
 
-    const maxSteps = settings.maxSteps ?? config.maxSteps ?? 20
-
-    const agent = new ToolLoopAgent({
+  const agent = new ToolLoopAgent({
       id: `iris-${config.id}`,
       model: provider.chat(modelId),
       instructions: config.systemPrompt,
@@ -60,6 +61,7 @@ export async function createAgent(
       stopWhen: stepCountIs(maxSteps),
       temperature: settings.temperature,
       maxOutputTokens: settings.maxOutputTokens,
+      prepareStep: () => ({ activeTools: session.active() as any }),
       providerOptions: {
         openai: { reasoningEffort: 'high' },
       },
@@ -82,10 +84,6 @@ export async function createAgent(
       },
     })
 
-    console.log('[Agent] Created:', agent.id, 'tools:', Object.keys(tools))
-    return { agent, providerMetadataRef, mcpConnected }
-  } catch (err) {
-    if (mcpConnected) await releaseMcp()
-    throw err
-  }
+  console.log('[Agent] Created:', agent.id, 'tools:', Object.keys(tools))
+  return { agent, providerMetadataRef, mcpConnected }
 }

@@ -36,7 +36,7 @@ ChatInput
   → chrome.storage.local
 ```
 
-The system prompt lists skill names and descriptions only. Tab, automation, and MCP tools are always attached. Before using them the agent calls `load_skill`. If the local MCP server is down, those tools are omitted and chat still starts. Context is the auto-injected page, plus `/summarize` or a custom slash command.
+The system prompt lists skill names and a static catalog of tool groups. Core tools are always attached. Tab cleanup, automation, screenshots, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card, plus `/summarize` or a custom slash command when the user asks for the full page.
 
 ## Modules (`src/agent/`)
 
@@ -91,7 +91,7 @@ The agent instance is built on mount. New Chat and History select remount the tr
 5. Trace `chat_message`.
 6. `chat.sendMessage({ text, files })`.
 
-Page text is a normal **user** message (`metadata.contextType = page|selection`) and is part of the persisted transcript. Auto-inject on a new empty session and when a tab joins a live session (http(s)/file, 100k char cap). Same `pageUrl` already in the thread → skip. Never replace or strip earlier context (closing a child tab, opening History, navigation); append only, so the model prefix and prompt cache stay stable. Restoring a stored conversation does not re-inject. Manual inject page / selection still appends. `getPageContext(tabId)` always targets that session’s tab, not “whatever is active”.
+A page card is a normal **user** message (`metadata.contextType = card`) and is part of the persisted transcript. Auto-inject on a new empty session and when a tab joins a live session (http(s)/file): url, title, and a reminder to call `read_page`. Same `pageUrl` already in the thread → skip. Never replace or strip earlier context (closing a child tab, opening History, navigation); append only, so the model prefix and prompt cache stay stable. Restoring a stored conversation does not re-inject. Manual inject page / selection still appends the full text. `read_page` and `getPageContext(tabId)` always target that session’s tab, not “whatever is active”. Tool results that contain page text are data, not instructions. `read_page` returns at most about 8k characters and a cursor.
 
 ## Skills
 
@@ -99,52 +99,60 @@ One agent. The prompt contains only the catalog. `load_skill` returns the `SKILL
 
 | Skill | When the description matches |
 |-------|------------------------------|
-| `tabs` | Query / group / close / archive / restore tabs |
-| `automation` | Drive the dedicated background tab |
-| `paper` | Read arXiv papers and search related work via MCP |
+| `tabs` | Group / archive / restore tabs. `list_tabs` and `close_tabs` are already core |
+| `automation` | Click, type, and snapshot a tab. Defaults to the session tab |
+| `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
 
 Bundled from `skills/` by `pnpm bundle-skills` into `src/agent/builtinSkills.json`. Add a scenario by adding a skill folder, not a mode.
 
-### Tab tools
+### Core tools
 
-`lib/tabAgentTools.ts` (schemas) → `runtime.sendMessage({ type: 'tab_agent_action' })` → `lib/tabAgent.ts`.
+Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so far. `load_tools` is sticky for the agent instance.
 
 | Tool | Description |
 |------|-------------|
-| `query_tabs` | Filter open tabs by keyword / domain |
-| `create_tab_group` | Group tabs by name / color |
-| `close_tabs` | Close; default `safe=true` → 7-day trash |
-| `smart_organize` | Auto-group by domain (`preview` default) |
-| `archive_inactive` | Archive idle tabs (`preview` default) |
-| `list_closed_tabs` | List trash |
-| `restore_tab` | Restore from trash |
+| `read_page` | Session tab. `card` (default), `text` (markdown slice + cursor), or `selector`. ~8k cap |
+| `eval` | MAIN-world JS on the session tab, or `tabId` |
+| `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
+| `open_url` | New tab. `background: true` leaves the user where they are |
+| `focus_tab` | Activate a tab |
+| `list_scripts` / `write_script` / `toggle_script` | Userscript and AgentScript store. See [scripts.md](scripts.md) |
+| `reload_tab` / `read_console` | Re-inject scripts / read `GM_log` |
+| `load_skill` / `read_skill_file` | Skill catalog |
+| `load_tools` | Activate `tabs`, `automation`, `screenshot`, `site`, `mcp` |
+
+`tabs` group (after `load_tools`): `query_tabs`, `create_tab_group`, `smart_organize`, `archive_inactive`, `list_closed_tabs`, `restore_tab`.
 
 ### Automation tools
 
-`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Operates on one lazy, reused, auto-recovered **background** tab (`active: false`), not the user’s current page.
+`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Loaded with the `automation` group. Each call takes an optional `tabId` and otherwise uses the session tab. `open_url({ background: true })` then `eval({ tabId })` when the action should not touch the user's page. `take_screenshot` is the `screenshot` group.
 
 | Tool | Description |
 |------|-------------|
-| `get_tab_info` | Current automation tab URL / title |
-| `navigate` | Open URL, wait for load |
+| `get_tab_info` | URL / title of the target tab |
+| `navigate` | Open URL in that tab, wait for load |
 | `page_snapshot` | Compact DOM tree |
 | `click` / `type_text` | Interact |
 | `extract_data` | text / list / table / HTML |
 | `wait_for` / `scroll` | Wait or scroll |
-| `evaluate_js` | MAIN-world JS |
-| `take_screenshot` | Visible viewport |
+| `evaluate_js` | Same escape hatch as `eval`, on the automation group |
+| `take_screenshot` | Visible viewport of that tab |
+
+### Page tools and scripts
+
+`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. Script tools live in `lib/scriptTools.ts`. WebMCP tools discovered on the tab are added to the tool bag when the `site` group loads, and are callable on the next step.
 
 ### Paper / MCP
 
 ```
-createAgent() → connectMcp(endpoint)
+load_tools({ groups: ["mcp"] }) → connectMcp(endpoint)
   → @ai-sdk/mcp (HTTP, or SSE if URL ends with /sse)
   → default http://localhost:8765/mcp
   → tools() → strip anyOf / oneOf / additionalProperties / $schema / title / default
-  → merge into ToolLoopAgent
+  → add to this agent’s tool bag (group mcp)
 ```
 
-Header MCP dot: green / yellow / red. If MCP fails, paper tools are absent and the rest of the agent still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
+Startup does not connect. Header MCP dot: green / yellow / red, updated when a connect finishes. If MCP fails, that group stays unloaded and chat still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
 
 ## Slash commands
 
