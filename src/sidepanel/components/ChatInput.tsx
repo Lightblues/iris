@@ -85,21 +85,18 @@ export function ChatInput({
     return skills.filter(skill => skill.name.startsWith(query))
   }, [slashState.isActive, slashState.query, skills])
 
-  // Detect slash command input
+  // Slash menu is only for picking a name. Once arguments follow the name, Enter sends the whole line.
   const handleChange = (newValue: string) => {
     setValue(newValue)
-    // Check if input starts with / and is at beginning of line
-    if (newValue.startsWith('/')) {
-      // Extract query: everything after / until first space (or end)
-      const spaceIndex = newValue.indexOf(' ')
-      const query = spaceIndex === -1 ? newValue.slice(1) : newValue.slice(1, spaceIndex)
+    const naming = newValue.startsWith('/') && !newValue.includes(' ')
+    if (naming) {
       setSlashState({
         isActive: true,
-        query,
+        query: newValue.slice(1),
         selectedIndex: 0,
       })
     } else {
-      setSlashState(prev => ({ ...prev, isActive: false }))
+      setSlashState(prev => prev.isActive ? { ...prev, isActive: false } : prev)
     }
   }
 
@@ -211,7 +208,13 @@ export function ChatInput({
         }))
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey)) {
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        const selected = filteredSkills[slashState.selectedIndex]
+        if (selected) handleSelectSkill(selected)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing && !value.includes(' ')) {
         e.preventDefault()
         const selected = filteredSkills[slashState.selectedIndex]
         if (selected) handleSelectSkill(selected)
