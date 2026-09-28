@@ -75,6 +75,8 @@ AgentScripts may use the same `GM_*` grants as userscripts.
 | `reload_tab` | Reload so scripts inject again |
 | `read_console` | `GM_log` buffer for a tab |
 
+The `scripts` skill carries the authoring rules: when a script beats `eval`, the `@name` upsert, grant support, `@webmcp`, and a checklist for a script that does not run. Its `reference.md` holds a full userscript and AgentScript. Deleting, importing, and exporting have no tool — they stay on the Scripts tab.
+
 The same tools are callable from an external agent through `iris.tools.list` and `iris.tools.call`. See [browser-relay.md](browser-relay.md). `load_tools` stays on the side panel. Skill tools are on the relay; they are specified in [agent.md](agent.md).
 
 The Scripts tab lists them, with scripts that match the current URL first. Each row has an enable switch. Opening a script shows a read-only source preview and earlier saved versions. Import, export, and delete stay on that tab. There is no editor.

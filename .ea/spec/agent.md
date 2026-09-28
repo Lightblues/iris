@@ -105,6 +105,7 @@ Skills live in `chrome.storage.local` (`iris_skills`). A record is a virtual dir
 | `tabs` | Group / archive / restore tabs. `list_tabs` and `close_tabs` are already core |
 | `automation` | Click, type, and snapshot a tab. Defaults to the session tab |
 | `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
+| `scripts` | Write or fix a userscript or AgentScript. Header rules, grants, `@webmcp`, and a debug checklist. See [scripts.md](scripts.md) |
 | `summarize` | Chinese summary of the current page. Call `read_page` first |
 | `create-skill` | Create or revise a skill. `write_skill` for a new one, `patch_skill` `edits` to change part of a file |
 
