@@ -57,7 +57,15 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ZIP="${{ steps.pkg.outputs.zip }}"
-          # Let gh auto-generate release notes from commits since the previous tag.
-          gh release create "${GITHUB_REF_NAME}" "${ZIP}" \
-            --title "Iris v${VERSION}" \
-            --generate-notes
+          # Version commit body is the curated notes. A version-only subject falls back to the commit list.
+          BODY="$(git log -1 --format=%B "${GITHUB_REF_NAME}")"
+          NOTES="$(printf '%s\n' "$BODY" | awk 'NR==1 && $0 ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ { next } { print }')"
+          if printf '%s' "$NOTES" | grep -q '[^[:space:]]'; then
+            gh release create "${GITHUB_REF_NAME}" "${ZIP}" \
+              --title "Iris v${VERSION}" \
+              --notes "$NOTES"
+          else
+            gh release create "${GITHUB_REF_NAME}" "${ZIP}" \
+              --title "Iris v${VERSION}" \
+              --generate-notes
+          fi
