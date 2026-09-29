@@ -80,11 +80,11 @@ The server calls the browser with a positive `id`. The browser's own sync reques
 
 ## HTTP
 
-`POST /call` with `{ "method", "params", "timeout?", "device?" }`. `timeout` is milliseconds (default 60000, max 300000). When `device` is omitted, the call goes to the browser that most recently connected or pushed history. The JSON result includes that `device`.
+`POST /call` with `{ "method", "params", "timeout?", "device?" }`. `timeout` is seconds (default 120, max 300), the same unit as the localhost ea-tools relay. When `device` is omitted, the call goes to the browser that most recently connected or pushed history. `device` may be an id, or a label when exactly one connected browser uses it. The response header `X-Iris-Device` is the id of the browser that answered.
 
-A unary method returns `{ "device", "result" }`. A streamed method returns `{ "device", "chunks", "result" }`. A method error is HTTP 200 with `{ "device", "error" }` and any chunks already received are dropped. No connected browser is 404. Timeout is 504.
+A unary method returns the method result as the body. A streamed method returns `{ "chunks", "result" }`. A method error is HTTP 400 for `invalid_params` and `method_not_found`, otherwise 502, with `{ "error": { "code", "message", "schema?" } }`. Chunks already received are dropped. No connected browser is 503 `{ "error": "extension not connected" }`. Timeout is 504 `{ "error": "timeout waiting for extension response" }`.
 
-`GET /devices` and `GET /status` return `{ "ok": true, "devices": [{ "id", "label", "lastSeen", "methods" }] }`.
+`GET /devices` and `GET /status` return `{ "extension_connected", "pending_requests", "methods", "devices" }`. `methods` belongs to the browser a call would reach when `device` is omitted. `devices` is `[{ "id", "label", "lastSeen", "methods" }]`.
 
 ## History sync
 
@@ -104,7 +104,7 @@ Rules:
 
 ## MCP
 
-`POST /mcp` is a stateless JSON-RPC endpoint with one tool, `iris_call`. Arguments are `method`, `params`, `device`, and `timeout`. Point Cursor or Claude at `https://iris.example/mcp` and send the bearer token. This does not run an Iris model loop. The external agent calls browser methods; the paired Chrome executes them.
+`POST /mcp` is a stateless JSON-RPC endpoint with one tool, `iris_call`. Arguments are `method`, `params`, `device`, and `timeout` (seconds). The tool text is the same JSON body as `POST /call`. Point Cursor or Claude at `https://iris.example/mcp` and send the bearer token. This does not run an Iris model loop. The external agent calls browser methods; the paired Chrome executes them.
 
 ## Out of scope
 

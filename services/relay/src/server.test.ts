@@ -30,7 +30,7 @@ function headers(token = TOKEN): Record<string, string> {
   return { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
 }
 
-function connectDevice(port: number, deviceId: string, onCall?: (msg: { id: number; method?: string; params?: unknown }, ws: WebSocket) => void) {
+function connectDevice(port: number, deviceId: string, onCall?: (msg: { id: number; method?: string; params?: unknown }, ws: WebSocket) => void, label = deviceId) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}/extension`)
   return new Promise<WebSocket>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('connect timeout')), 3000)
@@ -46,7 +46,7 @@ function connectDevice(port: number, deviceId: string, onCall?: (msg: { id: numb
       if (typeof msg.id === 'number' && msg.id > 0) onCall?.(msg as { id: number; method?: string; params?: unknown }, ws)
     })
     ws.on('open', () => {
-      ws.send(JSON.stringify({ v: 1, method: 'auth', params: { token: TOKEN, deviceId, label: deviceId } }))
+      ws.send(JSON.stringify({ v: 1, method: 'auth', params: { token: TOKEN, deviceId, label } }))
     })
   })
 }
@@ -98,10 +98,12 @@ test('routes calls and returns the device that answered', async () => {
         return
       }
       ws.send(JSON.stringify({ v: 1, id: msg.id, error: { code: 'invalid_params', message: 'nope' } }))
-    })
+    }, 'work')
 
     const status = await fetch(`http://127.0.0.1:${relay.port}/devices`, { headers: headers() })
-    const listed = await status.json() as { devices: { id: string }[] }
+    const listed = await status.json() as { extension_connected: boolean; methods: string[]; devices: { id: string }[] }
+    assert.equal(listed.extension_connected, true)
+    assert.deepEqual(listed.methods, ['browser.fetch'])
     assert.deepEqual(listed.devices.map(device => device.id).sort(), ['company', 'home'])
 
     const newest = await fetch(`http://127.0.0.1:${relay.port}/call`, {
@@ -109,28 +111,35 @@ test('routes calls and returns the device that answered', async () => {
       headers: headers(),
       body: JSON.stringify({ method: 'browser.fetch', params: { url: 'https://example.com' } }),
     })
-    const newestBody = await newest.json() as { device: string; chunks: unknown[]; result: { at: string } }
-    assert.equal(newestBody.device, 'company')
+    const newestBody = await newest.json() as { chunks: unknown[]; result: { at: string } }
+    assert.equal(newest.headers.get('x-iris-device'), 'company')
     assert.equal(newestBody.chunks.length, 1)
     assert.equal(newestBody.result.at, 'company')
+
+    const labeled = await fetch(`http://127.0.0.1:${relay.port}/call`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ method: 'browser.fetch', device: 'work', params: {} }),
+    })
+    assert.equal(labeled.headers.get('x-iris-device'), 'company')
 
     const chosen = await fetch(`http://127.0.0.1:${relay.port}/call`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ method: 'iris.tools.call', device: 'home', params: {} }),
     })
-    const chosenBody = await chosen.json() as { device: string; result: { at: string } }
-    assert.equal(chosenBody.device, 'home')
-    assert.equal(chosenBody.result.at, 'home')
+    const chosenBody = await chosen.json() as { at: string }
+    assert.equal(chosen.headers.get('x-iris-device'), 'home')
+    assert.equal(chosenBody.at, 'home')
 
     const failed = await fetch(`http://127.0.0.1:${relay.port}/call`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ method: 'iris.tools.call', device: 'company', params: {} }),
     })
-    const failedBody = await failed.json() as { device: string; error: { code: string } }
-    assert.equal(failed.status, 200)
-    assert.equal(failedBody.device, 'company')
+    const failedBody = await failed.json() as { error: { code: string } }
+    assert.equal(failed.status, 400)
+    assert.equal(failed.headers.get('x-iris-device'), 'company')
     assert.equal(failedBody.error.code, 'invalid_params')
 
     await rpc(home, 'sync.push', { conversations: [{ id: 'c1', lastUpdated: 1, title: 'home' }] })
@@ -139,16 +148,16 @@ test('routes calls and returns the device that answered', async () => {
       headers: headers(),
       body: JSON.stringify({ method: 'browser.list_tabs' }),
     })
-    const afterBody = await afterPush.json() as { device: string; result: { at: string } }
-    assert.equal(afterBody.device, 'home')
-    assert.equal(afterBody.result.at, 'home')
+    const afterBody = await afterPush.json() as { at: string }
+    assert.equal(afterPush.headers.get('x-iris-device'), 'home')
+    assert.equal(afterBody.at, 'home')
 
     const missing = await fetch(`http://127.0.0.1:${relay.port}/call`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ method: 'ping', device: 'missing' }),
     })
-    assert.equal(missing.status, 404)
+    assert.equal(missing.status, 503)
     home.close()
     company.close()
   } finally {
@@ -236,7 +245,7 @@ test('mcp iris_call forwards to the browser', async () => {
     })
     const body = await call.json() as { result: { isError: boolean; content: { text: string }[] } }
     assert.equal(body.result.isError, false)
-    assert.equal(JSON.parse(body.result.content[0].text).result.tabs, 1)
+    assert.equal(JSON.parse(body.result.content[0].text).tabs, 1)
   } finally {
     await relay.stop()
   }

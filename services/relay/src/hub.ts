@@ -36,7 +36,7 @@ interface Pending {
   socket: WebSocket
   chunks: unknown[]
   timer: NodeJS.Timeout
-  resolve: (value: { device: string; result: unknown; chunks?: unknown[] }) => void
+  resolve: (value: { device: string; body: unknown }) => void
   reject: (error: RelayCallError) => void
 }
 
@@ -78,8 +78,23 @@ export function createHub(store: RelayStore) {
     }))
   }
 
+  function status() {
+    const active = pick()
+    return {
+      extension_connected: devices.size > 0,
+      pending_requests: pending.size,
+      methods: active?.methods ?? [],
+      devices: listDevices(),
+    }
+  }
+
   function pick(deviceId?: string): Device | undefined {
-    if (deviceId) return devices.get(deviceId)
+    if (deviceId) {
+      const exact = devices.get(deviceId)
+      if (exact) return exact
+      const labeled = [...devices.values()].filter(device => device.label === deviceId)
+      return labeled.length === 1 ? labeled[0] : undefined
+    }
     let best: Device | undefined
     for (const device of devices.values()) {
       if (!best || device.lastActive > best.lastActive) best = device
@@ -162,39 +177,67 @@ export function createHub(store: RelayStore) {
         const message = typeof error === 'object' && error && 'message' in error
           ? String((error as { message: unknown }).message)
           : String(error)
-        call.reject(new RelayCallError(200, code, message, { device: device.id, details: error }))
+        const status = code === 'method_not_found' || code === 'invalid_params' ? 400 : 502
+        call.reject(new RelayCallError(status, code, message, { device: device.id, details: publicError(error, code, message) }))
         return
       }
+      const result = msg.result !== undefined ? msg.result : {}
       call.resolve({
         device: device.id,
-        result: msg.result,
-        ...(call.chunks.length ? { chunks: call.chunks } : {}),
+        body: call.chunks.length ? { chunks: call.chunks, result } : result,
       })
     }
   }
 
-  function callDevice(deviceId: string | undefined, method: string, params: unknown, timeoutMs: number) {
+  function callDevice(deviceId: string | undefined, method: string, params: unknown, timeoutSec: number) {
     const device = pick(deviceId)
     if (!device) {
-      return Promise.reject(new RelayCallError(404, 'no_device', deviceId ? `device offline: ${deviceId}` : 'no browser connected'))
+      return Promise.reject(new RelayCallError(503, 'no_device', 'extension not connected', deviceId ? { device: deviceId } : undefined))
     }
     const id = nextId++
-    const timeout = Math.min(Math.max(timeoutMs || 60_000, 1000), 300_000)
-    return new Promise<{ device: string; result: unknown; chunks?: unknown[] }>((resolve, reject) => {
+    const seconds = callSeconds(timeoutSec)
+    return new Promise<{ device: string; body: unknown }>((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id)
-        reject(new RelayCallError(504, 'timeout', `timed out after ${timeout}ms`, { device: device.id }))
-      }, timeout)
+        reject(new RelayCallError(504, 'timeout', 'timeout waiting for extension response', { device: device.id }))
+      }, seconds * 1000)
       pending.set(id, { deviceId: device.id, socket: device.socket, chunks: [], timer, resolve, reject })
       console.log(`[iris-relay] call device=${device.id} method=${method}`)
       send(device.socket, { v: 1, id, method, params: params ?? {} })
     })
   }
 
-  return { register, listDevices, callDevice }
+  return { register, listDevices, status, callDevice }
 }
 
 export type RelayHub = ReturnType<typeof createHub>
+
+function callSeconds(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 120
+  return Math.min(value, 300)
+}
+
+function publicError(error: unknown, code: string, message: string): Record<string, unknown> {
+  const body: Record<string, unknown> = { code, message }
+  if (error && typeof error === 'object') {
+    const row = error as { schema?: unknown; methods?: unknown }
+    if (row.schema !== undefined) body.schema = row.schema
+    if (row.methods !== undefined) body.methods = row.methods
+  }
+  return body
+}
+
+export function relayErrorPayload(error: unknown): { status: number; body: unknown; device?: string } {
+  if (!(error instanceof RelayCallError)) {
+    return { status: 500, body: { error: { code: 'internal', message: 'internal error' } } }
+  }
+  if (error.status === 503) return { status: 503, body: { error: 'extension not connected' }, device: error.device }
+  if (error.status === 504) return { status: 504, body: { error: 'timeout waiting for extension response' }, device: error.device }
+  const details = error.details && typeof error.details === 'object'
+    ? error.details
+    : { code: error.code, message: error.message }
+  return { status: error.status, body: { error: details }, device: error.device }
+}
 
 function asIndex(value: unknown): SyncIndexEntry[] {
   if (!Array.isArray(value)) return []

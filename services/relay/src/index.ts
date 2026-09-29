@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { WebSocketServer } from 'ws'
-import { RelayCallError, createHub } from './hub.ts'
+import { createHub, relayErrorPayload } from './hub.ts'
 import { handleMcp } from './mcp.ts'
 import { openStore, type SyncTombstone } from './store.ts'
 
@@ -76,7 +76,7 @@ export async function startRelay(options: RelayOptions) {
     }
 
     if (req.method === 'GET' && (url.pathname === '/status' || url.pathname === '/devices')) {
-      sendJson(res, 200, { ok: true, devices: hub.listDevices() })
+      sendJson(res, 200, hub.status())
       return
     }
 
@@ -105,9 +105,9 @@ export async function startRelay(options: RelayOptions) {
           typeof body.device === 'string' ? body.device : undefined,
           body.method,
           body.params ?? {},
-          typeof body.timeout === 'number' ? body.timeout : 60_000,
+          typeof body.timeout === 'number' ? body.timeout : 120,
         )
-        sendJson(res, 200, result)
+        sendJson(res, 200, result.body, result.device ? { 'X-Iris-Device': result.device } : undefined)
       } catch (error) {
         sendCallError(res, error)
       }
@@ -165,21 +165,20 @@ function limited(hits: Map<string, { n: number; reset: number }>, ip: string): b
   return row.n > 600
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown) {
+function sendJson(res: ServerResponse, status: number, body: unknown, extra?: Record<string, string>) {
   if (res.headersSent) return
   const payload = JSON.stringify(body)
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(payload) })
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(payload),
+    ...extra,
+  })
   res.end(payload)
 }
 
 function sendCallError(res: ServerResponse, error: unknown) {
-  if (error instanceof RelayCallError) {
-    const errorBody = { code: error.code, message: error.message }
-    const body = { device: error.device, error: error.status === 200 ? (error.details ?? errorBody) : errorBody }
-    sendJson(res, error.status, body)
-    return
-  }
-  sendJson(res, 500, { error: { code: 'internal', message: 'internal error' } })
+  const payload = relayErrorPayload(error)
+  sendJson(res, payload.status, payload.body, payload.device ? { 'X-Iris-Device': payload.device } : undefined)
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
