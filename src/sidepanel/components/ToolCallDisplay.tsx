@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Wrench, CheckCircle2, ChevronDown, ChevronUp, Copy, Check, AlertCircle } from 'lucide-react'
+import { getScreenshotDataUrl } from '@/lib/screenshotStore'
 
 // Accept any tool UI part shape from AI SDK (static 'tool-{name}' or dynamic 'dynamic-tool')
 export interface ToolPartProps {
@@ -36,6 +37,8 @@ export function ToolCallDisplay({ part }: ToolCallDisplayProps) {
   }
 
   const inputStr = part.input ? JSON.stringify(part.input, null, 2) : '{}'
+  const imageId = part.output && typeof part.output === 'object' ? part.output.imageId : undefined
+  const previewUrl = typeof imageId === 'string' ? getScreenshotDataUrl(imageId) : undefined
   const outputStr = part.output
     ? typeof part.output === 'string'
       ? part.output
@@ -91,6 +94,14 @@ export function ToolCallDisplay({ part }: ToolCallDisplayProps) {
                 {inputStr}
               </pre>
             </div>
+          )}
+
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="Viewport screenshot"
+              className="max-w-xs max-h-48 rounded border border-border/50"
+            />
           )}
 
           {/* Output/Result */}

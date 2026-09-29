@@ -1,3 +1,5 @@
+import { rememberScreenshot } from './screenshotStore'
+
 // Automation Engine: browser automation via chrome.scripting.executeScript
 // Operates on a dedicated background tab (active: false) to avoid blocking user
 
@@ -332,19 +334,19 @@ export const automationTools = {
 
   take_screenshot: {
     execute: async (params: { tabId?: number } = {}) => {
-      const tabId = await tabFor(params)
+      const tabId = params.tabId
+      if (typeof tabId !== 'number' || tabId <= 0) {
+        throw new Error('tabId is required')
+      }
       const tab = await chrome.tabs.get(tabId)
-      // Temporarily activate the automation tab for captureVisibleTab
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
       await chrome.tabs.update(tabId, { active: true })
-      // Small delay to ensure tab is rendered
       await new Promise(r => setTimeout(r, 300))
       try {
         const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId!, { format: 'png' })
-        return { dataUrl }
+        return { captured: true, tabId, ...rememberScreenshot(dataUrl) }
       } finally {
-        // Restore previously active tab
-        if (activeTab?.id) await chrome.tabs.update(activeTab.id, { active: true })
+        if (activeTab?.id && activeTab.id !== tabId) await chrome.tabs.update(activeTab.id, { active: true })
       }
     }
   }
