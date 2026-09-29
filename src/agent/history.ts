@@ -1,8 +1,35 @@
 import type { IrisMessage, Conversation, ConversationStore } from './types'
 
-const STORAGE_KEY = 'iris_agent_conversations'
+import { mergeConversations, type SyncTombstone } from './conversationSync'
+
+export const CONVERSATION_STORAGE_KEY = 'iris_agent_conversations'
+const STORAGE_KEY = CONVERSATION_STORAGE_KEY
+const TOMBSTONE_KEY = 'iris_conversation_tombstones'
 const MAX_CONVERSATIONS = 100
 const MAX_MESSAGES = 100
+const SYNC_DEBOUNCE_MS = 2000
+
+let applyingRemote = false
+const pendingSync = new Map<string, Conversation>()
+let syncTimer: ReturnType<typeof setTimeout> | null = null
+
+function sendSync(conversations?: Conversation[], tombstones?: SyncTombstone[]) {
+  void chrome.runtime.sendMessage({ type: 'iris_remote_sync_push', conversations, tombstones }).catch(() => {})
+}
+
+function notifyRemote(conversations?: Conversation[], tombstones?: SyncTombstone[]) {
+  if (applyingRemote) return
+  if (tombstones?.length) sendSync(undefined, tombstones)
+  for (const conv of conversations ?? []) pendingSync.set(conv.id, conv)
+  if (!pendingSync.size) return
+  if (syncTimer) clearTimeout(syncTimer)
+  syncTimer = setTimeout(() => {
+    syncTimer = null
+    const batch = [...pendingSync.values()]
+    pendingSync.clear()
+    sendSync(batch)
+  }, SYNC_DEBOUNCE_MS)
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -107,13 +134,54 @@ async function loadStore(): Promise<ConversationStore> {
 
 async function saveStore(store: ConversationStore): Promise<void> {
   store.conversations.sort((a, b) => b.lastUpdated - a.lastUpdated)
-  if (store.conversations.length > MAX_CONVERSATIONS) {
+  const dropped = store.conversations.length > MAX_CONVERSATIONS
+    ? store.conversations.slice(MAX_CONVERSATIONS)
+    : []
+  if (dropped.length) {
     store.conversations = store.conversations.slice(0, MAX_CONVERSATIONS)
     if (store.activeConversationId && !store.conversations.find(c => c.id === store.activeConversationId)) {
       store.activeConversationId = null
     }
   }
   await chrome.storage.local.set({ [STORAGE_KEY]: store })
+  if (dropped.length) {
+    await rememberTombstones(dropped.map(conv => ({ id: conv.id, deletedAt: Date.now() })), true)
+  }
+}
+
+export async function loadTombstones(): Promise<SyncTombstone[]> {
+  const bag = await chrome.storage.local.get(TOMBSTONE_KEY)
+  const stored = bag[TOMBSTONE_KEY]
+  if (!Array.isArray(stored)) return []
+  return stored.filter((item): item is SyncTombstone => (
+    !!item && typeof item.id === 'string' && typeof item.deletedAt === 'number'
+  ))
+}
+
+async function rememberTombstones(items: SyncTombstone[], notify: boolean): Promise<void> {
+  if (!items.length) return
+  const merged = mergeConversations([], await loadTombstones(), [], items).tombstones
+  await chrome.storage.local.set({ [TOMBSTONE_KEY]: merged })
+  if (notify) sendSync(undefined, items)
+}
+
+export async function applyRemoteSync(incoming: Conversation[], incomingTombstones: SyncTombstone[]): Promise<void> {
+  applyingRemote = true
+  try {
+    const store = await loadStore()
+    const tombs = await loadTombstones()
+    const normalized = incoming.map(conv => {
+      const messages = Array.isArray(conv.messages) ? conv.messages : []
+      const index = conversationIndex(messages)
+      return { ...conv, messages, urls: index.urls, skills: index.skills }
+    })
+    const merged = mergeConversations(store.conversations, tombs, normalized, incomingTombstones)
+    store.conversations = merged.conversations
+    await chrome.storage.local.set({ [TOMBSTONE_KEY]: merged.tombstones })
+    await saveStore(store)
+  } finally {
+    applyingRemote = false
+  }
 }
 
 export async function loadAllConversations(): Promise<ConversationStore> {
@@ -162,6 +230,7 @@ export async function createConversation(messages: IrisMessage[] = []): Promise<
   store.conversations.unshift(conv)
   store.activeConversationId = conv.id
   await saveStore(store)
+  notifyRemote([conv])
   return conv
 }
 
@@ -176,19 +245,25 @@ export async function updateConversation(id: string, messages: IrisMessage[]): P
   conv.lastUpdated = Date.now()
   if (conv.title === 'New Chat') conv.title = generateTitle(messages)
   await saveStore(store)
+  notifyRemote([conv])
 }
 
 export async function deleteConversation(id: string): Promise<void> {
   const store = await loadStore()
+  const existed = store.conversations.some(c => c.id === id)
   store.conversations = store.conversations.filter(c => c.id !== id)
   if (store.activeConversationId === id) {
     store.activeConversationId = store.conversations[0]?.id ?? null
   }
   await saveStore(store)
+  if (existed) await rememberTombstones([{ id, deletedAt: Date.now() }], true)
 }
 
 export async function clearAllConversations(): Promise<void> {
+  const store = await loadStore()
+  const tombstones = store.conversations.map(conv => ({ id: conv.id, deletedAt: Date.now() }))
   await chrome.storage.local.remove(STORAGE_KEY)
+  if (tombstones.length) await rememberTombstones(tombstones, true)
 }
 
 export async function exportConversations(): Promise<void> {
@@ -211,6 +286,7 @@ export async function importConversations(file: File): Promise<{ success: number
 
     const store = await loadStore()
     const existingIds = new Set(store.conversations.map(c => c.id))
+    const added: Conversation[] = []
     let success = 0, skipped = 0
 
     for (const conv of imported) {
@@ -218,7 +294,7 @@ export async function importConversations(file: File): Promise<{ success: number
       if (existingIds.has(conv.id)) { skipped++; continue }
       const messages = conv.messages.slice(-MAX_MESSAGES)
       const index = conversationIndex(messages)
-      store.conversations.push({
+      const next: Conversation = {
         id: conv.id,
         title: conv.title || 'Imported',
         messages,
@@ -226,11 +302,14 @@ export async function importConversations(file: File): Promise<{ success: number
         skills: index.skills,
         createdAt: conv.createdAt || Date.now(),
         lastUpdated: conv.lastUpdated || Date.now(),
-      })
+      }
+      store.conversations.push(next)
+      added.push(next)
       existingIds.add(conv.id)
       success++
     }
     await saveStore(store)
+    notifyRemote(added)
     return { success, skipped }
   } catch (e) {
     return { success: 0, skipped: 0, error: e instanceof Error ? e.message : 'Unknown error' }

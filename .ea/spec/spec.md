@@ -34,10 +34,11 @@ The one background actuator that *is* in scope: **browser relay**. External agen
 | **Scripts** | Core | Standard userscripts and WebMCP AgentScripts. Agent-authored, persisted, imported and exported. | [scripts.md](scripts.md) |
 | **Page enhancements** | Maintain | FAB and command menu. Entry points only. Do not expand unless they serve Agent or Knowledge. | [page-enhancements.md](page-enhancements.md) |
 | **Browser relay** | Core-adjacent | WS client. Page/tab tools plus `iris.*` methods for external agents. | [browser-relay.md](browser-relay.md) |
+| **Remote relay** | Optional | History sync and public tool calls through a server you run. Off by default. | [remote-relay.md](remote-relay.md) |
 
 Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
 
-**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. A later zip export or a thin external sync service can be added when asked.
+**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. A later zip export can be added when asked. Cross-browser history sync is the optional remote relay.
 
 ## Architecture
 
@@ -92,6 +93,7 @@ Chrome may leave a newly opened side panel blank until a second UI gesture (shor
 | LLM / Agent | API key, base URL, default model, favourites (from `/v1/models`), temperature, max output tokens, max steps |
 | MCP | Endpoint (default `http://localhost:8765/mcp`). Connected when the agent calls `load_tools({ groups: ["mcp"] })`; failure leaves chat usable without those tools |
 | Browser relay | Enabled, port (33007), token (`ea-browser-relay-local`). Must match ea-tools `browser_relay.*` |
+| Remote relay | Off by default. URL, token, device name. See [remote-relay.md](remote-relay.md) |
 | Per-chat model | Searchable combobox in the chat header; favourites pinned |
 
 Other settings (FAB patterns, chat-export directory) are documented in the layer that owns them. Skills are in [agent.md](agent.md).
@@ -101,4 +103,4 @@ Other settings (FAB patterns, chat-export directory) are documented in the layer
 1. This file — what Iris is, and what not to build.
 2. [agent.md](agent.md) — how the core surface actually runs.
 3. [scripts.md](scripts.md) — userscripts, WebMCP, and why they do not own the FAB.
-4. [knowledge.md](knowledge.md) / [page-enhancements.md](page-enhancements.md) / [browser-relay.md](browser-relay.md) — only when touching those layers.
+4. [knowledge.md](knowledge.md) / [page-enhancements.md](page-enhancements.md) / [browser-relay.md](browser-relay.md) / [remote-relay.md](remote-relay.md) — only when touching those layers.

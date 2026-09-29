@@ -20,4 +20,10 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['services/relay/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

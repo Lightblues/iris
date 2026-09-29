@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, Upload, Plus, FolderOpen, RefreshCw, Unlink, Star, Loader2 } from 'lucide-react'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings, maskApiKey } from '@/lib/sidepanelSettings'
+import { remoteHttpOrigin } from '@/lib/remoteRelayUrl'
+import type { RemoteRelayState } from '@/background/remoteRelay'
 import {
   getChatExportDirectoryHandle,
   requestChatExportDirectoryAccess,
@@ -46,6 +48,28 @@ async function probeRelay(port: number, token: string): Promise<{ kind: RelaySta
   }
 }
 
+async function probeRemote(url: string, token: string, deviceId: string): Promise<{ kind: RelayStatusKind; text: string }> {
+  const origin = remoteHttpOrigin(url)
+  if (!origin) return { kind: 'disconnected', text: 'Enter a wss:// or https:// URL' }
+  if (!token) return { kind: 'disconnected', text: 'Token is required' }
+  try {
+    const resp = await fetch(`${origin}/status`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!resp.ok) {
+      return {
+        kind: 'disconnected',
+        text: resp.status === 401 ? 'Auth failed — token mismatch' : `Server error: ${resp.status}`,
+      }
+    }
+    const data = await resp.json() as { devices?: { id: string; label: string }[] }
+    const mine = data.devices?.find(device => device.id === deviceId)
+    return mine
+      ? { kind: 'connected', text: `Connected as ${mine.label}` }
+      : { kind: 'disconnected', text: 'Server running, this browser not connected' }
+  } catch {
+    return { kind: 'disconnected', text: 'Cannot reach remote relay' }
+  }
+}
+
 export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
   const [modelsFetching, setModelsFetching] = useState(false)
@@ -58,6 +82,10 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
   const [relayStatus, setRelayStatus] = useState<string | null>(null)
   const [relayStatusKind, setRelayStatusKind] = useState<RelayStatusKind>('checking')
   const [relayChecking, setRelayChecking] = useState(false)
+  const [remoteState, setRemoteState] = useState<RemoteRelayState | null>(null)
+  const [remoteStatus, setRemoteStatus] = useState<string | null>(null)
+  const [remoteStatusKind, setRemoteStatusKind] = useState<RelayStatusKind>('disconnected')
+  const [remoteChecking, setRemoteChecking] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -70,6 +98,9 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
     setRelayStatus('Checking...')
     probeRelay(settings.browserRelayPort || 33007, settings.browserRelayToken || 'ea-browser-relay-local')
       .then((r) => { setRelayStatusKind(r.kind); setRelayStatus(r.text) })
+    chrome.runtime.sendMessage({ type: 'remote_relay_status' })
+      .then((state: RemoteRelayState) => setRemoteState(state))
+      .catch(() => {})
   }, [])
 
   // --- Model handlers ---
@@ -191,6 +222,28 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
     setRelayStatusKind(r.kind)
     setRelayStatus(r.text)
     setRelayChecking(false)
+  }
+
+  const checkRemoteRelay = async () => {
+    setRemoteChecking(true)
+    setRemoteStatusKind('checking')
+    setRemoteStatus('Checking...')
+    try {
+      try {
+        await chrome.runtime.sendMessage({ type: 'remote_relay_reconnect' })
+      } catch { /* SW starting */ }
+      await new Promise(resolve => setTimeout(resolve, 800))
+      const state = await chrome.runtime.sendMessage({ type: 'remote_relay_status' }) as RemoteRelayState
+      setRemoteState(state)
+      const probed = await probeRemote(settings.remoteRelayUrl || '', settings.remoteRelayToken || '', state?.deviceId || '')
+      setRemoteStatusKind(probed.kind)
+      setRemoteStatus(state?.syncError ? `${probed.text}. Sync: ${state.syncError}` : probed.text)
+    } catch {
+      setRemoteStatusKind('disconnected')
+      setRemoteStatus('Cannot reach the extension')
+    } finally {
+      setRemoteChecking(false)
+    }
   }
 
   return (
@@ -496,6 +549,81 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
         <p className="text-[10px] text-muted-foreground">
           Exposes this browser to ea-tools agents (<code className="font-mono">browser_fetch</code>, tab tools).
           Start the server with <code className="font-mono">ea-tools browser-relay serve</code>.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeader title="Remote Relay" />
+
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            checked={settings.remoteRelayEnabled === true}
+            onChange={(e) => onSettingsChange({ remoteRelayEnabled: e.target.checked })}
+          />
+          Sync history and expose tools through your relay
+        </label>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">URL</label>
+          <Input
+            type="text"
+            value={settings.remoteRelayUrl || ''}
+            onChange={(e) => onSettingsChange({ remoteRelayUrl: e.target.value })}
+            placeholder="wss://iris.example"
+            className="h-8 text-sm font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Token</label>
+          <Input
+            type="text"
+            value={settings.remoteRelayToken || ''}
+            onChange={(e) => onSettingsChange({ remoteRelayToken: e.target.value })}
+            className="h-8 text-sm font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Device name</label>
+          <Input
+            type="text"
+            value={settings.remoteRelayLabel || ''}
+            onChange={(e) => onSettingsChange({ remoteRelayLabel: e.target.value })}
+            placeholder="home"
+            className="h-8 text-sm font-mono"
+          />
+          {remoteState?.deviceId && (
+            <p className="text-xs text-muted-foreground font-mono">device {remoteState.deviceId}</p>
+          )}
+        </div>
+
+        {remoteStatus && (
+          <div className={`text-xs p-2 rounded ${
+            remoteStatusKind === 'connected'
+              ? 'text-green-600 bg-green-500/10'
+              : remoteStatusKind === 'checking'
+                ? 'text-amber-600 bg-amber-500/10'
+                : 'text-destructive bg-destructive/10'
+          }`}>
+            {remoteStatus}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void checkRemoteRelay()}
+          disabled={remoteChecking || settings.remoteRelayEnabled !== true}
+          className="h-7 text-xs"
+        >
+          <RefreshCw className={`h-3 w-3 mr-1 ${remoteChecking ? 'animate-spin' : ''}`} />
+          Check Connection
+        </Button>
+
+        <p className="text-[10px] text-muted-foreground">
+          This browser connects out to your server. History and tool calls are readable there. The local ea-tools relay is unchanged.
         </p>
       </section>
 

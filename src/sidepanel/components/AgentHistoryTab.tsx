@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Plus, Trash2, MessageSquare, Download, Upload, Copy, Globe } from 'lucide-react'
-import { loadAllConversations, deleteConversation, exportConversations, importConversations, conversationSearchText, displayUrl, samePage } from '@/agent/history'
+import { loadAllConversations, deleteConversation, exportConversations, importConversations, conversationSearchText, displayUrl, samePage, CONVERSATION_STORAGE_KEY } from '@/agent/history'
 import type { Conversation } from '@/agent/types'
 import { historyRoute, parseIrisRoute } from '@/lib/irisRoute'
 import { getSessionUsage, formatModelShort, formatCost } from '@/lib/tokenUtils'
@@ -24,11 +24,17 @@ export function AgentHistoryTab({ activeConversationId, pageUrl, onSelectConvers
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    loadConversations()
+    void loadConversations()
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area !== 'local' || !changes[CONVERSATION_STORAGE_KEY]) return
+      void loadConversations(true)
+    }
+    chrome.storage.onChanged.addListener(onChanged)
+    return () => chrome.storage.onChanged.removeListener(onChanged)
   }, [activeConversationId])
 
-  const loadConversations = async () => {
-    setLoading(true)
+  const loadConversations = async (quiet = false) => {
+    if (!quiet) setLoading(true)
     const store = await loadAllConversations()
     setConversations(store.conversations)
     setLoading(false)

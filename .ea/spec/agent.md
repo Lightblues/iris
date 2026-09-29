@@ -189,6 +189,7 @@ Typed in chat input, not the page command menu. Spec of the menu: [page-enhancem
 ## Persistence
 
 - Store: `iris_agent_conversations` in `chrome.storage.local` (max 100 conversations, 100 messages each)
+- Optional remote relay copies these records to a server you run so another browser can merge them. `activeConversationId` and the open tab session stay on this device. See [remote-relay.md](remote-relay.md)
 - Images stay on the user message as `file` parts (`mediaType` + `url` data URL). Same record as the text, so history, fork, and rerun keep them. Cap is 5MB per image; the extension has `unlimitedStorage`
 - Lazy create on first send; title from first user text
 - `urls` lists pages attached through a context card, full page, or selection. `skills` lists names passed to `load_skill`. Both are rebuilt when messages are saved, and filled in for older transcripts on the next load

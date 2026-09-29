@@ -1,5 +1,6 @@
 import { initSidePanel, toggleForTab, openForTab, noteDerivedGesture } from './sidePanel';
 import { initBrowserRelay, isRelayTab, getRelayState, reconnectRelay } from './browserRelay';
+import { getRemoteRelayState, initRemoteRelay, queueRemoteSync, reconnectRemoteRelay } from './remoteRelay';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -34,6 +35,7 @@ chrome.alarms.clear('vesta-sync');
 
 initSidePanel();
 initBrowserRelay();
+initRemoteRelay();
 ensureSeedScripts().then(() => syncUserScripts()).catch(err => console.warn('[Iris] scripts:', err));
 
 // Listen for extension installation
@@ -248,6 +250,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Handle messages from content scripts, popup, or sidepanel
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+  if (message?.type === 'iris_remote_sync_push') {
+    queueRemoteSync(message.conversations, message.tombstones)
+    sendResponse({ ok: true })
+    return true
+  }
+
   console.log('[Iris] Message received:', message);
 
   // Open native side panel for in-page entry points such as the FAB.
@@ -389,6 +397,17 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
   if (message.type === 'browser_relay_reconnect') {
     sendResponse(reconnectRelay());
     return true;
+  }
+
+  if (message.type === 'remote_relay_status') {
+    getRemoteRelayState().then(sendResponse)
+    return true
+  }
+
+  if (message.type === 'remote_relay_reconnect') {
+    reconnectRemoteRelay()
+    getRemoteRelayState().then(sendResponse)
+    return true
   }
 
   sendResponse({ success: true, message: 'ok' });

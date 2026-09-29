@@ -152,10 +152,18 @@ function disconnect(): void {
   closeSocket()
 }
 
+export interface RelayFrame {
+  v?: number
+  action?: string
+  method?: string
+  id?: number
+  params?: Record<string, unknown>
+}
+
 async function handleMessage(raw: string): Promise<void> {
-  let msg: { v?: number; action?: string; method?: string; id?: number; params?: Record<string, unknown> }
+  let msg: RelayFrame
   try {
-    msg = JSON.parse(raw)
+    msg = JSON.parse(raw) as RelayFrame
   } catch {
     console.error('[Iris relay] invalid JSON:', raw)
     return
@@ -173,13 +181,17 @@ async function handleMessage(raw: string): Promise<void> {
     console.warn('[Iris relay] unknown message:', msg)
     return
   }
+  await answerRelayRequest(msg, send)
+}
 
+export async function answerRelayRequest(msg: RelayFrame, emit: (frame: Record<string, unknown>) => void): Promise<void> {
+  if (msg.id == null) return
   const name = msg.method || msg.action
   const modern = typeof msg.method === 'string' || (!!name && name.includes('.'))
   let streamed = false
   const chunk = (result: unknown) => {
     streamed = true
-    send(modern
+    emit(modern
       ? { v: 1, id: msg.id, event: 'chunk', result }
       : { id: msg.id, event: 'chunk', result })
   }
@@ -187,10 +199,10 @@ async function handleMessage(raw: string): Promise<void> {
   try {
     const result = await callRelayMethod(name, msg.params || {}, chunk)
     if (!modern) {
-      send({ id: msg.id, result })
+      emit({ id: msg.id, result })
       return
     }
-    send(streamed
+    emit(streamed
       ? { v: 1, id: msg.id, event: 'end', result }
       : { v: 1, id: msg.id, result })
   } catch (e) {
@@ -198,14 +210,14 @@ async function handleMessage(raw: string): Promise<void> {
       const message = e instanceof RelayError && e.code === 'method_not_found'
         ? `unknown action: ${name}`
         : (e as Error).message || String(e)
-      send({ id: msg.id, error: message })
+      emit({ id: msg.id, error: message })
       return
     }
     const code = e instanceof RelayError ? e.code : 'internal'
     const error: Record<string, unknown> = { code, message: (e as Error).message || String(e) }
     if (e instanceof RelayError && e.schema) error.schema = e.schema
     if (e instanceof RelayError && e.methods) error.methods = e.methods
-    send({ v: 1, id: msg.id, error })
+    emit({ v: 1, id: msg.id, error })
   }
 }
 

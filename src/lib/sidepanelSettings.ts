@@ -20,6 +20,10 @@ export interface SidePanelSettings {
   browserRelayEnabled?: boolean // Connect to ea-tools browser relay (default true)
   browserRelayPort?: number // Relay server port (default 33007)
   browserRelayToken?: string // Shared token with ~/.ea/tools/config.yaml
+  remoteRelayEnabled?: boolean // Outbound public relay (default off)
+  remoteRelayUrl?: string // wss:// or https:// host
+  remoteRelayToken?: string
+  remoteRelayLabel?: string // Device name, for example home or company
 }
 
 const DEFAULT_FAVOURITE_MODELS = [
@@ -42,6 +46,10 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
   browserRelayEnabled: true,
   browserRelayPort: 33007,
   browserRelayToken: 'ea-browser-relay-local',
+  remoteRelayEnabled: false,
+  remoteRelayUrl: '',
+  remoteRelayToken: '',
+  remoteRelayLabel: '',
 }
 
 export const SETTINGS_KEY = 'sidepanel_settings'
@@ -167,6 +175,10 @@ export function importSettings(jsonString: string): { success: true; settings: S
       browserRelayEnabled: typeof parsed.browserRelayEnabled === 'boolean' ? parsed.browserRelayEnabled : DEFAULT_SETTINGS.browserRelayEnabled,
       browserRelayPort: typeof parsed.browserRelayPort === 'number' ? parsed.browserRelayPort : DEFAULT_SETTINGS.browserRelayPort,
       browserRelayToken: typeof parsed.browserRelayToken === 'string' ? parsed.browserRelayToken : DEFAULT_SETTINGS.browserRelayToken,
+      remoteRelayEnabled: typeof parsed.remoteRelayEnabled === 'boolean' ? parsed.remoteRelayEnabled : DEFAULT_SETTINGS.remoteRelayEnabled,
+      remoteRelayUrl: typeof parsed.remoteRelayUrl === 'string' ? parsed.remoteRelayUrl : DEFAULT_SETTINGS.remoteRelayUrl,
+      remoteRelayToken: typeof parsed.remoteRelayToken === 'string' ? parsed.remoteRelayToken : DEFAULT_SETTINGS.remoteRelayToken,
+      remoteRelayLabel: typeof parsed.remoteRelayLabel === 'string' ? parsed.remoteRelayLabel : DEFAULT_SETTINGS.remoteRelayLabel,
     }
 
     return { success: true, settings }

@@ -10,7 +10,8 @@
     "sync-manifest-version": "tsx scripts/sync-manifest-version.ts",
     "version": "tsx scripts/sync-manifest-version.ts",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "relay": "pnpm --dir services/relay start"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.21",
