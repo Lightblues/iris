@@ -16,7 +16,7 @@ Call load_tools({ groups }) before using a group. The schemas appear on the next
 - tabs — group, archive, and restore tabs
 - automation — click, type, snapshot, and extract on a tab (defaults to this session)
 - screenshot — capture the visible tab
-- site — WebMCP tools registered on this tab
+- site — WebMCP tools registered on this tab. Call load_tools({ groups: ["site"] }) again after reload_tab; it re-reads the page
 - mcp — local ea-tools such as arXiv search
 
 Skills are reusable instructions stored in this extension. Every SKILL.md starts with YAML frontmatter holding name and description, followed by the instructions. list_skills shows every skill. load_skill returns one SKILL.md body. read_skill_file reads another file in that skill. write_skill creates a skill or replaces every file. patch_skill edits an existing skill: pass edits for a targeted string replacement, files only to add a file or rewrite one whole. read_skill_history recovers text from a snapshot taken before an earlier edit. Edits apply immediately. Builtin skills cannot be edited or deleted; toggle_skill can disable them. When the user wants a new or revised skill, load_skill create-skill first. A skill written in this chat is callable immediately via load_skill even if it is missing from the list below.

@@ -48,7 +48,7 @@ export function createToolSession(tools: Record<string, any>): ToolSession {
 
 export function createLoadTools(session: ToolSession, tabRef: TabRef, mcpEndpoint: string) {
   return tool({
-    description: 'Enable a tool group for the rest of this chat. Groups: tabs, automation, screenshot, site (WebMCP on this tab), mcp (local ea-tools). Schemas appear on the next step.',
+    description: 'Enable a tool group for the rest of this chat. Groups: tabs, automation, screenshot, site (WebMCP on this tab), mcp (local ea-tools). Schemas appear on the next step. Calling site again re-reads the tab.',
     inputSchema: z.object({
       groups: z.array(z.string()).describe('Group names to load'),
     }),
@@ -59,21 +59,42 @@ export function createLoadTools(session: ToolSession, tabRef: TabRef, mcpEndpoin
       const notes: string[] = []
       for (const group of groups) {
         if (!LAZY.includes(group as LazyGroup)) continue
-        if (session.loaded.has(group)) { already.push(group); continue }
         if (group === 'site') {
-          const found = await listPageWebmcp(tabRef.current).catch(() => [])
-          for (const item of found) {
-            if (!item?.name || session.tools[item.name]) continue
-            const prompt = item.permission === 'prompt'
-            session.tools[item.name] = tool({
-              description: item.description || item.name,
-              inputSchema: jsonSchema(item.inputSchema as any),
-              execute: async (args: any) => executePageWebmcp(tabRef.current, item.name, args || {}, prompt),
-            })
-            session.extra.set(item.name, 'site')
+          try {
+            const found = await listPageWebmcp(tabRef.current)
+            for (const [name, g] of [...session.extra]) {
+              if (g !== 'site') continue
+              delete session.tools[name]
+              session.extra.delete(name)
+            }
+            const skipped: string[] = []
+            for (const item of found) {
+              if (!item?.name) continue
+              if (session.tools[item.name]) { skipped.push(item.name); continue }
+              const prompt = item.permission === 'prompt'
+              try {
+                session.tools[item.name] = tool({
+                  description: item.description || item.name,
+                  inputSchema: jsonSchema(item.inputSchema as any),
+                  execute: async (args: any) => executePageWebmcp(tabRef.current, item.name, args || {}, prompt),
+                })
+                session.extra.set(item.name, 'site')
+              } catch (err) {
+                skipped.push(`${item.name} (${(err as Error).message})`)
+              }
+            }
+            const names = found.map(t => t.name).filter(Boolean)
+            let note = names.length ? `site tools: ${names.join(', ')}` : 'no WebMCP tools on this tab'
+            if (skipped.length) note += ` (name taken: ${skipped.join(', ')})`
+            notes.push(note)
+          } catch (err) {
+            notes.push(`site tools failed: ${(err as Error).message}`)
           }
-          notes.push(found.length ? `site tools: ${found.map(t => t.name).join(', ')}` : 'no WebMCP tools on this tab')
+          session.loaded.add(group)
+          loaded.push(group)
+          continue
         }
+        if (session.loaded.has(group)) { already.push(group); continue }
         if (group === 'mcp') {
           try {
             const mcpTools = await connectMcp(mcpEndpoint)

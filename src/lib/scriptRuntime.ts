@@ -68,20 +68,18 @@ async function loadRequires(urls: string[]): Promise<string> {
   return parts.join('\n')
 }
 
-function wrapScript(id: string, meta: ScriptMeta, required: string, source: string): string {
+export function wrapScript(id: string, meta: ScriptMeta, required: string, source: string): string {
   const grants = new Set(meta.grants)
   const want = (name: string) => grants.has(name)
-  const lines: string[] = []
+  const lines: string[] = ['(function () {']
   if (meta.kind === 'agent') lines.push(POLYFILL)
   lines.push(`const __irisScriptId = ${JSON.stringify(id)};`)
   lines.push(`const __irisGrants = ${JSON.stringify(meta.webmcp)};`)
   lines.push(IRIS_CALL)
   lines.push(`const GM_info = ${JSON.stringify({ script: { name: meta.name, version: meta.version, description: meta.description }, scriptHandler: 'iris' })};`)
   lines.push('const GM = {};')
-  if (want('GM_log')) {
-    lines.push(`function GM_log() { return __irisCall('log', { args: Array.from(arguments).map(String) }); }`)
-    lines.push('GM.log = GM_log;')
-  }
+  lines.push(`function GM_log() { return __irisCall('log', { args: Array.from(arguments).map(String) }); }`)
+  lines.push('GM.log = GM_log;')
   if (want('GM_getValue') || want('GM.getValue')) {
     lines.push(`function GM_getValue(key, def) { return __irisCall('getValue', { key: key, def: def }); }`)
     lines.push('GM.getValue = GM_getValue;')
@@ -123,8 +121,11 @@ function wrapScript(id: string, meta: ScriptMeta, required: string, source: stri
     lines.push(source)
     lines.push(AGENT_SCOPE_END)
   } else {
+    lines.push('try {')
     lines.push(source)
+    lines.push(SCRIPT_CATCH)
   }
+  lines.push('})();')
   return lines.join('\n')
 }
 
@@ -159,14 +160,28 @@ function __irisCall(method, payload) {
 }
 `
 
+const SCRIPT_CATCH = `
+} catch (__irisErr) {
+  var __irisMsg = (__irisErr && (__irisErr.stack || __irisErr.message)) || String(__irisErr);
+  try { GM_log(__irisMsg); } catch (e) { console.error('[Iris]', __irisMsg); }
+}
+`
+
 const POLYFILL = `
 (function () {
-  if (document.modelContext && document.modelContext.registerTool) {
-    try { if (!navigator.modelContext) navigator.modelContext = document.modelContext; } catch (e) {}
+  function nativeCtx() {
+    try { if (document.modelContext && document.modelContext.registerTool) return document.modelContext; } catch (e) {}
+    try { if (navigator.modelContext && navigator.modelContext.registerTool) return navigator.modelContext; } catch (e) {}
+    return null;
+  }
+  var existing = nativeCtx();
+  if (existing) {
+    try { if (!navigator.modelContext) navigator.modelContext = existing; } catch (e) {}
+    try { if (!document.modelContext) document.modelContext = existing; } catch (e) {}
     return;
   }
-  const tools = new Map();
-  const ctx = {
+  var tools = new Map();
+  var ctx = {
     registerTool: function (tool) {
       tools.set(tool.name, tool);
       return Promise.resolve();
@@ -177,12 +192,12 @@ const POLYFILL = `
       }));
     },
     executeTool: function (name, args) {
-      const tool = tools.get(name);
+      var tool = tools.get(name);
       if (!tool) return Promise.reject(new Error('unknown tool: ' + name));
       return Promise.resolve(tool.execute(args || {}));
     },
   };
-  document.modelContext = ctx;
+  try { document.modelContext = ctx; } catch (e) {}
   try { navigator.modelContext = ctx; } catch (e) {
     try { Object.defineProperty(Navigator.prototype, 'modelContext', { configurable: true, get: function () { return ctx; } }); } catch (e2) {}
   }
@@ -232,10 +247,15 @@ const __irisScope = (function (__pageDocument, __pageNavigator) {
     __irisShadow(__pageNavigator, function () { return __pageNavigator.modelContext || __pageDocument.modelContext; }),
   ];
 })(document, navigator);
-(function (document, navigator) {
+(async function (document, navigator) {
+  try {
 `
 
 const AGENT_SCOPE_END = `
+  } catch (__irisErr) {
+    var __irisMsg = (__irisErr && (__irisErr.stack || __irisErr.message)) || String(__irisErr);
+    try { GM_log(__irisMsg); } catch (e) { console.error('[Iris]', __irisMsg); }
+  }
 })(__irisScope[0], __irisScope[1]);
 `
 

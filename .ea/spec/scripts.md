@@ -28,7 +28,7 @@ The service worker registers enabled scripts with `chrome.userScripts` on startu
 | `@connect` | Hosts `GM_xmlhttpRequest` may call. Missing grant → the call fails |
 | `@require` | Fetched in order and prepended. A failed fetch is reported and that URL is skipped |
 
-Implemented grants: `GM_getValue`, `GM_setValue`, `GM_deleteValue`, `GM_listValues` (and `GM.*` promise methods), `GM_addStyle`, `GM_info`, `GM_log`, `GM_setClipboard`, `GM_openInTab`, `GM_xmlhttpRequest`, `unsafeWindow`.
+Implemented grants: `GM_getValue`, `GM_setValue`, `GM_deleteValue`, `GM_listValues` (and `GM.*` promise methods), `GM_addStyle`, `GM_info`, `GM_setClipboard`, `GM_openInTab`, `GM_xmlhttpRequest`, `unsafeWindow`. `GM_log` is always injected.
 
 `GM_getValue` / `GM.getValue` return promises. The bridge is a `window` message to the content script, so the synchronous Tampermonkey form does not work. `await GM_getValue` does.
 
@@ -45,6 +45,8 @@ Values are stored per script id under `iris_gm_values`.
 `// ==AgentScript==` is not a userscript. Managers that only look for `==UserScript==` will not install it. That is intentional: these files register tools, they do not patch the page for the human.
 
 They are injected in the MAIN world. A polyfill defines `document.modelContext` when Chrome has not, and points `navigator.modelContext` at the same object. No `#enable-webmcp-testing` flag.
+
+Each registered script is wrapped in its own function. MAIN-world scripts share the page global scope, so a top-level `const` in the wrapper would collide and the next AgentScript would never run. The AgentScript body is an async function, so top-level `await` parses. A thrown error is passed to `GM_log` and shows up in `read_console`. `GM_log` is always injected.
 
 The body runs inside a wrapper that shadows `document` and `navigator` with proxies, so `registerTool` can be checked against the `@webmcp` grants. The shadows are **function parameters**: declaring them as `const` in the scope that also reads the real globals puts those reads in the temporal dead zone, and the script throws before its first line. The traps read through the real target and bind methods to it, because forwarding a DOM getter or method with the proxy as receiver fails the brand check.
 
@@ -63,7 +65,7 @@ document.modelContext.registerTool({
 | `deny` | Not registered |
 | undeclared | `registerTool` from that script throws. A page's own tools still pass through |
 
-`load_tools({ groups: ["site"] })` calls `getTools()` on the session tab and adds those schemas to the agent on the next step. The list includes AgentScript tools and tools the site registered itself. Names are global on the tab, so scripts use a short prefix (`gh_`, `zh_`).
+`load_tools({ groups: ["site"] })` calls `getTools()` on the session tab and adds those schemas to the agent on the next step. Calling it again re-reads the tab. The bridge copies only JSON fields (`name`, `description`, `inputSchema`). Native tool objects include an `execute` function; returning that object from `executeScript` fails structured clone, and the failure used to surface as an empty list. The list includes AgentScript tools and tools the site registered itself. Names are global on the tab, so scripts use a short prefix (`gh_`, `zh_`).
 
 AgentScripts may use the same `GM_*` grants as userscripts.
 

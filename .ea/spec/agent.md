@@ -155,7 +155,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 
 ### Page tools and scripts
 
-`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. Script tools live in `lib/scriptTools.ts`. WebMCP tools discovered on the tab are added to the tool bag when the `site` group loads, and are callable on the next step.
+`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. Script tools live in `lib/scriptTools.ts`. WebMCP tools discovered on the tab are added to the tool bag when `load_tools` reads the `site` group, and are callable on the next step. A later `load_tools({ groups: ["site"] })` replaces that set.
 
 ### Paper / MCP
 

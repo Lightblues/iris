@@ -222,7 +222,7 @@ const TOOLS: ToolDef[] = [
     name: 'read_console',
     group: 'scripts',
     needsTab: true,
-    description: 'Read GM_log lines captured on a tab since it loaded. Empty means no script logged anything — check that the script is enabled and matches the URL.',
+    description: 'Read GM_log lines captured on a tab since it loaded, including thrown script errors. Empty means the script never ran — check that it is enabled and matches the URL.',
     inputSchema: schema({ tabId: tabField }),
     async run(params, ctx) {
       const tabId = requireTab(params, ctx)
@@ -700,20 +700,44 @@ function confirmSchema(schemaIn: Record<string, unknown> | undefined, prompt: bo
 }
 
 export async function listPageWebmcp(tabId: number): Promise<SiteTool[]> {
-  const [hit] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN' as const,
-    func: async () => {
-      const mc = (document as any).modelContext
-      if (!mc?.getTools) return []
-      const list = await mc.getTools()
-      const perms = (window as any).__irisWebmcpPerms || {}
-      return (Array.isArray(list) ? list : []).map((item: any) => ({
-        ...item,
-        permission: perms[item.name] || item.permission || 'allow',
-      }))
-    },
-  })
+  let hit: { result?: unknown } | undefined
+  try {
+    const hits = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN' as const,
+      func: async () => {
+        const docMc = (document as any).modelContext
+        const navMc = (navigator as any).modelContext
+        const mc = docMc?.getTools ? docMc : navMc
+        if (!mc?.getTools) return []
+        const list = await mc.getTools()
+        const raw = Array.isArray(list) ? list
+          : list && Array.isArray(list.tools) ? list.tools
+          : list && typeof list.length === 'number' ? Array.prototype.slice.call(list)
+          : []
+        const perms = (window as any).__irisWebmcpPerms || {}
+        const out = []
+        for (const item of raw) {
+          if (!item || !item.name) continue
+          let inputSchema = { type: 'object', properties: {} }
+          const schema = item.inputSchema || item.parameters
+          if (schema && typeof schema === 'object') {
+            try { inputSchema = JSON.parse(JSON.stringify(schema)) } catch { /* keep empty schema */ }
+          }
+          out.push({
+            name: String(item.name),
+            description: String(item.description || item.name),
+            inputSchema,
+            permission: perms[item.name] || (typeof item.permission === 'string' ? item.permission : 'allow'),
+          })
+        }
+        return out
+      },
+    })
+    hit = hits[0]
+  } catch (err) {
+    throw new Error(`WebMCP list failed: ${(err as Error).message}`)
+  }
   const value = Array.isArray(hit?.result) ? hit.result : []
   return value.filter((item: any) => item?.name).map((item: any) => {
     const permission = item.permission || 'allow'
@@ -738,9 +762,14 @@ export async function executePageWebmcp(tabId: number, name: string, args: Recor
     target: { tabId },
     world: 'MAIN' as const,
     func: async (toolName: string, payload: unknown) => {
-      const mc = (document as any).modelContext
-      if (!mc?.executeTool) return { error: 'modelContext missing' }
-      return await mc.executeTool(toolName, payload)
+      const docMc = (document as any).modelContext
+      const navMc = (navigator as any).modelContext
+      const mc = docMc?.executeTool ? docMc : navMc
+      if (!mc?.executeTool) throw new Error('modelContext missing')
+      const value = await mc.executeTool(toolName, payload)
+      if (value === undefined) return null
+      try { return JSON.parse(JSON.stringify(value)) }
+      catch { throw new Error('tool result was not JSON') }
     },
     args: [name, rest],
   })
