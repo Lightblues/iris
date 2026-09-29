@@ -1,4 +1,4 @@
-import type { IrisMessage, Conversation, ConversationStore, AgentMode } from './types'
+import type { IrisMessage, Conversation, ConversationStore } from './types'
 
 const STORAGE_KEY = 'iris_agent_conversations'
 const MAX_CONVERSATIONS = 100
@@ -19,10 +19,90 @@ function generateTitle(messages: IrisMessage[]): string {
   return title.length < text.length ? `${title}...` : title
 }
 
+/** Origin + path, no hash, query, or trailing slash. Same page matches across tracking params. */
+export function pageKey(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'file:') return null
+    const path = u.pathname.length > 1 && u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname
+    return `${u.origin}${path}`
+  } catch {
+    return null
+  }
+}
+
+export function displayUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname === '/' ? '' : u.pathname.replace(/\/$/, '')
+    return `${u.hostname}${path}`
+  } catch {
+    return url
+  }
+}
+
+function skillFromPart(part: { type?: string; toolName?: string; input?: unknown; args?: unknown }): string | null {
+  const type = part.type ?? ''
+  const tool = type === 'dynamic-tool' ? part.toolName : type.startsWith('tool-') ? type.slice(5) : ''
+  if (tool !== 'load_skill') return null
+  const input = (part.input ?? part.args) as { name?: unknown } | undefined
+  return typeof input?.name === 'string' && input.name ? input.name : null
+}
+
+/** Pages from message metadata, and skill names from load_skill calls. */
+export function conversationIndex(messages: IrisMessage[]): { urls: string[]; skills: string[] } {
+  const urls: string[] = []
+  const seenUrl = new Set<string>()
+  const skills: string[] = []
+  const seenSkill = new Set<string>()
+  for (const message of messages) {
+    const pageUrl = message.metadata?.pageUrl
+    const key = pageUrl ? pageKey(pageUrl) : null
+    if (pageUrl && key && !seenUrl.has(key)) {
+      seenUrl.add(key)
+      urls.push(pageUrl.split('#')[0])
+    }
+    for (const part of message.parts ?? []) {
+      const skill = skillFromPart(part as { type?: string; toolName?: string; input?: unknown; args?: unknown })
+      if (skill && !seenSkill.has(skill)) {
+        seenSkill.add(skill)
+        skills.push(skill)
+      }
+    }
+  }
+  return { urls, skills }
+}
+
+export function samePage(pageUrl: string, conv: Pick<Conversation, 'urls'>): boolean {
+  const key = pageKey(pageUrl)
+  if (!key) return false
+  return (conv.urls ?? []).some(url => pageKey(url) === key)
+}
+
+function sameList(a: string[] | undefined, b: string[]): boolean {
+  if (!a || a.length !== b.length) return false
+  return a.every((value, i) => value === b[i])
+}
+
+function reindex(conv: Conversation & { agentMode?: unknown }): boolean {
+  const next = conversationIndex(conv.messages ?? [])
+  const changed = !sameList(conv.urls, next.urls) || !sameList(conv.skills, next.skills) || conv.agentMode != null
+  conv.urls = next.urls
+  conv.skills = next.skills
+  delete conv.agentMode
+  return changed
+}
+
 async function loadStore(): Promise<ConversationStore> {
   const result = await chrome.storage.local.get(STORAGE_KEY)
   const stored = result[STORAGE_KEY] as ConversationStore | undefined
-  return stored ?? { conversations: [], activeConversationId: null }
+  const store = stored ?? { conversations: [], activeConversationId: null }
+  let dirty = false
+  for (const conv of store.conversations) {
+    if (reindex(conv)) dirty = true
+  }
+  if (dirty) await saveStore(store)
+  return store
 }
 
 async function saveStore(store: ConversationStore): Promise<void> {
@@ -49,6 +129,7 @@ export function conversationSearchText(conv: Conversation): string {
       if (part.type === 'text' && part.text) bits.push(part.text)
     }
   }
+  bits.push(...(conv.urls ?? []), ...(conv.skills ?? []))
   return bits.join('\n').toLowerCase()
 }
 
@@ -64,14 +145,17 @@ export async function setActiveConversation(id: string | null): Promise<void> {
   await saveStore(store)
 }
 
-export async function createConversation(agentMode: AgentMode, messages: IrisMessage[] = []): Promise<Conversation> {
+export async function createConversation(messages: IrisMessage[] = []): Promise<Conversation> {
   const store = await loadStore()
   const now = Date.now()
+  const messagesKept = messages.slice(-MAX_MESSAGES)
+  const index = conversationIndex(messagesKept)
   const conv: Conversation = {
     id: generateId(),
-    title: generateTitle(messages),
-    messages: messages.slice(-MAX_MESSAGES),
-    agentMode,
+    title: generateTitle(messagesKept),
+    messages: messagesKept,
+    urls: index.urls,
+    skills: index.skills,
     createdAt: now,
     lastUpdated: now,
   }
@@ -86,6 +170,9 @@ export async function updateConversation(id: string, messages: IrisMessage[]): P
   const conv = store.conversations.find(c => c.id === id)
   if (!conv) return
   conv.messages = messages.slice(-MAX_MESSAGES)
+  const index = conversationIndex(conv.messages)
+  conv.urls = index.urls
+  conv.skills = index.skills
   conv.lastUpdated = Date.now()
   if (conv.title === 'New Chat') conv.title = generateTitle(messages)
   await saveStore(store)
@@ -129,11 +216,14 @@ export async function importConversations(file: File): Promise<{ success: number
     for (const conv of imported) {
       if (!conv.id || !Array.isArray(conv.messages)) { skipped++; continue }
       if (existingIds.has(conv.id)) { skipped++; continue }
+      const messages = conv.messages.slice(-MAX_MESSAGES)
+      const index = conversationIndex(messages)
       store.conversations.push({
         id: conv.id,
         title: conv.title || 'Imported',
-        messages: conv.messages.slice(-MAX_MESSAGES),
-        agentMode: conv.agentMode || 'general',
+        messages,
+        urls: index.urls,
+        skills: index.skills,
         createdAt: conv.createdAt || Date.now(),
         lastUpdated: conv.lastUpdated || Date.now(),
       })

@@ -1,6 +1,7 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
+import { historyRoute } from '@/lib/irisRoute'
 import { ModelCombobox } from './ModelCombobox'
 import type { IrisMessage } from '@/lib/types'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
@@ -17,6 +18,7 @@ interface ChatHeaderProps {
   chatModel: string | null
   onChatModelChange: (model: string | null) => void
   mcpStatus?: McpStatus
+  conversationId?: string | null
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -29,7 +31,9 @@ export const ChatHeader = memo(function ChatHeader({
   chatModel,
   onChatModelChange,
   mcpStatus,
+  conversationId,
 }: ChatHeaderProps) {
+  const [copied, setCopied] = useState(false)
   const usage = getSessionUsage(messages)
   const hasUsage = usage.totalCost != null || usage.totalInputTokens > 0
   const activeModel = chatModel ?? defaultModel
@@ -45,6 +49,22 @@ export const ChatHeader = memo(function ChatHeader({
           }`}
           title={`MCP: ${mcpStatus}`}
         />
+      )}
+
+      {conversationId && (
+        <button
+          type="button"
+          className="text-[10px] font-mono text-muted-foreground/70 truncate max-w-[8.5rem] shrink"
+          title={copied ? 'Copied' : historyRoute(conversationId)}
+          onClick={() => {
+            void navigator.clipboard.writeText(historyRoute(conversationId)).then(() => {
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1200)
+            })
+          }}
+        >
+          {conversationId}
+        </button>
       )}
 
       <ModelCombobox

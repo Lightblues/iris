@@ -191,7 +191,7 @@ Typed in chat input, not the page command menu. Spec of the menu: [page-enhancem
 - Store: `iris_agent_conversations` in `chrome.storage.local` (max 100 conversations, 100 messages each)
 - Images stay on the user message as `file` parts (`mediaType` + `url` data URL). Same record as the text, so history, fork, and rerun keep them. Cap is 5MB per image; the extension has `unlimitedStorage`
 - Lazy create on first send; title from first user text
-- Each conversation records `agentMode` for restore
+- `urls` lists pages attached through a context card, full page, or selection. `skills` lists names passed to `load_skill`. Both are rebuilt when messages are saved, and filled in for older transcripts on the next load
 - `AgentPanelReady` writes `messages` back on every change
-- History tab: date groups, JSON import/export, search over title and message text
+- History tab: date groups, JSON import/export, search over title, message text, urls, and skills. The current tab's page is listed first. Each row shows the conversation id, the page host, and skill names. The chat header shows the same id; copying it writes `iris://history/<id>`
 - `iris://history/<conversation id>` opens that conversation in the side panel. `iris.navigate` writes the path to `chrome.storage.session` (`iris_pending_route`); the panel applies it when it is open. The id is `Conversation.id`, not the tab-binding session id

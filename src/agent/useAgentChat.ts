@@ -12,7 +12,7 @@
 import { useChat } from '@ai-sdk/react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { DirectChatTransport } from 'ai'
-import type { IrisMessage, IrisMessageMetadata, AgentMode, Conversation } from './types'
+import type { IrisMessage, IrisMessageMetadata, Conversation } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { irisAgent } from './registry'
 import { createAgent, type ProviderMetadataRef } from './createAgent'
@@ -75,7 +75,6 @@ export function useAgentTransport(options: {
 // -- Chat hook (requires ready transport) --
 
 export interface UseAgentChatOptions {
-  agentMode: AgentMode
   settings: SidePanelSettings
   chatModel: string | null
   conversation: Conversation | null
@@ -88,7 +87,7 @@ export function useAgentChat(
   transport: DirectChatTransport,
   options: UseAgentChatOptions,
 ) {
-  const { agentMode, settings, chatModel, conversation, tabId, onConversationCreated, onError } = options
+  const { settings, chatModel, conversation, tabId, onConversationCreated, onError } = options
   const activeModel = chatModel ?? settings.model
   const conversationRef = useRef(conversation)
   conversationRef.current = conversation
@@ -147,7 +146,7 @@ export function useAgentChat(
     // Lazy conversation creation — snapshot already-injected page context
     let conv = conversationRef.current
     if (!conv) {
-      conv = await createConversation(agentMode, chat.messages as IrisMessage[])
+      conv = await createConversation(chat.messages as IrisMessage[])
       conversationRef.current = conv
       onConversationCreated(conv)
     }
@@ -175,7 +174,7 @@ export function useAgentChat(
       ...(files?.length ? { files } : {}),
       metadata: { timestamp: Date.now() } as IrisMessageMetadata,
     } as any)
-  }, [settings.apiKey, agentMode, chat, onConversationCreated, onError, tabId])
+  }, [settings.apiKey, chat, onConversationCreated, onError, tabId])
 
   const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number; card?: boolean }): Promise<boolean> => {
     const silent = opts?.silent === true

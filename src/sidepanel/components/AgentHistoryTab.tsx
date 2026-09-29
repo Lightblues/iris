@@ -2,26 +2,20 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Trash2, MessageSquare, Download, Upload, Copy } from 'lucide-react'
-import { loadAllConversations, deleteConversation, exportConversations, importConversations, conversationSearchText } from '@/agent/history'
-import type { Conversation, AgentMode } from '@/agent/types'
+import { Plus, Trash2, MessageSquare, Download, Upload, Copy, Globe } from 'lucide-react'
+import { loadAllConversations, deleteConversation, exportConversations, importConversations, conversationSearchText, displayUrl, samePage } from '@/agent/history'
+import type { Conversation } from '@/agent/types'
 import { historyRoute, parseIrisRoute } from '@/lib/irisRoute'
 import { getSessionUsage, formatModelShort, formatCost } from '@/lib/tokenUtils'
 
-const AGENT_LABELS: Record<AgentMode, string> = {
-  'general': '',
-  'tab-agent': 'Tab',
-  'automation': 'Auto',
-  'paper': 'Paper',
-}
-
 interface AgentHistoryTabProps {
   activeConversationId: string | null
+  pageUrl?: string | null
   onSelectConversation: (id: string) => void
   onNewChat: () => void
 }
 
-export function AgentHistoryTab({ activeConversationId, onSelectConversation, onNewChat }: AgentHistoryTabProps) {
+export function AgentHistoryTab({ activeConversationId, pageUrl, onSelectConversation, onNewChat }: AgentHistoryTabProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [importStatus, setImportStatus] = useState<string | null>(null)
@@ -73,7 +67,9 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
   const visible = needle
     ? indexed.filter(row => row.hay.includes(needle)).map(row => row.conv)
     : conversations
-  const groupedConversations = groupByDate(visible)
+  const onThisPage = pageUrl ? visible.filter(conv => samePage(pageUrl, conv)) : []
+  const onThisPageIds = new Set(onThisPage.map(conv => conv.id))
+  const groupedConversations = groupByDate(visible.filter(conv => !onThisPageIds.has(conv.id)))
 
   const openQuery = () => {
     const raw = query.trim()
@@ -150,60 +146,134 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
           ) : visible.length === 0 ? (
             <div className="text-center text-muted-foreground py-8 text-sm">No matches</div>
           ) : (
-            Object.entries(groupedConversations).map(([dateLabel, convs]) => (
-              <div key={dateLabel} className="mb-3">
-                <div className="text-xs font-medium text-muted-foreground px-2 py-1">{dateLabel}</div>
-                <div className="space-y-0.5">
-                  {convs.map((conv) => {
-                    const usage = getSessionUsage(conv.messages)
-                    return (
-                      <button
-                        key={conv.id}
-                        onClick={() => onSelectConversation(conv.id)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm hover:bg-muted group ${
-                          conv.id === activeConversationId ? 'bg-muted' : ''
-                        }`}
-                      >
-                        <span className="flex-1 truncate" title={historyRoute(conv.id)}>{conv.title}</span>
-                        {conv.agentMode && AGENT_LABELS[conv.agentMode] && (
-                          <span className="text-[10px] px-1 py-0.5 rounded bg-primary/15 text-primary shrink-0">
-                            {AGENT_LABELS[conv.agentMode]}
-                          </span>
-                        )}
-                        {(usage.model || usage.totalCost != null) && (
-                          <span className="text-[10px] text-muted-foreground/50 shrink-0">
-                            {usage.model && formatModelShort(usage.model)}
-                            {usage.totalCost != null && ` ${formatCost(usage.totalCost)}`}
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {formatTime(conv.lastUpdated)}
-                        </span>
-                        <button
-                          onClick={(e) => { void copyRoute(e, conv.id) }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted-foreground/20 rounded"
-                          title="Copy iris://history/… id"
-                        >
-                          <Copy className="h-3 w-3 text-muted-foreground" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(e, conv.id)}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </button>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))
+            <>
+              {onThisPage.length > 0 && (
+                <ConversationGroup
+                  label="This page"
+                  conversations={onThisPage}
+                  activeConversationId={activeConversationId}
+                  onSelectConversation={onSelectConversation}
+                  onCopy={copyRoute}
+                  onDelete={handleDelete}
+                />
+              )}
+              {Object.entries(groupedConversations).map(([dateLabel, convs]) => (
+                <ConversationGroup
+                  key={dateLabel}
+                  label={dateLabel}
+                  conversations={convs}
+                  activeConversationId={activeConversationId}
+                  onSelectConversation={onSelectConversation}
+                  onCopy={copyRoute}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </>
           )}
         </div>
       </ScrollArea>
     </div>
   )
+}
+
+function ConversationGroup({
+  label, conversations, activeConversationId, onSelectConversation, onCopy, onDelete,
+}: {
+  label: string
+  conversations: Conversation[]
+  activeConversationId: string | null
+  onSelectConversation: (id: string) => void
+  onCopy: (e: React.MouseEvent, id: string) => void
+  onDelete: (e: React.MouseEvent, id: string) => void
+}) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs font-medium text-muted-foreground px-2 py-1">{label}</div>
+      <div className="space-y-0.5">
+        {conversations.map(conv => (
+          <ConversationRow
+            key={conv.id}
+            conv={conv}
+            active={conv.id === activeConversationId}
+            onSelect={() => onSelectConversation(conv.id)}
+            onCopy={onCopy}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ConversationRow({
+  conv, active, onSelect, onCopy, onDelete,
+}: {
+  conv: Conversation
+  active: boolean
+  onSelect: () => void
+  onCopy: (e: React.MouseEvent, id: string) => void
+  onDelete: (e: React.MouseEvent, id: string) => void
+}) {
+  const usage = getSessionUsage(conv.messages)
+  const url = conv.urls?.[0]
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full flex flex-col gap-0.5 px-2 py-1.5 rounded text-left text-sm hover:bg-muted group ${active ? 'bg-muted' : ''}`}
+    >
+      <span className="flex items-center gap-2 w-full">
+        <span className="flex-1 truncate">{conv.title}</span>
+        {(usage.model || usage.totalCost != null) && (
+          <span className="text-[10px] text-muted-foreground/50 shrink-0">
+            {usage.model && formatModelShort(usage.model)}
+            {usage.totalCost != null && ` ${formatCost(usage.totalCost)}`}
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground shrink-0">{formatTime(conv.lastUpdated)}</span>
+        <button
+          onClick={(e) => { void onCopy(e, conv.id) }}
+          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted-foreground/20 rounded"
+          title="Copy iris://history/…"
+        >
+          <Copy className="h-3 w-3 text-muted-foreground" />
+        </button>
+        <button
+          onClick={(e) => onDelete(e, conv.id)}
+          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded"
+          title="Delete"
+        >
+          <Trash2 className="h-3 w-3 text-destructive" />
+        </button>
+      </span>
+      <span className="text-[10px] font-mono text-muted-foreground/70 truncate" title={historyRoute(conv.id)}>
+        {conv.id}
+      </span>
+      {url && (
+        <span className="flex items-center gap-1 min-w-0 text-[10px] text-muted-foreground">
+          <PageIcon url={url} />
+          <span className="truncate">{displayUrl(url)}</span>
+        </span>
+      )}
+      {(conv.skills?.length ?? 0) > 0 && (
+        <span className="flex flex-wrap gap-1">
+          {conv.skills.map(name => (
+            <span key={name} className="text-[10px] px-1 py-0 rounded bg-primary/10 text-primary">{name}</span>
+          ))}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function PageIcon({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false)
+  let src = ''
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') src = `${parsed.origin}/favicon.ico`
+  } catch { /* ignore */ }
+  if (failed || !src) return <Globe className="h-3 w-3 shrink-0" />
+  return <img src={src} alt="" className="h-3 w-3 shrink-0" onError={() => setFailed(true)} />
 }
 
 function groupByDate(conversations: Conversation[]): Record<string, Conversation[]> {

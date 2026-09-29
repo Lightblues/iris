@@ -5,7 +5,7 @@ import { ChatInput } from './ChatInput'
 import { ChatHeader } from './ChatHeader'
 import { useAgentTransport, useAgentChat } from '@/agent/useAgentChat'
 import { updateConversation } from '@/agent/history'
-import type { IrisMessage, AgentMode, Conversation } from '@/agent/types'
+import type { IrisMessage, Conversation } from '@/agent/types'
 import type { SidePanelSettings, ModelConfig } from '@/lib/sidepanelSettings'
 import type { ChatImageAttachment } from '@/lib/types'
 import type { SkillSlashItem } from './ChatInput'
@@ -32,7 +32,6 @@ export interface AgentPanelProps {
   tabId: number
   memberTabIds: number[]
   autoFocus?: boolean
-  agentMode: AgentMode
   settings: SidePanelSettings
   availableModels: ModelConfig[]
   chatModel: string | null
@@ -52,7 +51,7 @@ export interface AgentPanelProps {
  */
 export function AgentPanel(props: AgentPanelProps) {
   const {
-    tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
+    tabId, memberTabIds, autoFocus, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat,
     skills, onOpenSettings,
   } = props
@@ -131,7 +130,6 @@ export function AgentPanel(props: AgentPanelProps) {
       tabId={tabId}
       memberTabIds={memberTabIds}
       autoFocus={autoFocus}
-      agentMode={agentMode}
       settings={settings}
       availableModels={props.availableModels}
       chatModel={chatModel}
@@ -158,7 +156,7 @@ function AgentPanelReady(props: AgentPanelProps & {
   pendingMessage: { content: string; images?: any[] } | null
 }) {
   const {
-    transport, tabId, memberTabIds, autoFocus, agentMode, settings, chatModel, onChatModelChange,
+    transport, tabId, memberTabIds, autoFocus, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat,
     skills, onOpenSettings, mcpStatus, pendingMessage,
   } = props
@@ -175,7 +173,6 @@ function AgentPanelReady(props: AgentPanelProps & {
     sendMessage, stop, setMessages, clearError,
     injectContext, injectSelection,
   } = useAgentChat(transport, {
-    agentMode,
     settings,
     chatModel,
     conversation,
@@ -301,12 +298,12 @@ function AgentPanelReady(props: AgentPanelProps & {
       ...m,
       id: `${m.id}-fork-${Date.now()}`,
     }))
-    const newConv = await createConversation(agentMode)
+    const newConv = await createConversation()
     await updateConversation(newConv.id, forkedMessages as IrisMessage[])
     onConversationCreated(newConv)
     setMessages(forkedMessages as IrisMessage[])
     setError(null)
-  }, [messages, setMessages, onConversationCreated, agentMode])
+  }, [messages, setMessages, onConversationCreated])
 
   const handleRerunFromMessage = useCallback((id: string) => {
     const idx = messages.findIndex((m: IrisMessage) => m.id === id)
@@ -361,6 +358,7 @@ function AgentPanelReady(props: AgentPanelProps & {
         chatModel={chatModel}
         onChatModelChange={onChatModelChange}
         mcpStatus={mcpStatus}
+        conversationId={conversation?.id}
       />
       {memberTabIds.length > 1 && (
         <LinkedTabsBar tabIds={memberTabIds} currentTabId={tabId} />

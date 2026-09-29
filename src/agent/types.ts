@@ -2,10 +2,8 @@ import type { UIMessage } from 'ai'
 
 // -- Agent config --
 
-export type AgentMode = 'general' | 'tab-agent' | 'automation' | 'paper'
-
 export interface AgentConfig {
-  id: AgentMode
+  id: string
   name: string
   systemPrompt: string
   browserTools?: Record<string, any>  // Chrome API tools (tab, automation)
@@ -42,7 +40,10 @@ export interface Conversation {
   id: string
   title: string
   messages: IrisMessage[]
-  agentMode: AgentMode
+  /** Pages attached to this transcript (context card or full page). */
+  urls: string[]
+  /** Skill names passed to load_skill. */
+  skills: string[]
   model?: string
   createdAt: number
   lastUpdated: number

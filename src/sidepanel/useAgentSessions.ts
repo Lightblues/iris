@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadAllConversations } from '@/agent/history'
-import type { AgentMode, Conversation } from '@/agent/types'
+import type { Conversation } from '@/agent/types'
 import {
   dropTabBinding,
   isBrowserNewTab,
@@ -15,7 +15,6 @@ export interface AgentSession {
   id: string
   tabIds: number[]
   conversation: Conversation | null
-  agentMode: AgentMode
   chatModel: string | null
   sessionKey: number
 }
@@ -25,7 +24,6 @@ function emptySession(tabId: number): AgentSession {
     id: newSessionId(),
     tabIds: [tabId],
     conversation: null,
-    agentMode: 'general',
     chatModel: null,
     sessionKey: 0,
   }
@@ -35,7 +33,6 @@ function toRecord(session: AgentSession): PersistedTabSession {
   return {
     sessionId: session.id,
     conversationId: session.conversation?.id ?? null,
-    agentMode: session.agentMode,
     chatModel: session.chatModel,
   }
 }
@@ -81,7 +78,6 @@ async function hydrateSession(tabId: number): Promise<AgentSession> {
     id: saved.sessionId,
     tabIds: tabIds.length ? tabIds : [tabId],
     conversation,
-    agentMode: saved.agentMode ?? 'general',
     chatModel: saved.chatModel ?? null,
     sessionKey: 0,
   }

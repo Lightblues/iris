@@ -1,11 +1,8 @@
-import type { AgentMode } from '@/agent/types'
-
 export const TAB_SESSION_KEY = 'iris_tab_agent_sessions'
 
 export interface PersistedTabSession {
   sessionId: string
   conversationId: string | null
-  agentMode: AgentMode
   chatModel: string | null
 }
 

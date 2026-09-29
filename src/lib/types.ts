@@ -172,8 +172,6 @@ export function getToolNameFromPart(part: IrisMessagePart): string | null {
   return null;
 }
 
-export type AgentMode = 'general' | 'tab-agent' | 'automation' | 'paper'
-
 // Conversation types live in @/agent/types — single source of truth
 
 // Page context message types

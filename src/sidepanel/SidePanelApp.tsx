@@ -47,6 +47,7 @@ const TAB_STORAGE_KEY = 'sidepanel_active_tab'
 
 export default function SidePanelApp() {
   const [activeTab, setActiveTab] = useState<TabType>('agent')
+  const [pageUrl, setPageUrl] = useState<string | null>(null)
   const [settings, setSettings] = useState<SidePanelSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<StoredSkill[]>([])
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([])
@@ -91,6 +92,11 @@ export default function SidePanelApp() {
     }
   }, [])
 
+  useEffect(() => {
+    if (currentTabId == null) { setPageUrl(null); return }
+    chrome.tabs.get(currentTabId).then(tab => setPageUrl(tab.url ?? null)).catch(() => setPageUrl(null))
+  }, [currentTabId])
+
   const handleTabChange = (tab: TabType) => {
     if (tab !== 'settings') previousTabRef.current = tab
     setActiveTab(tab)
@@ -114,10 +120,7 @@ export default function SidePanelApp() {
       setActiveTab('agent-history')
       return
     }
-    remountSession(currentTabId, {
-      conversation: conv,
-      agentMode: conv.agentMode || 'general',
-    })
+    remountSession(currentTabId, { conversation: conv })
     await setAgentActiveConversation(id)
     setActiveTab('agent')
   }
@@ -216,7 +219,6 @@ export default function SidePanelApp() {
                   tabId={currentTabId != null && s.tabIds.includes(currentTabId) ? currentTabId : s.tabIds[0]}
                   memberTabIds={s.tabIds}
                   autoFocus={activeTab === 'agent' && currentTabId != null && s.tabIds.includes(currentTabId)}
-                  agentMode={s.agentMode}
                   settings={settings}
                   availableModels={availableModels}
                   chatModel={s.chatModel}
@@ -246,6 +248,7 @@ export default function SidePanelApp() {
             <Suspense fallback={<TabFallback />}>
               <AgentHistoryTab
                 activeConversationId={currentSession?.conversation?.id || null}
+                pageUrl={pageUrl}
                 onSelectConversation={handleAgentSelectConversation}
                 onNewChat={() => currentTabId != null && handleAgentNewChat(currentTabId)}
               />
