@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Plus, Trash2, MessageSquare, Download, Upload } from 'lucide-react'
-import { loadAllConversations, deleteConversation, exportConversations, importConversations } from '@/agent/history'
+import { Plus, Trash2, MessageSquare, Download, Upload, Copy } from 'lucide-react'
+import { loadAllConversations, deleteConversation, exportConversations, importConversations, conversationSearchText } from '@/agent/history'
 import type { Conversation, AgentMode } from '@/agent/types'
+import { historyRoute, parseIrisRoute } from '@/lib/irisRoute'
 import { getSessionUsage, formatModelShort, formatCost } from '@/lib/tokenUtils'
 
 const AGENT_LABELS: Record<AgentMode, string> = {
@@ -23,6 +25,8 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [importStatus, setImportStatus] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -61,7 +65,35 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
     setTimeout(() => setImportStatus(null), 3000)
   }
 
-  const groupedConversations = groupByDate(conversations)
+  const indexed = useMemo(
+    () => conversations.map(conv => ({ conv, hay: conversationSearchText(conv) })),
+    [conversations],
+  )
+  const needle = query.trim().toLowerCase()
+  const visible = needle
+    ? indexed.filter(row => row.hay.includes(needle)).map(row => row.conv)
+    : conversations
+  const groupedConversations = groupByDate(visible)
+
+  const openQuery = () => {
+    const raw = query.trim()
+    const route = parseIrisRoute(raw)
+    const id = route?.page === 'history' ? route.id : conversations.some(c => c.id === raw) ? raw : undefined
+    if (!id) return
+    if (!conversations.some(c => c.id === id)) {
+      setNotice('No conversation with that id')
+      return
+    }
+    setNotice(null)
+    onSelectConversation(id)
+  }
+
+  const copyRoute = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    await navigator.clipboard.writeText(historyRoute(id))
+    setNotice('Copied route')
+    setTimeout(() => setNotice(null), 1500)
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -93,8 +125,15 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
             onChange={handleImport} className="hidden"
           />
         </div>
-        {importStatus && (
-          <div className="text-xs text-muted-foreground text-center">{importStatus}</div>
+        <Input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setNotice(null) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') openQuery() }}
+          placeholder="Search or paste iris://history/…"
+          className="h-8 text-sm"
+        />
+        {(importStatus || notice) && (
+          <div className="text-xs text-muted-foreground text-center">{importStatus || notice}</div>
         )}
       </div>
 
@@ -108,6 +147,8 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
               <p className="text-sm">No conversations yet</p>
               <p className="text-xs mt-1">Start a new chat to begin</p>
             </div>
+          ) : visible.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8 text-sm">No matches</div>
           ) : (
             Object.entries(groupedConversations).map(([dateLabel, convs]) => (
               <div key={dateLabel} className="mb-3">
@@ -123,7 +164,7 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
                           conv.id === activeConversationId ? 'bg-muted' : ''
                         }`}
                       >
-                        <span className="flex-1 truncate">{conv.title}</span>
+                        <span className="flex-1 truncate" title={historyRoute(conv.id)}>{conv.title}</span>
                         {conv.agentMode && AGENT_LABELS[conv.agentMode] && (
                           <span className="text-[10px] px-1 py-0.5 rounded bg-primary/15 text-primary shrink-0">
                             {AGENT_LABELS[conv.agentMode]}
@@ -138,6 +179,13 @@ export function AgentHistoryTab({ activeConversationId, onSelectConversation, on
                         <span className="text-xs text-muted-foreground shrink-0">
                           {formatTime(conv.lastUpdated)}
                         </span>
+                        <button
+                          onClick={(e) => { void copyRoute(e, conv.id) }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted-foreground/20 rounded"
+                          title="Copy iris://history/… id"
+                        >
+                          <Copy className="h-3 w-3 text-muted-foreground" />
+                        </button>
                         <button
                           onClick={(e) => handleDelete(e, conv.id)}
                           className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-destructive/20 rounded"

@@ -1,4 +1,5 @@
 import { loadAllConversations } from '../agent/history'
+import { IRIS_ROUTE_KEY, parseIrisRoute } from '../lib/irisRoute'
 import { getAllEntries } from '../lib/knowledge'
 import { loadSettings } from '../lib/sidepanelSettings'
 import { loadAllEvents } from '../lib/tracing'
@@ -219,6 +220,21 @@ registerRelayMethod('iris.knowledge.export', async () => ({ entries: await getAl
 registerRelayMethod('iris.conversations.export', async () => loadAllConversations(), {
   description: 'Export Iris agent transcripts stored in the extension.',
   params: [],
+})
+
+registerRelayMethod('iris.navigate', async (params) => {
+  if (typeof params.path !== 'string' || !params.path.trim()) {
+    throw new RelayError('invalid_params', 'path is required')
+  }
+  const route = parseIrisRoute(params.path)
+  if (!route) throw new RelayError('invalid_params', 'path must be iris://history or iris://history/<id>')
+  await chrome.storage.session.set({ [IRIS_ROUTE_KEY]: params.path.trim() })
+  return { path: params.path.trim(), page: route.page, id: route.id ?? null }
+}, {
+  description: 'Open an Iris side-panel route. iris://history/<id> selects that stored conversation when the panel is open.',
+  params: [
+    { name: 'path', type: 'string', description: 'iris://history or iris://history/<conversation id>' },
+  ],
 })
 
 registerRelayMethod('iris.tracing.export', async () => ({ days: await loadAllEvents() }), {

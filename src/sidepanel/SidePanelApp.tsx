@@ -8,6 +8,7 @@ import {
 } from '@/agent/history'
 import type { Conversation as AgentConversation } from '@/agent/types'
 import { listSkills, type StoredSkill } from '@/lib/skillStore'
+import { IRIS_ROUTE_KEY, parseIrisRoute } from '@/lib/irisRoute'
 import { fetchModels } from '@/lib/modelRegistry'
 import { cn } from '@/lib/utils'
 import { useAgentSessions } from './useAgentSessions'
@@ -109,7 +110,10 @@ export default function SidePanelApp() {
     if (currentTabId == null) return
     const store = await loadAgentConversations()
     const conv = store.conversations.find((c) => c.id === id)
-    if (!conv) return
+    if (!conv) {
+      setActiveTab('agent-history')
+      return
+    }
     remountSession(currentTabId, {
       conversation: conv,
       agentMode: conv.agentMode || 'general',
@@ -117,6 +121,44 @@ export default function SidePanelApp() {
     await setAgentActiveConversation(id)
     setActiveTab('agent')
   }
+
+  const selectConversationRef = useRef(handleAgentSelectConversation)
+  selectConversationRef.current = handleAgentSelectConversation
+  const queuedConversationId = useRef<string | null>(null)
+  const [routeNonce, setRouteNonce] = useState(0)
+
+  const applyRoute = useCallback((path: string) => {
+    const route = parseIrisRoute(path)
+    void chrome.storage.session.remove(IRIS_ROUTE_KEY)
+    if (!route) return
+    if (!route.id) {
+      queuedConversationId.current = null
+      handleTabChange('agent-history')
+      return
+    }
+    queuedConversationId.current = route.id
+    setRouteNonce(n => n + 1)
+  }, [])
+
+  useEffect(() => {
+    const onChanged = (changes: Record<string, chrome.storage.StorageChange>) => {
+      const next = changes[IRIS_ROUTE_KEY]?.newValue
+      if (typeof next === 'string') applyRoute(next)
+    }
+    chrome.storage.session.onChanged.addListener(onChanged)
+    chrome.storage.session.get(IRIS_ROUTE_KEY).then(bag => {
+      const pending = bag[IRIS_ROUTE_KEY]
+      if (typeof pending === 'string') applyRoute(pending)
+    }).catch(() => {})
+    return () => chrome.storage.session.onChanged.removeListener(onChanged)
+  }, [applyRoute])
+
+  useEffect(() => {
+    if (currentTabId == null || !queuedConversationId.current) return
+    const id = queuedConversationId.current
+    queuedConversationId.current = null
+    void selectConversationRef.current(id)
+  }, [currentTabId, routeNonce])
 
   const handleAgentNewChat = useCallback(async (tabId: number) => {
     unlinkToNewChat(tabId)

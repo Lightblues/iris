@@ -193,4 +193,5 @@ Typed in chat input, not the page command menu. Spec of the menu: [page-enhancem
 - Lazy create on first send; title from first user text
 - Each conversation records `agentMode` for restore
 - `AgentPanelReady` writes `messages` back on every change
-- History tab: date groups, JSON import/export
+- History tab: date groups, JSON import/export, search over title and message text
+- `iris://history/<conversation id>` opens that conversation in the side panel. `iris.navigate` writes the path to `chrome.storage.session` (`iris_pending_route`); the panel applies it when it is open. The id is `Conversation.id`, not the tab-binding session id

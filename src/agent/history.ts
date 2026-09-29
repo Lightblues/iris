@@ -40,6 +40,18 @@ export async function loadAllConversations(): Promise<ConversationStore> {
   return loadStore()
 }
 
+/** Title, id, and user/assistant text. Tool payloads are left out. */
+export function conversationSearchText(conv: Conversation): string {
+  const bits = [conv.title, conv.id]
+  for (const message of conv.messages) {
+    if (message.role !== 'user' && message.role !== 'assistant') continue
+    for (const part of message.parts ?? []) {
+      if (part.type === 'text' && part.text) bits.push(part.text)
+    }
+  }
+  return bits.join('\n').toLowerCase()
+}
+
 export async function getActiveConversation(): Promise<Conversation | null> {
   const store = await loadStore()
   if (!store.activeConversationId) return null
