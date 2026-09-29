@@ -659,11 +659,11 @@ const TOOLS: ToolDef[] = [
   {
     name: 'take_screenshot',
     group: 'screenshot',
-    needsTab: false,
-    description: 'Capture the visible area of a tab. Without tabId, uses the hidden automation tab. The tab is focused briefly.',
+    needsTab: true,
+    description: 'Capture the visible viewport of a tab as an image the model can see. Defaults to the current session tab. The tab is focused briefly.',
     inputSchema: schema({ tabId: tabField }),
     async run(params, ctx) {
-      return auto('take_screenshot', { tabId: optTab(params, ctx) })
+      return auto('take_screenshot', { tabId: requireTab(params, ctx) })
     },
   },
 ]

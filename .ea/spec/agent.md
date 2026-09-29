@@ -36,7 +36,9 @@ ChatInput
   → chrome.storage.local
 ```
 
-The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached. Tab cleanup, automation, screenshots, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
+The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached, including `take_screenshot`. Tab cleanup, automation, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
+
+`take_screenshot` returns a short receipt (`captured`, `imageId`, `bytes`), not a data URL. `toModelOutput` turns that into `image-data`. OpenRouter chat completions stringify tool-result images, so a language-model middleware lifts those parts onto a user image message — the same path as a pasted photo. The hidden automation tab is not the default target.
 
 ## Modules (`src/agent/`)
 
@@ -124,6 +126,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | Tool | Description |
 |------|-------------|
 | `read_page` | Session tab. `card` (default), `text` (markdown slice + cursor), or `selector`. ~8k cap |
+| `take_screenshot` | Visible viewport of the session tab (or `tabId`). Image reaches the model as a user image part |
 | `eval` | MAIN-world JS on the session tab, or `tabId`. The body is an async function body, so `await` works at the top level |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
 | `open_url` | New tab. `background: true` leaves the user where they are |
@@ -140,7 +143,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 
 ### Automation tools
 
-`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Loaded with the `automation` group. Each call takes an optional `tabId` and otherwise uses the session tab. `open_url({ background: true })` then `eval({ tabId })` when the action should not touch the user's page. `take_screenshot` is the `screenshot` group.
+`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Loaded with the `automation` group. Each call takes an optional `tabId` and otherwise uses the session tab. `open_url({ background: true })` then `eval({ tabId })` when the action should not touch the user's page. `take_screenshot` is a core tool (the `screenshot` group still loads it).
 
 | Tool | Description |
 |------|-------------|

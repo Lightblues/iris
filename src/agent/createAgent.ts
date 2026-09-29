@@ -1,5 +1,6 @@
-import { ToolLoopAgent, stepCountIs } from 'ai'
+import { ToolLoopAgent, stepCountIs, wrapLanguageModel } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
+import { liftToolImagesMiddleware } from '@/lib/liftToolImages'
 import type { AgentConfig } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { skillsCatalogPrompt } from './skills'
@@ -51,7 +52,10 @@ export async function createAgent(
 
   const agent = new ToolLoopAgent({
       id: `iris-${config.id}`,
-      model: provider.chat(modelId),
+      model: wrapLanguageModel({
+        model: provider.chat(modelId),
+        middleware: liftToolImagesMiddleware,
+      }),
       instructions: await skillsCatalogPrompt(),
       tools,
       stopWhen: stepCountIs(maxSteps),
