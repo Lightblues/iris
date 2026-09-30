@@ -20,5 +20,6 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 - Run scripts via `pnpm <script>`
 
 ## Git
-- NEVER use `git commit` directly — code must be reviewed first
+- NEVER commit unreviewed work. Commit only after the user confirms the result (for forge issues: when they say "done" / "完成", close it with forge-close, one commit per issue)
+- Never push unless the user or `.ea/forge.yaml` asks for it
 - Only use `gh` CLI tools after user approval

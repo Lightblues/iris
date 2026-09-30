@@ -1,7 +1,7 @@
 # forge repository defaults. Issue frontmatter overrides these; CLI flags override both.
 prefix: iris
-delivery: none   # none: leave changes uncommitted | commit: the agent commits on the current branch
-review: false    # true: a finished issue waits in review/ until you run 'forge mv <id> done'
+delivery: commit # applied when an issue reaches done: none | commit (current branch) | push (commit, then push)
+review: true     # true: a finished issue waits in review/ until you confirm; the agent then closes it (forge-close)
 provider: cursor
 # mode: default
 # host: local

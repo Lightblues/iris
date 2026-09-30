@@ -12,6 +12,7 @@ This README is ignored by forge; regenerate it with `forge init --force`.
 - id: `iris-<NNN>`, equal to the file name; next number = highest existing + 1 (`forge ls`).
 - The directory and the `status` field always agree. Change both with `forge mv <id> <status>`, not a plain `mv`.
 - `review`: finished by an agent, waiting for a person. Used when `review: true`; otherwise agents finish into `done`.
+  Say "done" / "完成" to the agent that ran it: it ticks what you confirmed, moves the issue to `done`, and applies `delivery`.
 - Repository defaults (`prefix`, `delivery`, `review`, `provider`, `mode`, `host`) live in `.ea/forge.yaml`; issue fields override them.
 
 ## File
@@ -25,7 +26,7 @@ Frontmatter (YAML), schema v1:
 | `priority`, `estimate` | no | `low`..`urgent`; `S` (<15 min), `M` (15-60 min), `L` (1-4 h) |
 | `labels`, `blocked_by` | no | Free-form list; issue ids |
 | `host`, `cwd`, `provider`, `mode` | no | Where and how to run (`host` is a forge alias, default `local`) |
-| `delivery`, `review` | no | `none` or `commit` (agent commits on the current branch); `true` finishes into `review/` |
+| `delivery`, `review` | no | On reaching `done`: `none`, `commit` (current branch), or `push`; `true` finishes into `review/` first |
 | `workspace_id`, `agent_id`, `dispatched_at` | no | Written by `forge run`; do not edit |
 
 Unknown fields are preserved. Body sections: `## Objective`, `## Context` (verified paths), `## Tasks`
