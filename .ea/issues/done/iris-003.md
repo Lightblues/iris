@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-003
 title: Add rerun button to agent messages
 status: done

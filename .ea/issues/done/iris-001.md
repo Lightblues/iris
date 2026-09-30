@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-001
 title: Remove legacy Chat module
 status: done

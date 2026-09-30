@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-002
 title: Auto-load model list from /v1/models endpoint
 status: done

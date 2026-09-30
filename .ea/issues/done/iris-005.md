@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-005
 title: Configure GitHub Actions release workflow
 status: done

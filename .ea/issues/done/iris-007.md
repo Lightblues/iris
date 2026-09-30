@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-007
 title: Show full page content in context message expand view
 status: done

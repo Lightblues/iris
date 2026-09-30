@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-004
 title: Display thinking/reasoning blocks with streaming
 status: done

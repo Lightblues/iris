@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 id: iris-006
 title: Show raw model ID without abbreviation in model selector
 status: done
