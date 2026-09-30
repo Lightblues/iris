@@ -10,6 +10,8 @@
     "sync-manifest-version": "tsx scripts/sync-manifest-version.ts",
     "version": "tsx scripts/sync-manifest-version.ts",
     "lint": "eslint .",
+    "test": "tsx --test 'src/**/*.test.ts'",
+    "typecheck": "pnpm bundle-skills && tsc -b",
     "preview": "vite preview",
     "relay": "pnpm --dir services/relay start"
   },

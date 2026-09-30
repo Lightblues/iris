@@ -5,6 +5,8 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 ## Quick Reference
 - **Dev**: `pnpm dev` (Vite + crxjs hot reload)
 - **Build**: `pnpm build` → `dist/` (load unpacked in Chrome)
+- **Test**: `pnpm test` (Node test runner via tsx)
+- **Typecheck**: `pnpm typecheck` (`bundle-skills` then `tsc -b`)
 - **Spec / Docs**: @.ea/spec/spec.md
 
 ## Coding Style
