@@ -36,7 +36,7 @@ ChatInput
   → chrome.storage.local
 ```
 
-The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached, including `take_screenshot`. Tab cleanup, automation, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
+The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached, including `take_screenshot` and `web_search`. Tab cleanup, automation, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
 
 `take_screenshot` returns a short receipt (`captured`, `imageId`, `bytes`), not a data URL. `toModelOutput` turns that into `image-data`. OpenRouter chat completions stringify tool-result images, so a language-model middleware lifts those parts onto a user image message — the same path as a pasted photo. The hidden automation tab is not the default target.
 
@@ -130,6 +130,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `eval` | JS on the session tab, or `tabId`, in the page's main world via `userScripts` (page JS and DOM). Async function body. If user scripts are off, CSP pages fall back to the DOM only (`domOnly`) |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
 | `open_url` | New tab. `background: true` leaves the user where they are |
+| `web_search` | Exa search for current information. Returns titles, URLs, dates, and text trimmed to ~1000 characters. Then `open_url` / `read_page` a result. Needs an Exa key in Settings → Web Search |
 | `focus_tab` | Activate a tab |
 | `list_scripts` / `write_script` / `toggle_script` | Userscript and AgentScript store. See [scripts.md](scripts.md) |
 | `reload_tab` / `read_console` | Re-inject scripts / read `GM_log` |

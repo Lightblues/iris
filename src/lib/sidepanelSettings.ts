@@ -24,6 +24,7 @@ export interface SidePanelSettings {
   remoteRelayUrl?: string // wss:// or https:// host
   remoteRelayToken?: string
   remoteRelayLabel?: string // Device name, for example home or company
+  exaApiKey?: string // Exa key for web_search. Stored only in chrome.storage.local
 }
 
 const DEFAULT_FAVOURITE_MODELS = [
@@ -50,6 +51,7 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
   remoteRelayUrl: '',
   remoteRelayToken: '',
   remoteRelayLabel: '',
+  exaApiKey: '',
 }
 
 export const SETTINGS_KEY = 'sidepanel_settings'
@@ -179,6 +181,7 @@ export function importSettings(jsonString: string): { success: true; settings: S
       remoteRelayUrl: typeof parsed.remoteRelayUrl === 'string' ? parsed.remoteRelayUrl : DEFAULT_SETTINGS.remoteRelayUrl,
       remoteRelayToken: typeof parsed.remoteRelayToken === 'string' ? parsed.remoteRelayToken : DEFAULT_SETTINGS.remoteRelayToken,
       remoteRelayLabel: typeof parsed.remoteRelayLabel === 'string' ? parsed.remoteRelayLabel : DEFAULT_SETTINGS.remoteRelayLabel,
+      exaApiKey: typeof parsed.exaApiKey === 'string' ? parsed.exaApiKey : DEFAULT_SETTINGS.exaApiKey,
     }
 
     return { success: true, settings }

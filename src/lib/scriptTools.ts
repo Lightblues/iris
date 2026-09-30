@@ -7,7 +7,7 @@ import { executePageWebmcp, listPageWebmcp } from './agentToolCatalog'
 export const TOOL_GROUPS = {
   core: [
     'list_skills', 'load_skill', 'read_skill_file', 'read_skill_history', 'write_skill', 'patch_skill', 'delete_skill', 'toggle_skill', 'load_tools',
-    'read_page', 'eval', 'take_screenshot', 'list_tabs', 'open_url', 'focus_tab', 'close_tabs',
+    'read_page', 'eval', 'take_screenshot', 'list_tabs', 'open_url', 'web_search', 'focus_tab', 'close_tabs',
     'list_scripts', 'write_script', 'toggle_script', 'reload_tab', 'read_console',
   ],
   tabs: ['query_tabs', 'create_tab_group', 'smart_organize', 'archive_inactive', 'list_closed_tabs', 'restore_tab'],

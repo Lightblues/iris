@@ -246,12 +246,12 @@ registerRelayMethod('iris.settings.get', async (params) => {
   if (params.includeSecrets != null && typeof params.includeSecrets !== 'boolean') {
     throw new RelayError('invalid_params', 'includeSecrets must be a boolean')
   }
-  const { apiKey, browserRelayToken, ...rest } = await loadSettings()
-  if (params.includeSecrets === true) return { ...rest, apiKey, browserRelayToken }
+  const { apiKey, browserRelayToken, exaApiKey, ...rest } = await loadSettings()
+  if (params.includeSecrets === true) return { ...rest, apiKey, browserRelayToken, exaApiKey }
   return rest
 }, {
-  description: 'Read Iris settings. API key and relay token are omitted unless includeSecrets is true.',
+  description: 'Read Iris settings. API key, relay token, and Exa key are omitted unless includeSecrets is true.',
   params: [
-    { name: 'includeSecrets', type: 'boolean', description: 'Include apiKey and browserRelayToken.' },
+    { name: 'includeSecrets', type: 'boolean', description: 'Include apiKey, browserRelayToken, and exaApiKey.' },
   ],
 })
