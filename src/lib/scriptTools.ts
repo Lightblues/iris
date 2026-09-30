@@ -11,7 +11,7 @@ export const TOOL_GROUPS = {
     'list_scripts', 'write_script', 'toggle_script', 'reload_tab', 'read_console',
   ],
   tabs: ['query_tabs', 'create_tab_group', 'smart_organize', 'archive_inactive', 'list_closed_tabs', 'restore_tab'],
-  automation: ['get_tab_info', 'navigate', 'page_snapshot', 'click', 'type_text', 'extract_data', 'wait_for', 'scroll', 'evaluate_js'],
+  automation: ['get_tab_info', 'navigate', 'page_snapshot', 'click', 'type_text', 'extract_data', 'wait_for', 'scroll'],
   screenshot: ['take_screenshot'],
 } as const
 

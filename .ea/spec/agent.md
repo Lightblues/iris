@@ -127,7 +127,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 |------|-------------|
 | `read_page` | Session tab. `card` (default), `text` (markdown slice + cursor), or `selector`. ~8k cap |
 | `take_screenshot` | Visible viewport of the session tab (or `tabId`). Image reaches the model as a user image part |
-| `eval` | MAIN-world JS on the session tab, or `tabId`. The body is an async function body, so `await` works at the top level |
+| `eval` | JS on the session tab, or `tabId`, in the page's main world via `userScripts` (page JS and DOM). Async function body. If user scripts are off, CSP pages fall back to the DOM only (`domOnly`) |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
 | `open_url` | New tab. `background: true` leaves the user where they are |
 | `focus_tab` | Activate a tab |
@@ -153,7 +153,6 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `click` / `type_text` | Interact |
 | `extract_data` | text / list / table / HTML |
 | `wait_for` / `scroll` | Wait or scroll |
-| `evaluate_js` | Same escape hatch as `eval`, on the automation group |
 | `take_screenshot` | Visible viewport of that tab |
 
 ### Page tools and scripts

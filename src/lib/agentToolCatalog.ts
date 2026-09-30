@@ -132,8 +132,9 @@ const TOOLS: ToolDef[] = [
     name: 'eval',
     group: 'page',
     needsTab: true,
-    description: 'Run JavaScript in the page (MAIN world). The code is a function body; return a JSON-serializable value. Use open_url with background:true and pass tabId to act on another tab.',
-    inputSchema: schema({ code: str('Function body. Use return for the result.'), tabId: tabField }, ['code']),
+    aliases: ['evaluate_js'],
+    description: 'Run JavaScript in the page, like the console: page JavaScript and the DOM are both visible. The code is an async function body; return JSON (await is allowed). A bare expression is returned too. A DOM node comes back as its tag and text. console.log is not returned. Prefer read_page for a long article. Pass tabId to target another tab. domOnly means only the DOM was visible.',
+    inputSchema: schema({ code: str('Async function body. return a JSON value, or write a bare expression.'), tabId: tabField }, ['code']),
     async run(params, ctx) {
       if (typeof params.code !== 'string') throw new Error('code is required')
       return evalInPage(requireTab(params, ctx), params.code)
@@ -643,17 +644,6 @@ const TOOLS: ToolDef[] = [
         amount: typeof params.amount === 'number' ? params.amount : 500,
         tabId: optTab(params, ctx),
       })
-    },
-  },
-  {
-    name: 'evaluate_js',
-    group: 'automation',
-    needsTab: false,
-    description: 'Run JavaScript on a tab. Without tabId, uses the hidden automation tab. Prefer eval for the session tab.',
-    inputSchema: schema({ code: str('Function body. Use return for the result.'), tabId: tabField }, ['code']),
-    async run(params, ctx) {
-      if (typeof params.code !== 'string') throw new Error('code is required')
-      return auto('evaluate_js', { code: params.code, tabId: optTab(params, ctx) })
     },
   },
   {

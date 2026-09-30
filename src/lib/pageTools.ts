@@ -61,44 +61,149 @@ export async function readPage(tabId: number, mode: 'card' | 'text' | 'selector'
   return { mode: 'text', untrusted: true, ...clip(content, offset) }
 }
 
+type EvalHit = { result?: string; error?: string }
+
+/** Script text for userScripts MAIN. The page runs this directly, so CSP does not treat it as eval. */
+export function evalSource(body: string, asExpression: boolean): string {
+  const inner = asExpression ? `return (\n${body}\n)` : body
+  return `(() => {
+    const __irisRun = async () => { ${inner} }
+    const __irisPack = (value) => {
+      if (typeof Node === 'function' && value instanceof Node) {
+        const text = String(value.innerText || value.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 2000)
+        return { node: value.nodeName, id: value.id || undefined, text }
+      }
+      if (typeof value === 'function') return { function: value.name || 'anonymous' }
+      return value === undefined ? null : value
+    }
+    return __irisRun().then(
+      (value) => {
+        try { return JSON.stringify({ ok: true, value: __irisPack(value) }) }
+        catch { return JSON.stringify({ ok: false, error: 'Result must be JSON-serializable. Return text or a plain object.' }) }
+      },
+      (e) => JSON.stringify({ ok: false, error: (e && e.message) ? e.message : String(e) }),
+    )
+  })()`
+}
+
+export function decodeEvalResult(raw: unknown): EvalHit {
+  if (typeof raw !== 'string') {
+    try { return { result: JSON.stringify(raw ?? null) } }
+    catch { return { error: 'Result must be JSON-serializable. Return text or a plain object.' } }
+  }
+  try {
+    const parsed = JSON.parse(raw) as { ok?: boolean; value?: unknown; error?: string }
+    if (parsed?.ok === false) return { error: parsed.error || 'Script execution failed' }
+    if (parsed?.ok === true) return { result: JSON.stringify(parsed.value ?? null) }
+  } catch { /* not our envelope */ }
+  return { result: raw }
+}
+
+function userScriptsUnavailable(message: string): boolean {
+  return /allow user scripts|user scripts unavailable|developer mode/i.test(message)
+}
+
+async function evalViaUserScripts(tabId: number, code: string): Promise<EvalHit | 'unavailable'> {
+  const api = chrome.userScripts
+  if (typeof api?.execute !== 'function') return 'unavailable'
+  const inject = async (asExpression: boolean): Promise<EvalHit | 'syntax' | 'unavailable'> => {
+    try {
+      const hits = await api.execute({
+        target: { tabId },
+        world: 'MAIN',
+        injectImmediately: true,
+        js: [{ code: evalSource(code, asExpression) }],
+      })
+      const hit = hits?.[0]
+      if (!hit) return { error: 'Script execution failed' }
+      if (hit.error) {
+        if (asExpression && /syntax|unexpected|illegal/i.test(hit.error)) return 'syntax'
+        if (isEvalCspBlock(hit.error) || /TrustedScript/i.test(hit.error)) return 'unavailable'
+        return { error: hit.error }
+      }
+      return decodeEvalResult(hit.result)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      if (userScriptsUnavailable(message) || isEvalCspBlock(message)) return 'unavailable'
+      return { error: message }
+    }
+  }
+  const hasReturn = /\breturn\b/.test(code)
+  const first = await inject(!hasReturn)
+  if (first === 'unavailable') return 'unavailable'
+  if (first === 'syntax') {
+    const retry = await inject(false)
+    if (retry === 'unavailable' || retry === 'syntax') return { error: 'The code did not parse. Check for a syntax error.' }
+    return retry
+  }
+  return first
+}
+
+/** Injected into the tab. Must not close over module scope. */
+export async function evalUserCode(body: string): Promise<EvalHit> {
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (src: string) => () => Promise<unknown>
+  try {
+    let value = await new AsyncFunction(body)()
+    if (value === undefined && !/\breturn\b/.test(body)) {
+      try {
+        value = await new AsyncFunction(`return (\n${body}\n)`)()
+      } catch (e) {
+        if (!(e instanceof SyntaxError)) throw e
+      }
+    }
+    return { result: JSON.stringify(value === undefined ? null : value) }
+  } catch (e) {
+    return { error: e instanceof Error && e.message ? e.message : String(e) }
+  }
+}
+
+export function isEvalCspBlock(error: string | undefined): boolean {
+  if (!error) return false
+  return /content security policy|unsafe-eval|evalerror/i.test(error)
+}
+
+async function runEval(tabId: number, world: 'MAIN' | 'ISOLATED', code: string): Promise<EvalHit> {
+  try {
+    const [hit] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world,
+      func: evalUserCode,
+      args: [code],
+    })
+    return hit?.result ?? { error: 'Script execution failed' }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+function packEval(hit: EvalHit): unknown {
+  if (hit.error) {
+    const error = isEvalCspBlock(hit.error)
+      ? 'This page blocks JavaScript evaluation. Use read_page for text.'
+      : hit.error
+    return { untrusted: true, error }
+  }
+  const raw = hit.result ?? 'null'
+  if (raw.length > CAP) return { untrusted: true, truncated: true, result: raw.slice(0, CAP) }
+  try {
+    return { untrusted: true, result: JSON.parse(raw) }
+  } catch {
+    return { untrusted: true, truncated: true, result: raw.slice(0, CAP) }
+  }
+}
+
 export async function evalInPage(tabId: number, code: string): Promise<unknown> {
-  const [hit] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'MAIN',
-    func: async (body: string) => {
-      const key = '__iris_eval_' + Math.random().toString(36).slice(2)
-      let parseError: string | null = null
-      const onError = (ev: ErrorEvent) => { parseError = ev.message }
-      try {
-        // The body becomes an async function, so it may use await at the top level.
-        window.addEventListener('error', onError)
-        const script = document.createElement('script')
-        script.textContent = `window[${JSON.stringify(key)}] = (async function () { ${body} })();`
-        document.documentElement.appendChild(script)
-        script.remove()
-      } catch (e) {
-        return { error: (e as Error).message }
-      } finally {
-        window.removeEventListener('error', onError)
-      }
-      const bag = window as unknown as Record<string, unknown>
-      const pending = bag[key]
-      delete bag[key]
-      // An inline <script> that fails to parse never assigns, so nothing is pending.
-      if (!pending) return { error: parseError ? `Script error: ${parseError}` : 'The code did not parse. Check for a syntax error.' }
-      try {
-        const value = await pending
-        return { result: value === undefined ? null : value }
-      } catch (e) {
-        return { error: String((e as Error)?.message ?? e) }
-      }
-    },
-    args: [code],
-  })
-  const result = hit?.result
-  const packed = JSON.stringify(result)
-  if (packed && packed.length > CAP) return { untrusted: true, truncated: true, result: packed.slice(0, CAP) }
-  return { untrusted: true, ...(typeof result === 'object' && result ? result : { result }) }
+  // userScripts MAIN runs the source as a page script, so page JS is visible and
+  // CSP does not block it. Function() is the fallback when user scripts are off.
+  const direct = await evalViaUserScripts(tabId, code)
+  if (direct !== 'unavailable') return packEval(direct)
+  const main = await runEval(tabId, 'MAIN', code)
+  if (!isEvalCspBlock(main.error)) return packEval(main)
+  const isolated = packEval(await runEval(tabId, 'ISOLATED', code))
+  if (isolated && typeof isolated === 'object' && !('error' in isolated)) {
+    return { ...isolated, domOnly: true }
+  }
+  return isolated
 }
 
 export async function openUrl(url: string, background = false): Promise<unknown> {

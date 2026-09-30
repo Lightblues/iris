@@ -298,40 +298,6 @@ export const automationTools = {
     }
   },
 
-  evaluate_js: {
-    execute: async (params: { code: string }) => {
-      const tabId = await tabFor(params)
-      // Use MAIN world to bypass page CSP restrictions on eval
-      const results = await chrome.scripting.executeScript({
-        target: { tabId },
-        world: 'MAIN',
-        func: (code: string) => {
-          try {
-            const script = document.createElement('script')
-            script.textContent = `
-              window.__iris_eval_result = (function() {
-                try { return { result: (function() { ${code} })() } }
-                catch(e) { return { error: e.message } }
-              })();
-            `
-            document.documentElement.appendChild(script)
-            script.remove()
-            const r = (window as any).__iris_eval_result
-            delete (window as any).__iris_eval_result
-            return r || { error: 'No result' }
-          } catch (e: any) {
-            return { error: e.message }
-          }
-        },
-        args: [params.code],
-      })
-      if (!results?.length) throw new Error('Script execution failed')
-      const first = results[0] as any
-      if (first.error) throw new Error(first.error.message || 'Script execution error')
-      return first.result
-    }
-  },
-
   take_screenshot: {
     execute: async (params: { tabId?: number } = {}) => {
       const tabId = params.tabId

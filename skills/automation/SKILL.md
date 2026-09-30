@@ -15,7 +15,6 @@ Snapshot before you click or type. After navigation or a click that loads new co
 - `click` / `type_text` — act by CSS selector
 - `extract_data` — text, list, table, or HTML
 - `wait_for` / `scroll`
-- `evaluate_js` — function body, `return` the value
 - `take_screenshot` — always available; defaults to the session tab and briefly focuses it
 
 A full example is in `reference.md`. Read that file before the first multi-step automation in a conversation.
