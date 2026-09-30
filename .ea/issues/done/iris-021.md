@@ -2,7 +2,7 @@
 schema_version: 1
 id: iris-021
 title: Add a web_search tool backed by Exa
-status: review
+status: done
 priority: medium
 estimate: M
 labels: [agent, tools, search]
@@ -48,7 +48,7 @@ Reference: https://ai-sdk.dev/cookbook/node/web-search-agent (the "custom tool" 
 - [x] `EXA_API_KEY=… pnpm exec tsx scripts/test-web-search.ts "AI SDK 6 ToolLoopAgent"` prints at least one real result with title, URL, and text.
 - [x] `iris.tools.list` includes `web_search` with the same schema (it comes from the catalog; no relay code change).
 - [x] With no Exa key set, calling the tool returns an error that tells the user to set it in Settings → Web Search; chat keeps working.
-- [ ] Person check (review): in the loaded extension, asking "what changed in the latest Chrome stable release?" makes the agent call `web_search` and cite result URLs.
+- [x] Person check (review): in the loaded extension, asking "what changed in the latest Chrome stable release?" makes the agent call `web_search` and cite result URLs.
 
 ## Outcome
 - Status: done
@@ -68,7 +68,7 @@ Reference: https://ai-sdk.dev/cookbook/node/web-search-agent (the "custom tool" 
   - `.ea/spec/spec.md` — settings table
   - `.ea/spec/browser-relay.md` — tools.list includes search
 - Verification: `pnpm test` 14 passed, including the five new web search tests. `pnpm typecheck` passed. `pnpm exec tsx scripts/test-web-search.ts "AI SDK 6 ToolLoopAgent"` printed five hits; the first was the AI SDK ToolLoopAgent docs page with a title, URL, and text.
-- Notes: Exa's response matched the issue (`results[].title/url/publishedDate/text`); `publishedDate` was often absent and is stored as `''`. A missing key throws `Exa API key is not set. Add it in Settings → Web Search.` from `searchExa`, which `web_search` does not catch, so the agent loop treats it like other tool errors and chat continues. `iris.settings.get` now withholds the key unless `includeSecrets` is true. The in-extension person check is still open for review. The Settings page was not opened in a loaded extension.
+- Notes: Exa's response matched the issue (`results[].title/url/publishedDate/text`); `publishedDate` was often absent and is stored as `''`. A missing key throws `Exa API key is not set. Add it in Settings → Web Search.` from `searchExa`, which `web_search` does not catch, so the agent loop treats it like other tool errors and chat continues. `iris.settings.get` now withholds the key unless `includeSecrets` is true. The in-extension person check passed.
 
 ## Boundaries
 - Always: keep the key in `chrome.storage.local` settings only; never log it or return it in tool output.
