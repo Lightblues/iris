@@ -12,6 +12,8 @@
 import { useChat } from '@ai-sdk/react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { DirectChatTransport } from 'ai'
+import { IrisChatTransport } from './transport'
+import { repairChatMessages } from './repairMessages'
 import type { IrisMessage, IrisMessageMetadata, Conversation } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { irisAgent } from './registry'
@@ -92,10 +94,17 @@ export function useAgentChat(
   const conversationRef = useRef(conversation)
   conversationRef.current = conversation
 
+  const chatRef = useRef<ReturnType<typeof useChat<IrisMessage>> | null>(null)
+
   const chat = useChat<IrisMessage>({
     transport: transport as any,
     messages: conversation?.messages,
-    onFinish({ message, isAbort }) {
+    onFinish({ message, messages, isAbort, isError }) {
+      if (isAbort || isError) {
+        const names = transport instanceof IrisChatTransport ? transport.knownTools() : undefined
+        const next = repairChatMessages(messages as IrisMessage[], names)
+        if (next !== messages) chatRef.current?.setMessages(next)
+      }
       if (isAbort) return
       const conv = conversationRef.current
       const meta = (message as IrisMessage).metadata
@@ -115,6 +124,7 @@ export function useAgentChat(
       onError(error.message || 'Failed to get response')
     },
   })
+  chatRef.current = chat
 
   const sendMessage = useCallback(async (
     content: string,
@@ -122,6 +132,11 @@ export function useAgentChat(
   ) => {
     if (!content.trim() && !attachedImages?.length) return
     if (!settings.apiKey) { onError('Please enter your API key'); return }
+
+    const names = transport instanceof IrisChatTransport ? transport.knownTools() : undefined
+    const current = chat.messages as IrisMessage[]
+    const repaired = repairChatMessages(current, names)
+    if (repaired !== current) chat.setMessages(repaired)
 
     let processedContent = content.trim()
     if (processedContent.startsWith('/')) {
@@ -174,7 +189,7 @@ export function useAgentChat(
       ...(files?.length ? { files } : {}),
       metadata: { timestamp: Date.now() } as IrisMessageMetadata,
     } as any)
-  }, [settings.apiKey, chat, onConversationCreated, onError, tabId])
+  }, [settings.apiKey, chat, onConversationCreated, onError, tabId, transport])
 
   const injectContext = useCallback(async (opts?: { silent?: boolean; tabId?: number; card?: boolean }): Promise<boolean> => {
     const silent = opts?.silent === true

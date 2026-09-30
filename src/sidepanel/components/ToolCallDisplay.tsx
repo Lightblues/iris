@@ -64,6 +64,9 @@ export function ToolCallDisplay({ part }: ToolCallDisplayProps) {
         {hasError && (
           <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />
         )}
+        {hasError && !expanded && part.errorText && (
+          <span className="text-[10px] text-red-500 truncate">{part.errorText}</span>
+        )}
         <span className="flex-1" />
         {expanded
           ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />

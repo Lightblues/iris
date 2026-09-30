@@ -1,14 +1,39 @@
-import { DirectChatTransport, type Agent } from 'ai'
+import { DirectChatTransport, type Agent, type DirectChatTransportOptions } from 'ai'
 import type { IrisMessageMetadata } from './types'
 import type { ProviderMetadataRef } from './createAgent'
 import { estimateCost } from '@/lib/tokenUtils'
+import { repairChatMessages } from './repairMessages'
+
+type ToolsAgent = { tools?: Record<string, unknown> }
+
+export class IrisChatTransport extends DirectChatTransport<any, any, any, any> {
+  private readonly agentRef: ToolsAgent
+
+  constructor(agentRef: ToolsAgent, options: DirectChatTransportOptions<any, any, any, any>) {
+    super(options)
+    this.agentRef = agentRef
+  }
+
+  knownTools(): Set<string> {
+    return new Set(Object.keys(this.agentRef.tools ?? {}))
+  }
+
+  override async sendMessages(
+    options: Parameters<DirectChatTransport<any, any, any, any>['sendMessages']>[0],
+  ) {
+    return super.sendMessages({
+      ...options,
+      messages: repairChatMessages(options.messages, this.knownTools()),
+    })
+  }
+}
 
 export function createTransport(
   agent: Agent<any, any, any>,
   activeModel: string,
   providerMetadataRef: ProviderMetadataRef,
-): DirectChatTransport {
-  return new DirectChatTransport({
+): IrisChatTransport {
+  return new IrisChatTransport(agent, {
     agent,
     messageMetadata({ part }) {
       if (part.type === 'start') {
