@@ -13,9 +13,10 @@ export const TOOL_GROUPS = {
   tabs: ['query_tabs', 'create_tab_group', 'smart_organize', 'archive_inactive', 'list_closed_tabs', 'restore_tab'],
   automation: ['get_tab_info', 'navigate', 'page_snapshot', 'click', 'type_text', 'extract_data', 'wait_for', 'scroll'],
   screenshot: ['take_screenshot'],
+  reports: ['list_reports', 'read_report', 'write_report', 'edit_report'],
 } as const
 
-const LAZY = ['tabs', 'automation', 'screenshot', 'site', 'mcp'] as const
+const LAZY = ['tabs', 'automation', 'screenshot', 'reports', 'site', 'mcp'] as const
 type LazyGroup = typeof LAZY[number]
 
 export interface ToolSession {
@@ -48,7 +49,7 @@ export function createToolSession(tools: Record<string, any>): ToolSession {
 
 export function createLoadTools(session: ToolSession, tabRef: TabRef, mcpEndpoint: string) {
   return tool({
-    description: 'Enable a tool group for the rest of this chat. Groups: tabs, automation, screenshot, site (WebMCP on this tab), mcp (local ea-tools). Schemas appear on the next step. Calling site again re-reads the tab.',
+    description: 'Enable a tool group for the rest of this chat. Groups: tabs, automation, screenshot, reports (markdown reports), site (WebMCP on this tab), mcp (local ea-tools). Schemas appear on the next step. Calling site again re-reads the tab.',
     inputSchema: z.object({
       groups: z.array(z.string()).describe('Group names to load'),
     }),

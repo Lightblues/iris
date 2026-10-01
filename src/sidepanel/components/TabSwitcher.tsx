@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type TabType = 'agent' | 'agent-history' | 'tabs' | 'bookmarks' | 'reading-list' | 'notes' | 'scripts' | 'skills' | 'settings'
+export type TabType = 'agent' | 'agent-history' | 'tabs' | 'bookmarks' | 'reading-list' | 'notes' | 'reports' | 'scripts' | 'skills' | 'settings'
 
 interface TabSwitcherProps {
   activeTab: TabType
@@ -21,6 +21,7 @@ const MORE: { id: TabType; label: string }[] = [
   { id: 'bookmarks', label: 'Bookmarks' },
   { id: 'reading-list', label: 'Reading' },
   { id: 'notes', label: 'Notes' },
+  { id: 'reports', label: 'Reports' },
 ]
 
 export function TabSwitcher({ activeTab, onTabChange }: TabSwitcherProps) {

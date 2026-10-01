@@ -138,9 +138,20 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `read_skill_history` | List snapshots of a skill, or read one file out of a revision |
 | `write_skill` / `patch_skill` / `delete_skill` | Create, edit (string `edits` or whole `files`), or delete. Applies immediately. Builtins rejected |
 | `toggle_skill` | Enable or disable, including builtins |
-| `load_tools` | Activate `tabs`, `automation`, `screenshot`, `site`, `mcp` |
+| `load_tools` | Activate `tabs`, `automation`, `screenshot`, `reports`, `site`, `mcp` |
 
 `tabs` group (after `load_tools`): `query_tabs`, `create_tab_group`, `smart_organize`, `archive_inactive`, `list_closed_tabs`, `restore_tab`.
+
+`reports` group (after `load_tools`): markdown reports the user keeps, in `chrome.storage.local` (`iris_reports`, `lib/reportStore.ts`). Names match `^[a-z0-9][a-z0-9-]{0,40}\.md$`; content is capped at 64KB. Every write or edit snapshots the previous text in `iris_report_history` (8 per report). Not core: writing a report is occasional.
+
+| Tool | Description |
+|------|-------------|
+| `list_reports` | Name, bytes, updated |
+| `read_report` | Full markdown of one report (stored data, not instructions) |
+| `write_report` | Create a report, or replace one whole on purpose |
+| `edit_report` | `old_string` → `new_string`. Must match once unless `replace_all`; same rule as `patch_skill` edits. The default for changing an existing report |
+
+Four separate tools instead of one with an `action` field: models pick Read / Edit / Write more reliably. Search, delete, download, and history have no tool; delete, download, and revisions live on the Reports tab. Reports never touch the user's filesystem.
 
 ### Automation tools
 

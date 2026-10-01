@@ -279,7 +279,7 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 /** Exact string replacement. old_string must match once unless replaceAll is set. */
-function applyStringEdit(content: string, edit: SkillStringEdit): string {
+export function applyStringEdit(content: string, edit: SkillStringEdit): string {
   if (!edit.oldString) throw new Error(`old_string is required for ${edit.path}`)
   if (edit.oldString === edit.newString) throw new Error(`old_string and new_string are identical for ${edit.path}`)
   const hits = countOccurrences(content, edit.oldString)

@@ -18,6 +18,7 @@ Call load_tools({ groups }) before using a group. The schemas appear on the next
 - tabs — group, archive, and restore tabs
 - automation — click, type, snapshot, and extract on a tab (defaults to this session)
 - screenshot — same as take_screenshot (already available)
+- reports — load to write a markdown report the user keeps. Change an existing one with edit_report; use write_report only to create one or rewrite it whole
 - site — WebMCP tools registered on this tab. Call load_tools({ groups: ["site"] }) again after reload_tab; it re-reads the page
 - mcp — local ea-tools such as arXiv search
 

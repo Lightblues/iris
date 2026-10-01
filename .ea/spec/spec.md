@@ -82,6 +82,7 @@ Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Backgrou
 |-----|--------|-------|
 | Agent, History, Skills, Scripts | Core | Primary tab bar |
 | Tabs, Bookmarks, Reading, Notes | Maintain | Secondary menu on the tab bar. Thin wrappers, not a product line |
+| Reports | Core | Secondary menu. Agent-written markdown reports: list, rendered preview, read-only revisions, download as `<name>.md`, delete. No editor. Tools in [agent.md](agent.md) (`reports` group) |
 | Settings | Shared | LLM, Web Search, MCP, Browser relay, FAB blocklist, chat-export dir |
 
 Chrome may leave a newly opened side panel blank until a second UI gesture (shortcut / FAB / inspect). This is a Chromium scheduling bug, not Iris logic. Repro: `experiments/sidepanel-repro/`. Workaround: trigger open a second time.

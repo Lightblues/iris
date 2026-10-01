@@ -19,6 +19,7 @@ const ReadingListTab = lazy(() => import('./components/ReadingListTab').then(m =
 const TabsTab = lazy(() => import('./components/TabsTab').then(m => ({ default: m.TabsTab })))
 const NotesTab = lazy(() => import('./components/NotesTab').then(m => ({ default: m.NotesTab })))
 const ScriptsTab = lazy(() => import('./components/ScriptsTab').then(m => ({ default: m.ScriptsTab })))
+const ReportsTab = lazy(() => import('./components/ReportsTab').then(m => ({ default: m.ReportsTab })))
 const SkillsTab = lazy(() => import('./components/SkillsTab').then(m => ({ default: m.SkillsTab })))
 const AgentHistoryTab = lazy(() => import('./components/AgentHistoryTab').then(m => ({ default: m.AgentHistoryTab })))
 const AgentPanel = lazy(() => import('./components/AgentPanel').then(m => ({ default: m.AgentPanel })))
@@ -261,6 +262,8 @@ export default function SidePanelApp() {
             <Suspense fallback={<TabFallback />}><ReadingListTab /></Suspense>
           ) : activeTab === 'scripts' ? (
             <Suspense fallback={<TabFallback />}><ScriptsTab /></Suspense>
+          ) : activeTab === 'reports' ? (
+            <Suspense fallback={<TabFallback />}><ReportsTab /></Suspense>
           ) : activeTab === 'skills' ? (
             <Suspense fallback={<TabFallback />}><SkillsTab /></Suspense>
           ) : (
