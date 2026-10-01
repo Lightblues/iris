@@ -3,5 +3,5 @@ prefix: iris
 delivery: commit # applied when an issue reaches done: none | commit (current branch) | push (commit, then push)
 review: true     # true: a finished issue waits in review/ until you confirm; the agent then closes it (forge-close)
 provider: cursor
-# mode: default
+mode: grok-4.7 # default
 # host: local
