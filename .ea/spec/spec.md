@@ -82,7 +82,7 @@ Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Backgrou
 |-----|--------|-------|
 | Agent, History, Skills, Scripts | Core | Primary tab bar |
 | Tabs, Bookmarks, Reading, Notes | Maintain | Secondary menu on the tab bar. Thin wrappers, not a product line |
-| Reports | Core | Secondary menu. Agent-written markdown reports: list, rendered preview, read-only revisions, download as `<name>.md`, delete. No editor. Tools in [agent.md](agent.md) (`reports` group) |
+| Reports | Core | Secondary menu. Agent-written markdown reports: list, rendered preview, read-only revisions, download as `<name>.md`, delete. No editor. Tools in [agent.md](agent.md) |
 | Settings | Shared | LLM, Web Search, MCP, Browser relay, FAB blocklist, chat-export dir |
 
 Chrome may leave a newly opened side panel blank until a second UI gesture (shortcut / FAB / inspect). This is a Chromium scheduling bug, not Iris logic. Repro: `experiments/sidepanel-repro/`. Workaround: trigger open a second time.
@@ -93,7 +93,7 @@ Chrome may leave a newly opened side panel blank until a second UI gesture (shor
 |---------|--------|
 | LLM / Agent | API key, base URL, default model, favourites (from `/v1/models`), temperature, max output tokens, max steps |
 | Web Search | Exa API key (`exaApiKey`, default empty). Used by `web_search`. Stored in `chrome.storage.local` only |
-| MCP | Endpoint (default `http://localhost:8765/mcp`). Connected when the agent calls `load_tools({ groups: ["mcp"] })`; failure leaves chat usable without those tools |
+| MCP | Endpoint (default `http://localhost:8765/mcp`). Not connected when the side-panel agent is created; those tools are not in its schema |
 | Browser relay | Enabled, port (33007), token (`ea-browser-relay-local`). Must match ea-tools `browser_relay.*` |
 | Remote relay | Off by default. URL, token, device name. See [remote-relay.md](remote-relay.md) |
 | Per-chat model | Searchable combobox in the chat header; favourites pinned |

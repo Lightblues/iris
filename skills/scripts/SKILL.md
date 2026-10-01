@@ -50,8 +50,8 @@ Every tool needs a grant line in the header, or `registerTool` throws:
 
 `allow` runs on call. `prompt` returns `needs_confirmation` until the same call repeats with `confirmed: true` — use it for anything that writes or navigates. `deny` skips registration.
 
-Tool names are global on the tab and share the namespace with tools the site registers itself, so prefix them (`gh_`, `zh_`). To use them, `load_tools({ groups: ["site"] })` on that tab; the schemas arrive on the next step. Call it again after `reload_tab` — it re-reads the page, including when `site` was already loaded. Keep `inputSchema` flat and `execute` returning JSON-serializable data. `await` at the top of an AgentScript is fine.
+Tool names are global on the tab and share the namespace with tools the site registers itself, so prefix them (`gh_`, `zh_`). Page WebMCP tools are not in the side-panel schema. An external agent lists and calls them with `iris.tools.list` and `iris.tools.call` when `tabId` is set. Keep `inputSchema` flat and `execute` returning JSON-serializable data. `await` at the top of an AgentScript is fine.
 
-To check whether registration worked, reload the tab, `read_console` (a thrown `registerTool` is logged), then `load_tools({ groups: ["site"] })`. `document.modelContext.getTools()` returns a **promise**, so `Object.keys` on it reads `{}`. `await document.modelContext.getTools()` is the readable form, and its names should match `load_tools`.
+To check whether registration worked, reload the tab and `read_console` (a thrown `registerTool` is logged). `document.modelContext.getTools()` returns a **promise**, so `Object.keys` on it reads `{}`. `await document.modelContext.getTools()` via `eval` is the readable form.
 
 `reference.md` has a complete userscript, a complete AgentScript, and a checklist for a script that does not run. Read it before writing your first script in a conversation.

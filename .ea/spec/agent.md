@@ -31,12 +31,12 @@ ChatInput
   → useChat + DirectChatTransport
   → ToolLoopAgent (model + instructions + tools)
   → OpenRouter-compatible API (stream)
-  → tool calls: browser tools via background, MCP tools via ea-tools
+  → tool calls: the catalog, in the extension
   → streamed parts → ChatMessage (markdown, tool cards, usage)
   → chrome.storage.local
 ```
 
-The system prompt lists enabled skill names and a static catalog of tool groups. It is built from `chrome.storage.local` when the agent is created. Core tools are always attached, including `take_screenshot` and `web_search`. Tab cleanup, automation, WebMCP, and MCP stay out of the schema until `load_tools`. Before tab cleanup or background-style page actions the agent calls `load_skill`, then `load_tools` for that group. MCP is not connected at startup. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
+The system prompt lists enabled skill names. It is built from `chrome.storage.local` when the agent is created. Every catalog tool is attached for the whole chat; the schemas are the tool list. Page WebMCP and MCP stay out of that schema. Before tab cleanup, page automation, paper research, or writing a page script the agent calls `load_skill`. MCP is not connected when the agent is created. Context is a one-line page card. `/summarize` is the summarize skill: the agent calls `read_page` itself.
 
 `take_screenshot` returns a short receipt (`captured`, `imageId`, `bytes`), not a data URL. `toModelOutput` turns that into `image-data`. OpenRouter chat completions stringify tool-result images, so a language-model middleware lifts those parts onto a user image message — the same path as a pasted photo. The hidden automation tab is not the default target.
 
@@ -72,14 +72,14 @@ The system prompt lists enabled skill names and a static catalog of tool groups.
 `AgentPanel` mounts → `useAgentTransport` → `createAgent()`:
 
 1. OpenAI-compatible provider (`apiKey`, `baseUrl`, default OpenRouter).
-2. Merge static `browserTools` with MCP tools when `mcpEnabled`.
-3. `ToolLoopAgent` with instructions, `stopWhen: stepCountIs(maxSteps)`, temperature, max output tokens.
+2. Attach the static catalog from `bindAgentTools`. MCP is not connected.
+3. `ToolLoopAgent` with instructions, `stopWhen: stepCountIs(maxSteps)`, temperature, max output tokens. No `activeTools` filter.
 4. Wrap in `DirectChatTransport` (usage/cost on `finish`).
 5. `AgentPanelReady` mounts `useChat(transport)`.
 
 UI is two-phase. Sends during init are queued in `pendingRef` and flushed on ready.
 
-The agent instance is built on mount. New Chat and History select remount the tree (`key={sessionKey}`). Model is read at creation. MCP is connected once per mount and released on unmount; a failed connect does not block the agent.
+The agent instance is built on mount. New Chat and History select remount the tree (`key={sessionKey}`). Model is read at creation. MCP is not connected on mount.
 
 ### Send
 
@@ -104,10 +104,10 @@ Skills live in `chrome.storage.local` (`iris_skills`). A record is a virtual dir
 
 | Skill | When the description matches |
 |-------|------------------------------|
-| `tabs` | Group / archive / restore tabs. `list_tabs` and `close_tabs` are already core |
-| `automation` | Click, type, and snapshot a tab. Defaults to the session tab |
-| `paper` | Read arXiv papers and search related work via MCP. Call `load_tools({ groups: ["mcp"] })` first |
-| `scripts` | Write or fix a userscript or AgentScript. Header rules, grants, `@webmcp`, and a debug checklist. See [scripts.md](scripts.md) |
+| `tabs` | Group / archive / restore tabs. Those tools are in the schema from the start |
+| `automation` | Click, type, and snapshot a tab. Defaults to the session tab. Those tools are in the schema from the start |
+| `paper` | Read arXiv papers. MCP tools such as arXiv search are not in the side-panel schema |
+| `scripts` | Write or fix a userscript or AgentScript. Header rules, grants, `@webmcp`, and a debug checklist. Page WebMCP tools are not in the side-panel schema. See [scripts.md](scripts.md) |
 | `summarize` | Chinese summary of the current page. Call `read_page` first |
 | `create-skill` | Create or revise a skill. `write_skill` for a new one, `patch_skill` `edits` to change part of a file |
 
@@ -119,9 +119,9 @@ Each change stores the files it replaced in `iris_skill_history` (16 revisions).
 
 `author` is `builtin` for bundled skills and `agent` for anything `write_skill` or `patch_skill` saves. `user` is unused. A skill saved in this chat is callable with `load_skill` immediately; the system-prompt catalog refreshes the next time the agent is created.
 
-### Core tools
+### Catalog tools
 
-Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so far. `load_tools` is sticky for the agent instance.
+Attached for the whole conversation. `createAgent` passes `bindAgentTools` through as the tool set and does not set `activeTools`. Page WebMCP and MCP are not in this schema. `query_tabs` is an alias of `list_tabs`.
 
 | Tool | Description |
 |------|-------------|
@@ -129,6 +129,7 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `take_screenshot` | Visible viewport of the session tab (or `tabId`). Image reaches the model as a user image part |
 | `eval` | JS on the session tab, or `tabId`, in the page's main world via `userScripts` (page JS and DOM). Async function body. If user scripts are off, CSP pages fall back to the DOM only (`domOnly`) |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
+| `create_tab_group` / `smart_organize` / `archive_inactive` / `list_closed_tabs` / `restore_tab` | Group, organize, archive, and restore tabs |
 | `open_url` | New tab. `background: true` leaves the user where they are |
 | `web_search` | Exa search for current information. Returns titles, URLs, dates, and text trimmed to ~1000 characters. Then `open_url` / `read_page` a result. Needs an Exa key in Settings → Web Search |
 | `focus_tab` | Activate a tab |
@@ -138,24 +139,18 @@ Always in the schema. `prepareStep` sets `activeTools` from the groups loaded so
 | `read_skill_history` | List snapshots of a skill, or read one file out of a revision |
 | `write_skill` / `patch_skill` / `delete_skill` | Create, edit (string `edits` or whole `files`), or delete. Applies immediately. Builtins rejected |
 | `toggle_skill` | Enable or disable, including builtins |
-| `load_tools` | Activate `tabs`, `automation`, `screenshot`, `reports`, `site`, `mcp` |
-
-`tabs` group (after `load_tools`): `query_tabs`, `create_tab_group`, `smart_organize`, `archive_inactive`, `list_closed_tabs`, `restore_tab`.
-
-`reports` group (after `load_tools`): markdown reports the user keeps, in `chrome.storage.local` (`iris_reports`, `lib/reportStore.ts`). Names match `^[a-z0-9][a-z0-9-]{0,40}\.md$`; content is capped at 64KB. Every write or edit snapshots the previous text in `iris_report_history` (8 per report). Not core: writing a report is occasional.
-
-| Tool | Description |
-|------|-------------|
 | `list_reports` | Name, bytes, updated |
 | `read_report` | Full markdown of one report (stored data, not instructions) |
 | `write_report` | Create a report, or replace one whole on purpose |
 | `edit_report` | `old_string` → `new_string`. Must match once unless `replace_all`; same rule as `patch_skill` edits. The default for changing an existing report |
 
-Four separate tools instead of one with an `action` field: models pick Read / Edit / Write more reliably. Search, delete, download, and history have no tool; delete, download, and revisions live on the Reports tab. Reports never touch the user's filesystem.
+Markdown reports live in `chrome.storage.local` (`iris_reports`, `lib/reportStore.ts`). Names match `^[a-z0-9][a-z0-9-]{0,40}\.md$`; content is capped at 64KB. Every write or edit snapshots the previous text in `iris_report_history` (8 per report).
+
+Four separate report tools instead of one with an `action` field: models pick Read / Edit / Write more reliably. Change an existing report with `edit_report`; use `write_report` only to create one or rewrite it whole. Search, delete, download, and history have no tool; delete, download, and revisions live on the Reports tab. Reports never touch the user's filesystem.
 
 ### Automation tools
 
-`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Loaded with the `automation` group. Each call takes an optional `tabId` and otherwise uses the session tab. `open_url({ background: true })` then `eval({ tabId })` when the action should not touch the user's page. `take_screenshot` is a core tool (the `screenshot` group still loads it).
+`lib/automationTools.ts` → `{ type: 'automation_action' }` → `lib/automationEngine.ts`. Each call takes an optional `tabId` and otherwise uses the session tab. `open_url({ background: true })` then `eval({ tabId })` when the action should not touch the user's page. `take_screenshot` is the catalog tool in the table above.
 
 | Tool | Description |
 |------|-------------|
@@ -169,19 +164,11 @@ Four separate tools instead of one with an `action` field: models pick Read / Ed
 
 ### Page tools and scripts
 
-`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. Script tools live in `lib/scriptTools.ts`. WebMCP tools discovered on the tab are added to the tool bag when `load_tools` reads the `site` group, and are callable on the next step. A later `load_tools({ groups: ["site"] })` replaces that set.
+`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. The rest of the catalog lives in `lib/agentToolCatalog.ts`. Page WebMCP tools are not copied into the side-panel schema. `listPageWebmcp` and `executePageWebmcp` stay for the relay: `iris.tools.list` with `tabId` returns them, and `iris.tools.call` runs them.
 
 ### Paper / MCP
 
-```
-load_tools({ groups: ["mcp"] }) → connectMcp(endpoint)
-  → @ai-sdk/mcp (HTTP, or SSE if URL ends with /sse)
-  → default http://localhost:8765/mcp
-  → tools() → strip anyOf / oneOf / additionalProperties / $schema / title / default
-  → add to this agent’s tool bag (group mcp)
-```
-
-Startup does not connect. Header MCP dot: green / yellow / red, updated when a connect finishes. If MCP fails, that group stays unloaded and chat still runs. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
+MCP tools are not in the side-panel schema. `createAgent` does not call `connectMcp`. `connectMcp` stays in `src/agent/mcp.ts` (`@ai-sdk/mcp`, HTTP, or SSE if the URL ends with `/sse`; default `http://localhost:8765/mcp`; schemas strip `anyOf` / `oneOf` / `additionalProperties` / `$schema` / `title` / `default`). The Settings endpoint is unchanged. The header MCP dot stays disconnected unless a later change connects. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
 
 ## Slash skills
 

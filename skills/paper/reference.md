@@ -1,5 +1,7 @@
 # Paper workflows
 
+These sequences call MCP tools. Those tools are not in the side-panel schema.
+
 ## Read a paper
 
 1. `arxiv_fetch_paper(arxiv_id, include_content=true)` — metadata and a content preview

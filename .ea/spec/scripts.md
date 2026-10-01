@@ -65,7 +65,7 @@ document.modelContext.registerTool({
 | `deny` | Not registered |
 | undeclared | `registerTool` from that script throws. A page's own tools still pass through |
 
-`load_tools({ groups: ["site"] })` calls `getTools()` on the session tab and adds those schemas to the agent on the next step. Calling it again re-reads the tab. The bridge copies only JSON fields (`name`, `description`, `inputSchema`). Native tool objects include an `execute` function; returning that object from `executeScript` fails structured clone, and the failure used to surface as an empty list. The list includes AgentScript tools and tools the site registered itself. Names are global on the tab, so scripts use a short prefix (`gh_`, `zh_`).
+Page WebMCP tools are not in the side-panel schema. `listPageWebmcp` reads `getTools()` on a tab for the relay. The bridge copies only JSON fields (`name`, `description`, `inputSchema`). Native tool objects include an `execute` function; returning that object from `executeScript` fails structured clone, and the failure used to surface as an empty list. The list includes AgentScript tools and tools the site registered itself. Names are global on the tab, so scripts use a short prefix (`gh_`, `zh_`).
 
 AgentScripts may use the same `GM_*` grants as userscripts.
 
@@ -81,7 +81,7 @@ AgentScripts may use the same `GM_*` grants as userscripts.
 
 The `scripts` skill carries the authoring rules: when a script beats `eval`, the `@name` upsert, grant support, `@webmcp`, and a checklist for a script that does not run. Its `reference.md` holds a full userscript and AgentScript. Deleting, importing, and exporting have no tool — they stay on the Scripts tab.
 
-The same tools are callable from an external agent through `iris.tools.list` and `iris.tools.call`. See [browser-relay.md](browser-relay.md). `load_tools` stays on the side panel. Skill tools are on the relay; they are specified in [agent.md](agent.md).
+The same script tools, and page WebMCP tools when `tabId` is set, are callable from an external agent through `iris.tools.list` and `iris.tools.call`. See [browser-relay.md](browser-relay.md). Skill tools are on the relay; they are specified in [agent.md](agent.md).
 
 The Scripts tab lists them, with scripts that match the current URL first. Each row has an enable switch. Opening a script shows a read-only source preview and earlier saved versions. Import, export, and delete stay on that tab. There is no editor.
 

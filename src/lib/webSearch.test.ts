@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { listAgentTools } from './agentToolCatalog.ts'
-import { TOOL_GROUPS } from './scriptTools.ts'
+import { bindAgentTools } from './bindAgentTools.ts'
 import { searchExa } from './webSearch.ts'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -80,7 +80,7 @@ test('searchExa includes the HTTP status and Exa message', async () => {
   )
 })
 
-test('web_search is a core catalog tool', () => {
+test('web_search is a catalog tool with no attach step', () => {
   const tool = listAgentTools().find(item => item.name === 'web_search')
   assert.ok(tool)
   assert.equal(tool.group, 'search')
@@ -89,5 +89,5 @@ test('web_search is a core catalog tool', () => {
   assert.deepEqual(schema.required, ['query'])
   assert.equal(schema.properties?.query?.type, 'string')
   assert.equal(schema.properties?.numResults?.type, 'number')
-  assert.equal(TOOL_GROUPS.core.includes('web_search'), true)
+  assert.ok('web_search' in bindAgentTools(() => 1))
 })

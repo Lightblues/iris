@@ -103,5 +103,5 @@ Work down this list:
 4. Add `GM_log` at the top of the script, reload, `read_console`. Nothing at all means it never injected; a log then silence means a selector failed.
 5. `document-idle` may still be too early for a lazy page. Poll with a `MutationObserver` rather than moving to `document-start`.
 6. Chrome's **Allow user scripts** toggle must be on for the unpacked extension, and the extension reloaded after turning it on. Registration errors from this are shown on the Scripts tab — tell the user to check there when nothing injects at all.
-7. AgentScript tool missing from `load_tools({ groups: ["site"] })`? Check for a `@webmcp <name> <perm>` line matching the tool name exactly, and that the name does not collide with a tool the site registers. Call `load_tools` again after `reload_tab`; an earlier empty result does not stick.
-8. `await document.modelContext.getTools()` and `load_tools({ groups: ["site"] })` should list the same names. `Object.keys` on the promise itself is `{}`. A thrown error in the script is in `read_console`, not only the page console.
+7. AgentScript tool missing from the page? Page WebMCP tools are not in the side-panel schema. Check for a `@webmcp <name> <perm>` line matching the tool name exactly, and that the name does not collide with a tool the site registers. After `reload_tab`, `await document.modelContext.getTools()` via `eval` lists what registered.
+8. `Object.keys` on the `getTools()` promise itself is `{}`. A thrown error in the script is in `read_console`, not only the page console.

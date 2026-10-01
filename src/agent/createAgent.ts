@@ -5,7 +5,6 @@ import type { AgentConfig } from './types'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { skillsCatalogPrompt } from './skills'
 import { bindAgentTools } from '@/lib/bindAgentTools'
-import { createLoadTools, createToolSession } from '@/lib/scriptTools'
 import type { TabRef } from '@/lib/pageTools'
 import { recordEvent } from '@/lib/tracing'
 import { isTelemetryEnabled } from '@/lib/telemetryState'
@@ -42,11 +41,7 @@ export async function createAgent(
   })
 
   const sessionTab: TabRef = tabRef ?? { current: 0 }
-  const tools: Record<string, any> = {
-    ...bindAgentTools(() => sessionTab.current),
-  }
-  const session = createToolSession(tools)
-  tools.load_tools = createLoadTools(session, sessionTab, settings.mcpEndpoint || 'http://localhost:8765/mcp')
+  const tools: Record<string, any> = bindAgentTools(() => sessionTab.current)
   const mcpConnected = false
   const maxSteps = settings.maxSteps ?? config.maxSteps ?? 20
 
@@ -61,7 +56,6 @@ export async function createAgent(
       stopWhen: stepCountIs(maxSteps),
       temperature: settings.temperature,
       maxOutputTokens: settings.maxOutputTokens,
-      prepareStep: () => ({ activeTools: session.active() as any }),
       providerOptions: {
         openai: { reasoningEffort: 'high' },
       },

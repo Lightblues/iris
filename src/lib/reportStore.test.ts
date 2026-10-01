@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
 import { listAgentTools } from './agentToolCatalog.ts'
+import { bindAgentTools } from './bindAgentTools.ts'
 import { editReport, getReport, listReportHistory, REPORT_MAX_BYTES, writeReport } from './reportStore.ts'
-import { createLoadTools, createToolSession, TOOL_GROUPS } from './scriptTools.ts'
 
 let store: Record<string, unknown> = {}
 ;(globalThis as any).chrome = {
@@ -69,18 +69,14 @@ test('history keeps 8 revisions', async () => {
   assert.equal(history[0].content, 'v9')
 })
 
-test('report tools are listed and attach only after load_tools reports', async () => {
-  const names = ['list_reports', 'read_report', 'write_report', 'edit_report']
-  const listed = listAgentTools().filter(tool => names.includes(tool.name))
-  assert.deepEqual(listed.map(tool => tool.name).sort(), [...names].sort())
-  assert.ok(listed.every(tool => tool.group === 'reports' && !tool.needsTab))
-  assert.equal(names.some(name => (TOOL_GROUPS.core as readonly string[]).includes(name)), false)
+test('report, tab, and automation tools are catalog tools with no attach step', () => {
+  const names = ['list_reports', 'read_report', 'write_report', 'edit_report', 'create_tab_group', 'click']
+  const listed = listAgentTools()
+  for (const name of names) assert.ok(listed.some(tool => tool.name === name), name)
+  const reports = listed.filter(tool => ['list_reports', 'read_report', 'write_report', 'edit_report'].includes(tool.name))
+  assert.equal(reports.length, 4)
+  assert.ok(reports.every(tool => tool.group === 'reports' && !tool.needsTab))
 
-  const tools = Object.fromEntries(listAgentTools().map(tool => [tool.name, {}]))
-  const session = createToolSession(tools)
-  assert.equal(names.some(name => session.active().includes(name)), false)
-  const loadTools = createLoadTools(session, { current: 1 } as any, 'http://localhost:0/mcp') as any
-  const result = await loadTools.execute({ groups: ['reports'] }, { toolCallId: 't', messages: [] })
-  assert.deepEqual(result.loaded, ['reports'])
-  assert.ok(names.every(name => session.active().includes(name)))
+  const tools = bindAgentTools(() => 1)
+  for (const name of names) assert.ok(name in tools, name)
 })
