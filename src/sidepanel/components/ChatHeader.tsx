@@ -1,7 +1,6 @@
 import { memo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
-import { historyRoute } from '@/lib/irisRoute'
+import { Check, Plus } from 'lucide-react'
 import { ModelCombobox } from './ModelCombobox'
 import type { IrisMessage } from '@/lib/types'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
@@ -54,16 +53,18 @@ export const ChatHeader = memo(function ChatHeader({
       {conversationId && (
         <button
           type="button"
-          className="text-[10px] font-mono text-muted-foreground/70 truncate max-w-[8.5rem] shrink"
-          title={copied ? 'Copied' : historyRoute(conversationId)}
+          className="inline-flex items-center gap-1 min-w-0 max-w-[9.5rem] shrink cursor-pointer text-[10px] font-mono text-muted-foreground/70 hover:text-foreground"
+          title={copied ? 'Copied' : 'Copy session id'}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
-            void navigator.clipboard.writeText(historyRoute(conversationId)).then(() => {
+            void navigator.clipboard.writeText(conversationId).then(() => {
               setCopied(true)
-              setTimeout(() => setCopied(false), 1200)
+              window.setTimeout(() => setCopied(false), 1200)
             })
           }}
         >
-          {conversationId}
+          <span className="truncate">{conversationId}</span>
+          {copied && <Check className="h-3 w-3 shrink-0 text-green-500" />}
         </button>
       )}
 
