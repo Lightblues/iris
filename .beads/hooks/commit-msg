@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+#PREPUHS_VERSION_12
+current_dir=$(pwd)
+git_file="$current_dir/.git"
+result=0
+if [ -x .git/hooks/commit-msg ]; then
+    .git/hooks/commit-msg "$@"
+    result=$?
+elif [ -f "$git_file" ]; then
+    gitdir_path=$(grep 'gitdir:' "$git_file" | awk '{print $2}')
+    if [ -n "$gitdir_path" ]; then
+       repo_path=$(echo "$gitdir_path" | sed 's|/\.git.*||')
+       excutegitFile=$repo_path/.git/hooks/commit-msg
+       if [ -x $excutegitFile ]; then
+          $excutegitFile "$@"
+          result=$?
+      fi
+    fi
+fi
+exit $result

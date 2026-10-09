@@ -1,0 +1,169 @@
+#!/bin/sh
+
+# An example hook script to verify what is about to be pushed.  Called by "git
+# push" after it has checked the remote status, but before anything has been
+# pushed.  If this script exits with a non-zero status nothing will be pushed.
+#
+# This hook is called with the following parameters:
+#
+# $1 -- Name of the remote to which the push is being done
+# $2 -- URL to which the push is being done
+#
+# If pushing without using a named remote those arguments will be equal.
+#
+# Information about the commits which are being pushed is supplied as lines to
+# the standard input in the form:
+#
+#   <local ref> <local oid> <remote ref> <remote oid>
+#
+# This sample shows how to prevent push of commits where the log message starts
+# with "WIP" (work in progress).
+#PREPUHS_VERSION_12
+remote="$1"
+url="$2"
+current_dir=$(pwd)
+repo_name=$(basename $url .git)
+pushSuffixName="_push_notify"
+allowSuffixName="_push_allow"
+forbiddenSuffixName="_push_forbidden"
+pushFileName=/tmp/"$repo_name$pushSuffixName"
+allowFileName=/tmp/"$repo_name$allowSuffixName"
+forbiddenFileName=/tmp/"$repo_name$forbiddenSuffixName"
+noNeedInterceptFileName="/tmp/.no_push_channel"
+hasPushChannelFileName="/tmp/.has_push_channel"
+LoggedInUser=$(/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }')
+otherPrePushFile=/Users/$LoggedInUser/.git-hooks/other-pre-push
+git_file="$current_dir/.git"
+excutegitFile=""
+realCurrentDir=$current_dir
+if [ -f "$git_file" ]; then
+    gitdir_path=$(grep 'gitdir:' "$git_file" | awk '{print $2}')
+    if [ -n "$gitdir_path" ]; then
+       repo_path=$(echo "$gitdir_path" | sed 's|/\.git.*||')
+       realCurrentDir=$repo_path
+       excutegitFile=$repo_path/.git/hooks/pre-push
+    fi
+fi
+
+check_process() {
+   cnt=0
+   if [ -e "$hasPushChannelFileName" ]; then
+      cnt=$(ps -aef | grep -e "QQPCPolicyMgr.app/Contents/MacOS/QQPCPolicyMgr" | grep -v grep | wc -l)
+   fi
+   return $cnt;
+}
+
+
+excute_push_event(){
+    touch $pushFileName
+    projectInfo="$realCurrentDir###$url"
+    echo $projectInfo >> $pushFileName
+    cat $pushFileName >/dev/null
+
+    max_attempts=9
+    attempt=0
+    fobiddenPush=0
+    while [ "$attempt" -lt "$max_attempts" ]; do
+        if [ -e "$allowFileName" ]; then
+            cat $allowFileName
+            break
+        elif [ -e "$forbiddenFileName" ]; then
+            cat $forbiddenFileName
+            fobiddenPush=1
+            break
+        elif [ -e "$noNeedInterceptFileName" ]; then
+            cat $noNeedInterceptFileName
+            break
+        fi
+
+        sleep 0.5
+        attempt=$((attempt + 1))
+    done
+    rm $pushFileName
+    if [ $fobiddenPush -eq 1 ]; then
+        exit 1
+    fi
+}
+
+check_process
+result=$?
+
+if [ "$result" -ge 1 ]; then
+    excute_push_event
+fi
+result=0
+if [ -e "$otherPrePushFile" ]; then
+    ($otherPrePushFile "$@")
+    result=$?
+elif [ -x .git/hooks/pre-push ]; then
+    .git/hooks/pre-push "$@"
+    result=$?
+elif [ -n "$excutegitFile" ]; then
+    if [ -x $excutegitFile ]; then
+        $excutegitFile "$@"
+        result=$?
+    fi
+elif command -v git-lfs >/dev/null 2>&1; then
+    git lfs pre-push "$@"
+    result=$?
+fi
+exit $result
+
+# --- BEGIN BEADS INTEGRATION v1.3.1 ---
+# This section is managed by beads. Do not remove these markers.
+if command -v bd >/dev/null 2>&1; then
+  export BD_GIT_HOOK=1
+  _bd_timeout=${BEADS_HOOK_TIMEOUT:-300}
+  case "$_bd_timeout" in
+    *[!0-9]*|'') _bd_timeout_invalid=1 ;;
+    *[1-9]*) _bd_timeout_invalid=0 ;;
+    *) _bd_timeout_invalid=1 ;;
+  esac
+  if [ "$_bd_timeout_invalid" -eq 1 ]; then
+    echo >&2 "beads: invalid BEADS_HOOK_TIMEOUT; using 300 seconds"
+    _bd_timeout=300
+  fi
+  _bd_timeout_backend=none
+  _bd_timeout_command=
+  for _bd_timeout_candidate in timeout gtimeout; do
+    if command -v "$_bd_timeout_candidate" >/dev/null 2>&1; then
+      if _bd_timeout_version="$("$_bd_timeout_candidate" --version 2>/dev/null)"; then
+        case "$_bd_timeout_version" in
+          "timeout (GNU coreutils) "*) _bd_timeout_command=$_bd_timeout_candidate; break ;;
+        esac
+      fi
+    fi
+  done
+  if [ -n "$_bd_timeout_command" ]; then
+    _bd_timeout_backend=coreutils
+    if "$_bd_timeout_command" -- "$_bd_timeout" bd hooks run pre-push "$@"; then
+      _bd_exit=0
+    else
+      _bd_exit=$?
+    fi
+  elif command -v perl >/dev/null 2>&1; then
+    _bd_timeout_backend=perl
+    if perl -e 'alarm shift; exec @ARGV' -- "$_bd_timeout" bd hooks run pre-push "$@"; then
+      _bd_exit=0
+    else
+      _bd_exit=$?
+    fi
+  else
+    echo >&2 "beads: hook 'pre-push' running without timeout; install coreutils or perl to enable BEADS_HOOK_TIMEOUT"
+    if bd hooks run pre-push "$@"; then
+      _bd_exit=0
+    else
+      _bd_exit=$?
+    fi
+  fi
+  if { [ "$_bd_timeout_backend" = coreutils ] && [ "$_bd_exit" -eq 124 ]; } || { [ "$_bd_timeout_backend" = perl ] && [ "$_bd_exit" -eq 142 ]; }; then
+    echo >&2 "beads: hook 'pre-push' timed out after ${_bd_timeout}s — continuing without beads"
+    _bd_exit=0
+  fi
+  if [ "$_bd_exit" -eq 3 ]; then
+    echo >&2 "beads: database not initialized — skipping hook 'pre-push'"
+    _bd_exit=0
+  fi
+  if [ "$_bd_exit" -ne 0 ]; then exit "$_bd_exit"; fi
+fi
+# --- END BEADS INTEGRATION v1.3.1 ---

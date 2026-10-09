@@ -1,0 +1,39 @@
+#!/bin/sh
+# To enable this hook, rename this file to "post-merge".
+#PREPUHS_VERSION_12
+current_dir=$(pwd)
+notifySuffixName="_change_notify"
+path="${current_dir%/}"    
+repo_name=$(echo "$path" | awk -F/ '{if (NF>1) print $(NF-1) "_" $NF; else print $NF}')
+notifyFileName=/tmp/"$repo_name$notifySuffixName"
+LoggedInUser=$(/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }')
+otherPostMergeFile=/Users/$LoggedInUser/.git-hooks/other-post-merge
+git_file="$current_dir/.git"
+result=0
+excutegitFile=""
+realCurrentDir=$current_dir
+if [ -f "$git_file" ]; then
+    gitdir_path=$(grep 'gitdir:' "$git_file" | awk '{print $2}')
+    if [ -n "$gitdir_path" ]; then
+       repo_path=$(echo "$gitdir_path" | sed 's|/\.git.*||')
+       realCurrentDir=$repo_path
+       excutegitFile=$repo_path/.git/hooks/post-merge
+    fi
+fi
+touch $notifyFileName
+echo $realCurrentDir >> $notifyFileName
+cat $notifyFileName >/dev/null
+rm $notifyFileName
+if [ -e "$otherPostMergeFile" ]; then
+    ($otherPostMergeFile "$@")
+    result=$?
+elif [ -x .git/hooks/post-merge ]; then
+    .git/hooks/post-merge "$@"
+    result=$?
+elif [ -n "$excutegitFile" ]; then
+    if [ -x $excutegitFile ]; then
+        $excutegitFile "$@"
+        result=$?
+    fi
+fi
+exit $result

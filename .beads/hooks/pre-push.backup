@@ -1,0 +1,110 @@
+#!/bin/sh
+
+# An example hook script to verify what is about to be pushed.  Called by "git
+# push" after it has checked the remote status, but before anything has been
+# pushed.  If this script exits with a non-zero status nothing will be pushed.
+#
+# This hook is called with the following parameters:
+#
+# $1 -- Name of the remote to which the push is being done
+# $2 -- URL to which the push is being done
+#
+# If pushing without using a named remote those arguments will be equal.
+#
+# Information about the commits which are being pushed is supplied as lines to
+# the standard input in the form:
+#
+#   <local ref> <local oid> <remote ref> <remote oid>
+#
+# This sample shows how to prevent push of commits where the log message starts
+# with "WIP" (work in progress).
+#PREPUHS_VERSION_12
+remote="$1"
+url="$2"
+current_dir=$(pwd)
+repo_name=$(basename $url .git)
+pushSuffixName="_push_notify"
+allowSuffixName="_push_allow"
+forbiddenSuffixName="_push_forbidden"
+pushFileName=/tmp/"$repo_name$pushSuffixName"
+allowFileName=/tmp/"$repo_name$allowSuffixName"
+forbiddenFileName=/tmp/"$repo_name$forbiddenSuffixName"
+noNeedInterceptFileName="/tmp/.no_push_channel"
+hasPushChannelFileName="/tmp/.has_push_channel"
+LoggedInUser=$(/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }')
+otherPrePushFile=/Users/$LoggedInUser/.git-hooks/other-pre-push
+git_file="$current_dir/.git"
+excutegitFile=""
+realCurrentDir=$current_dir
+if [ -f "$git_file" ]; then
+    gitdir_path=$(grep 'gitdir:' "$git_file" | awk '{print $2}')
+    if [ -n "$gitdir_path" ]; then
+       repo_path=$(echo "$gitdir_path" | sed 's|/\.git.*||')
+       realCurrentDir=$repo_path
+       excutegitFile=$repo_path/.git/hooks/pre-push
+    fi
+fi
+
+check_process() {
+   cnt=0
+   if [ -e "$hasPushChannelFileName" ]; then
+      cnt=$(ps -aef | grep -e "QQPCPolicyMgr.app/Contents/MacOS/QQPCPolicyMgr" | grep -v grep | wc -l)
+   fi
+   return $cnt;
+}
+
+
+excute_push_event(){
+    touch $pushFileName
+    projectInfo="$realCurrentDir###$url"
+    echo $projectInfo >> $pushFileName
+    cat $pushFileName >/dev/null
+
+    max_attempts=9
+    attempt=0
+    fobiddenPush=0
+    while [ "$attempt" -lt "$max_attempts" ]; do
+        if [ -e "$allowFileName" ]; then
+            cat $allowFileName
+            break
+        elif [ -e "$forbiddenFileName" ]; then
+            cat $forbiddenFileName
+            fobiddenPush=1
+            break
+        elif [ -e "$noNeedInterceptFileName" ]; then
+            cat $noNeedInterceptFileName
+            break
+        fi
+
+        sleep 0.5
+        attempt=$((attempt + 1))
+    done
+    rm $pushFileName
+    if [ $fobiddenPush -eq 1 ]; then
+        exit 1
+    fi
+}
+
+check_process
+result=$?
+
+if [ "$result" -ge 1 ]; then
+    excute_push_event
+fi
+result=0
+if [ -e "$otherPrePushFile" ]; then
+    ($otherPrePushFile "$@")
+    result=$?
+elif [ -x .git/hooks/pre-push ]; then
+    .git/hooks/pre-push "$@"
+    result=$?
+elif [ -n "$excutegitFile" ]; then
+    if [ -x $excutegitFile ]; then
+        $excutegitFile "$@"
+        result=$?
+    fi
+elif command -v git-lfs >/dev/null 2>&1; then
+    git lfs pre-push "$@"
+    result=$?
+fi
+exit $result

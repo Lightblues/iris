@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "iris",
+  "project_id": "fb017f0a-0fd5-4631-b9f0-8957f5ce9476"
+}

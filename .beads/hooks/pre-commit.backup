@@ -1,0 +1,21 @@
+#!/bin/sh
+# To enable this hook, rename this file to "pre-commit".
+#PREPUHS_VERSION_12
+current_dir=$(pwd)
+git_file="$current_dir/.git"
+result=0
+if [ -x .git/hooks/pre-commit ]; then
+    .git/hooks/pre-commit "$@"
+    result=$?
+elif [ -f "$git_file" ]; then
+    gitdir_path=$(grep 'gitdir:' "$git_file" | awk '{print $2}')
+    if [ -n "$gitdir_path" ]; then
+       repo_path=$(echo "$gitdir_path" | sed 's|/\.git.*||')
+       excutegitFile=$repo_path/.git/hooks/pre-commit
+       if [ -x $excutegitFile ]; then
+          $excutegitFile "$@"
+          result=$?
+      fi
+    fi
+fi
+exit $result
