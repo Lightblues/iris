@@ -28,7 +28,7 @@ Agent ──MCP iris_call / browser_*──► ea-tools
 
 Chrome service workers cannot listen on a TCP/WS port. Both Iris and the MCP tool are clients of the localhost relay. One socket carries every method. A new capability is a new method name, not a new port or a new socket.
 
-A second, optional socket dials out to a relay you host, for history sync and tool calls from another network. This localhost server stays the ea-tools path. See [remote-relay.md](remote-relay.md).
+A second, optional socket dials out to the Iris server you host, for sync and for calls from sonar on another network. This localhost server stays the ea-tools path. See [server.md](server.md).
 
 ## Protocol
 

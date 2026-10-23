@@ -21,7 +21,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['services/relay/**/*.ts'],
+    files: ['services/server/**/*.ts'],
     languageOptions: {
       globals: globals.node,
     },

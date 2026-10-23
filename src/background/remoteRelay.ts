@@ -1,12 +1,12 @@
-// Outbound socket to a public iris-relay. The localhost ea-tools relay stays separate.
-// Chrome cannot listen, so this browser dials out. Tool calls and history sync
-// share the socket. Remote relay is off until Settings turns it on.
+// Outbound socket to the Iris server. The localhost ea-tools relay stays separate.
+// Chrome cannot listen, so this browser dials out. Relay calls and record sync
+// share the socket. It is off until Settings turns it on.
 
-import { applyRemoteSync, loadAllConversations, loadTombstones } from '../agent/history'
-import type { SyncTombstone } from '../agent/conversationSync'
-import type { Conversation } from '../agent/types'
+import { relayAllows, type RelayLevel } from '../lib/relayLevel'
+import { syncUserScripts } from '../lib/scriptRuntime'
 import { loadSettings, SETTINGS_KEY, type SidePanelSettings } from '../lib/sidepanelSettings'
 import { remoteExtensionUrl } from '../lib/remoteRelayUrl'
+import { createSync, defaultCollections, type PushRecord, type PushResult, type ServerRecord } from '../lib/sync'
 import { answerRelayRequest, type RelayFrame } from './browserRelay'
 import { listRelayMethods } from './relayRegistry'
 
@@ -16,6 +16,7 @@ const ALARM_NAME = 'remote-relay-keepalive'
 const RECONNECT_ALARM = 'remote-relay-reconnect'
 const RECONNECT_BASE_MS = 1000
 const RECONNECT_MAX_MS = 30000
+const SYNC_DEBOUNCE_MS = 2000
 
 export interface RemoteRelayState {
   enabled: boolean
@@ -23,14 +24,9 @@ export interface RemoteRelayState {
   url: string
   deviceId: string
   label: string
+  level: RelayLevel
   syncError: string | null
-}
-
-interface SyncResult {
-  rejected?: { id: string; error: string }[]
-  push?: string[]
-  conversations?: Conversation[]
-  tombstones?: SyncTombstone[]
+  lastSync: number | null
 }
 
 let ws: WebSocket | null = null
@@ -39,17 +35,18 @@ let authed = false
 let currentUrl = ''
 let currentToken = ''
 let currentLabel = ''
+let currentLevel: RelayLevel = 'read'
 let syncError: string | null = null
+let lastSync: number | null = null
+let syncTimer: ReturnType<typeof setTimeout> | null = null
+let sync: ReturnType<typeof createSync> | null = null
 let reconnectDelay = RECONNECT_BASE_MS
 let connectLock = false
 let reconnectQueued = false
 let lastPongTime = Date.now()
 let keepalivePort: chrome.runtime.Port | null = null
 let nextId = -1
-let reconcileLock = false
 const waiters = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
-const pendingConvs = new Map<string, Conversation>()
-const pendingTombs = new Map<string, SyncTombstone>()
 
 function isSocketOpen(): boolean {
   return ws?.readyState === WebSocket.OPEN
@@ -75,18 +72,10 @@ export async function getRemoteRelayState(): Promise<RemoteRelayState> {
     url: currentUrl,
     deviceId: await getDeviceId(),
     label: currentLabel,
+    level: currentLevel,
     syncError,
+    lastSync,
   }
-}
-
-export function queueRemoteSync(conversations?: Conversation[], tombstones?: SyncTombstone[]): void {
-  if (!enabled) return
-  for (const conv of conversations ?? []) pendingConvs.set(conv.id, conv)
-  for (const tomb of tombstones ?? []) {
-    pendingTombs.set(tomb.id, tomb)
-    pendingConvs.delete(tomb.id)
-  }
-  void flushPush()
 }
 
 export function reconnectRemoteRelay(): void {
@@ -144,7 +133,7 @@ function request<T>(method: string, params: unknown): Promise<T> {
       if (!waiters.has(id)) return
       waiters.delete(id)
       reject(new Error(`${method} timed out`))
-    }, 20_000)
+    }, 60_000)
     waiters.set(id, {
       resolve: value => { clearTimeout(timer); resolve(value as T) },
       reject: error => { clearTimeout(timer); reject(error) },
@@ -153,62 +142,47 @@ function request<T>(method: string, params: unknown): Promise<T> {
   })
 }
 
-async function flushPush(): Promise<void> {
+const storage = {
+  get: (keys: string[]) => chrome.storage.local.get(keys) as Promise<Record<string, unknown>>,
+  set: (items: Record<string, unknown>) => chrome.storage.local.set(items),
+}
+
+function syncFor(url: string) {
+  if (sync && syncServer === url) return sync
+  syncServer = url
+  sync = createSync({
+    storage,
+    server: url,
+    collections: defaultCollections(SETTINGS_KEY, async () => { await syncUserScripts() }),
+    transport: {
+      push: async (records: PushRecord[]) => (await request<{ results: PushResult[] }>('sync.push', { records })).results,
+      pull: (since: number) => request<{ records: ServerRecord[]; cursor: number; more: boolean }>('sync.pull', { since }),
+    },
+  })
+  return sync
+}
+let syncServer = ''
+
+async function runSync(): Promise<void> {
   if (!authed || !isSocketOpen()) return
-  if (!pendingConvs.size && !pendingTombs.size) return
-  const conversations = [...pendingConvs.values()]
-  const tombstones = [...pendingTombs.values()]
-  pendingConvs.clear()
-  pendingTombs.clear()
+  const engine = syncFor(currentUrl)
   try {
-    const result = await request<SyncResult>('sync.push', { conversations, tombstones })
-    noteRejected(result.rejected)
-  } catch (error) {
-    syncError = (error as Error).message
-    for (const conv of conversations) if (!pendingConvs.has(conv.id)) pendingConvs.set(conv.id, conv)
-    for (const tomb of tombstones) if (!pendingTombs.has(tomb.id)) pendingTombs.set(tomb.id, tomb)
-  }
-}
-
-function noteRejected(rejected: { id: string; error: string }[] | undefined): void {
-  if (!rejected?.length) return
-  syncError = rejected.map(item => `${item.id}: ${item.error}`).join('; ')
-}
-
-async function reconcile(): Promise<void> {
-  if (reconcileLock || !authed || !isSocketOpen()) return
-  reconcileLock = true
-  try {
-    syncError = null
-    await flushPush()
-    const store = await loadAllConversations()
-    const tombstones = await loadTombstones()
-    const result = await request<SyncResult>('sync.reconcile', {
-      conversations: store.conversations.map(conv => ({ id: conv.id, lastUpdated: conv.lastUpdated })),
-      tombstones,
-    })
-    if (result.conversations?.length || result.tombstones?.length) {
-      await applyRemoteSync(result.conversations ?? [], result.tombstones ?? [])
-    }
-    if (result.push?.length) {
-      const fresh = await loadAllConversations()
-      const byId = new Map(fresh.conversations.map(conv => [conv.id, conv]))
-      const conversations = result.push.flatMap(id => {
-        const conv = byId.get(id)
-        return conv ? [conv] : []
-      })
-      if (conversations.length) {
-        const pushed = await request<SyncResult>('sync.push', { conversations })
-        noteRejected(pushed.rejected)
-      }
-    }
+    await engine.run()
+    const errors = engine.errors()
+    syncError = errors.length ? errors.join('; ') : null
+    lastSync = Date.now()
   } catch (error) {
     syncError = (error as Error).message
     console.warn('[Iris remote relay] sync failed:', syncError)
-  } finally {
-    reconcileLock = false
-    void flushPush()
   }
+}
+
+function queueSync(): void {
+  if (syncTimer) clearTimeout(syncTimer)
+  syncTimer = setTimeout(() => {
+    syncTimer = null
+    void runSync()
+  }, SYNC_DEBOUNCE_MS)
 }
 
 async function onFrame(raw: string): Promise<void> {
@@ -225,8 +199,8 @@ async function onFrame(raw: string): Promise<void> {
       reconnectDelay = RECONNECT_BASE_MS
       lastPongTime = Date.now()
       chrome.alarms.clear(RECONNECT_ALARM)
-      send({ v: 1, method: 'hello', params: { methods: listRelayMethods() } })
-      void reconcile()
+      send({ v: 1, method: 'hello', params: { methods: listRelayMethods(), level: currentLevel } })
+      void runSync()
     }
     return
   }
@@ -246,7 +220,16 @@ async function onFrame(raw: string): Promise<void> {
     else waiter.resolve(msg.result)
     return
   }
+  if (msg.method === 'sync.changed') {
+    queueSync()
+    return
+  }
   if (msg.id == null) return
+  const method = msg.method || msg.action || ''
+  if (!relayAllows(currentLevel, method)) {
+    send({ v: 1, id: msg.id, error: { code: 'forbidden', message: `this browser is set to ${currentLevel}; ${method} is not allowed` } })
+    return
+  }
   await answerRelayRequest(msg, send)
 }
 
@@ -294,7 +277,7 @@ async function connect(): Promise<void> {
     send({
       v: 1,
       method: 'auth',
-      params: { token: currentToken, deviceId, label: currentLabel || deviceId },
+      params: { token: currentToken, deviceId, label: currentLabel || deviceId, level: currentLevel },
     })
   } catch (error) {
     console.error('[Iris remote relay] connect failed:', (error as Error).message)
@@ -315,11 +298,13 @@ function applySettings(settings: SidePanelSettings): void {
   const nextUrl = settings.remoteRelayUrl || ''
   const nextToken = settings.remoteRelayToken || ''
   const nextLabel = settings.remoteRelayLabel || ''
-  const changed = nextEnabled !== enabled || nextUrl !== currentUrl || nextToken !== currentToken || nextLabel !== currentLabel
+  const nextLevel = settings.remoteRelayLevel ?? 'read'
+  const changed = nextEnabled !== enabled || nextUrl !== currentUrl || nextToken !== currentToken || nextLabel !== currentLabel || nextLevel !== currentLevel
   enabled = nextEnabled
   currentUrl = nextUrl
   currentToken = nextToken
   currentLabel = nextLabel
+  currentLevel = nextLevel
   if (!enabled) {
     disconnect()
     syncError = null
@@ -351,11 +336,13 @@ export function initRemoteRelay(): void {
       return
     }
     send({ action: 'ping' })
-    if (authed) void reconcile()
+    if (authed) void runSync()
   })
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !changes[SETTINGS_KEY]) return
+    if (area !== 'local') return
+    if (enabled && sync && Object.keys(changes).some(key => sync!.watches(key))) queueSync()
+    if (!changes[SETTINGS_KEY]) return
     const next = changes[SETTINGS_KEY].newValue as SidePanelSettings | undefined
     if (next) applySettings(next)
   })

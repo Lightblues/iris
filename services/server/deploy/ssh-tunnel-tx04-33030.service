@@ -1,0 +1,14 @@
+[Unit]
+Description=SSH remote tunnel: tx04 127.0.0.1:33030 -> this host 127.0.0.1:33030 (iris server)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -R 127.0.0.1:33030:127.0.0.1:33030 tx04
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

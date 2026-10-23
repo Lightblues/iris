@@ -26,11 +26,11 @@ dist-ssr
 # custom
 .tmp
 src/agent/builtinSkills.json
-services/relay/data
-
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+services/server/.env
