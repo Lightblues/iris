@@ -1,6 +1,7 @@
 import pg from 'pg'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
+export const PULL_PAGE_BYTES = 256 * 1024
 export const KINDS = ['conversation', 'skill', 'script', 'report', 'setting'] as const
 export type Kind = typeof KINDS[number]
 /** Kinds other apps may read through /export. Settings carry API keys and never leave the sync path. */
@@ -157,10 +158,19 @@ export function openStore(db: Db) {
       return results
     },
 
-    async pull(user: string, since: number, limit = 50): Promise<{ records: StoredRecord[]; cursor: number; more: boolean }> {
+    async pull(user: string, since: number, limit = 50, maxBytes = PULL_PAGE_BYTES): Promise<{ records: StoredRecord[]; cursor: number; more: boolean }> {
       const { rows } = await db.query<Row>(`SELECT ${COLUMNS} FROM records WHERE user_id = $1 AND rev > $2 ORDER BY rev LIMIT $3`, [user, since, limit + 1])
-      const records = rows.slice(0, limit).map(toRecord)
-      return { records, cursor: records.at(-1)?.rev ?? since, more: rows.length > limit }
+      // A page is one WebSocket frame; a slow link must carry it well inside the extension's request timeout.
+      const records: StoredRecord[] = []
+      let bytes = 0
+      for (const row of rows.slice(0, limit)) {
+        const record = toRecord(row)
+        const size = JSON.stringify(record).length
+        if (records.length && bytes + size > maxBytes) break
+        records.push(record)
+        bytes += size
+      }
+      return { records, cursor: records.at(-1)?.rev ?? since, more: rows.length > records.length }
     },
 
     async exportChanges(user: string, since: number, kinds: string[], limit = 100): Promise<{ items: ExportItem[]; cursor: string; more: boolean }> {

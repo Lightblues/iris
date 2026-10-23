@@ -185,6 +185,26 @@ interface SyncState {
 }
 
 const PUSH_BATCH = 20
+// A batch is one WebSocket frame; a slow link must carry it well inside the request timeout.
+export const PUSH_BATCH_BYTES = 256 * 1024
+
+export function batchBySize<T>(items: T[], maxCount: number, maxBytes: number): T[][] {
+  const batches: T[][] = []
+  let batch: T[] = []
+  let bytes = 0
+  for (const item of items) {
+    const size = JSON.stringify(item).length
+    if (batch.length && (batch.length >= maxCount || bytes + size > maxBytes)) {
+      batches.push(batch)
+      batch = []
+      bytes = 0
+    }
+    batch.push(item)
+    bytes += size
+  }
+  if (batch.length) batches.push(batch)
+  return batches
+}
 
 export function createSync(opts: { storage: SyncStorage; transport: SyncTransport; collections: Collection[]; server: string; now?: () => number }) {
   const { storage, transport, collections } = opts
@@ -253,8 +273,7 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
         else delete state.seen[key]
       }
     }
-    for (let i = 0; i < outgoing.length; i += PUSH_BATCH) {
-      const batch = outgoing.slice(i, i + PUSH_BATCH)
+    for (const batch of batchBySize(outgoing, PUSH_BATCH, PUSH_BATCH_BYTES)) {
       const results = await transport.push(batch)
       const merged: ServerRecord[] = []
       for (const [n, result] of results.entries()) {

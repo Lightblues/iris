@@ -133,7 +133,7 @@ function request<T>(method: string, params: unknown): Promise<T> {
       if (!waiters.has(id)) return
       waiters.delete(id)
       reject(new Error(`${method} timed out`))
-    }, 60_000)
+    }, 120_000)
     waiters.set(id, {
       resolve: value => { clearTimeout(timer); resolve(value as T) },
       reject: error => { clearTimeout(timer); reject(error) },
@@ -192,6 +192,8 @@ async function onFrame(raw: string): Promise<void> {
   } catch {
     return
   }
+  // A long frame delays the pong behind it; any frame shows the socket is alive.
+  lastPongTime = Date.now()
   if (!authed) {
     if (msg.method === 'auth' && (msg as { result?: { ok?: boolean } }).result?.ok) {
       authed = true

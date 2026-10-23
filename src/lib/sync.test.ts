@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  CONVERSATIONS_KEY, CONVERSATION_TOMBSTONES_KEY, createSync, defaultCollections,
+  batchBySize, CONVERSATIONS_KEY, CONVERSATION_TOMBSTONES_KEY, createSync, defaultCollections,
   type PushRecord, type ServerRecord, type SyncStorage, type SyncTransport,
 } from './sync'
 
@@ -121,4 +121,11 @@ test('state from another server starts over', async () => {
   const again = createSync({ storage: a.storage, transport: other.transport, collections: defaultCollections(SETTINGS, async () => {}), server: 'wss://elsewhere' })
   await again.run()
   assert.deepEqual([...other.records.keys()], ['report/r1'])
+})
+
+test('push batches split by count and by size, and an oversized item goes alone', () => {
+  const item = (n: number) => ({ id: String(n), text: 'x'.repeat(n) })
+  assert.deepEqual(batchBySize([1, 2, 3, 4, 5].map(() => item(1)), 2, 1e6).map(b => b.length), [2, 2, 1])
+  assert.deepEqual(batchBySize([item(100), item(100), item(500), item(100)], 20, 300).map(b => b.map(x => x.text.length)), [[100, 100], [500], [100]])
+  assert.deepEqual(batchBySize([], 20, 300), [])
 })

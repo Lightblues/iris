@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { WebSocket } from 'ws'
 import { startServer } from './index.ts'
-import { MAX_RECORD_BYTES, type Db } from './store.ts'
+import { DEFAULT_USER, MAX_RECORD_BYTES, migrate, openStore, type Db } from './store.ts'
 
 const DEVICE = 'device-token'
 const READ = 'read-key'
@@ -249,4 +249,21 @@ test('export serves conversations only, with a cursor, and drops inline images',
   } finally {
     await server.stop()
   }
+})
+
+test('a pull page stops at the byte cap but always carries one record', async () => {
+  const db = pgliteDb()
+  await migrate(db)
+  const store = openStore(db)
+  const big = 'x'.repeat(100_000)
+  await store.push(DEFAULT_USER, ['a', 'b', 'c'].map(id => ({ kind: 'report', id, baseRev: 0, updatedAt: 1, body: { id, text: big } })))
+  const first = await store.pull(DEFAULT_USER, 0, 50, 150_000)
+  assert.deepEqual(first.records.map(r => r.id), ['a'])
+  assert.equal(first.more, true)
+  const second = await store.pull(DEFAULT_USER, first.cursor, 50, 250_000)
+  assert.deepEqual(second.records.map(r => r.id), ['b', 'c'])
+  assert.equal(second.more, false)
+  const tiny = await store.pull(DEFAULT_USER, 0, 50, 10)
+  assert.deepEqual(tiny.records.map(r => r.id), ['a'])
+  await db.close()
 })
