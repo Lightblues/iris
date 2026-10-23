@@ -1,9 +1,32 @@
 import { WebSocket } from 'ws'
-import type { RelayStore, SyncIndexEntry, SyncTombstone } from './store.ts'
+import { DEFAULT_USER, type PushRecord, type Store } from './store.ts'
+
+/** What a device lets callers do through it. Set per device in Iris settings. */
+export type Level = 'off' | 'read' | 'control'
+
+/** Reading with the user's login, nothing that drives the browser or reads Iris's own data. */
+export const READ_METHODS = new Set([
+  'browser.fetch',
+  'iris.capabilities',
+  'iris.chat.platforms',
+  'iris.chat.list',
+  'iris.chat.export',
+  'iris.chat.export_all',
+])
+
+export function methodLevel(method: string): Exclude<Level, 'off'> {
+  return READ_METHODS.has(method) ? 'read' : 'control'
+}
+
+export function allows(level: Level, method: string): boolean {
+  if (level === 'off') return false
+  return level === 'control' || methodLevel(method) === 'read'
+}
 
 export interface DeviceInfo {
   id: string
   label: string
+  level: Level
   lastSeen: number
   methods: string[]
 }
@@ -26,6 +49,7 @@ export class RelayCallError extends Error {
 interface Device {
   id: string
   label: string
+  level: Level
   socket: WebSocket
   lastActive: number
   methods: string[]
@@ -51,7 +75,11 @@ interface Inbound {
   error?: unknown
 }
 
-export function createHub(store: RelayStore) {
+export function asLevel(value: unknown): Level {
+  return value === 'off' || value === 'control' ? value : 'read'
+}
+
+export function createHub(store: Store) {
   const devices = new Map<string, Device>()
   const pending = new Map<number, Pending>()
   let nextId = 1
@@ -73,43 +101,46 @@ export function createHub(store: RelayStore) {
     return [...devices.values()].map(device => ({
       id: device.id,
       label: device.label,
+      level: device.level,
       lastSeen: device.lastActive,
       methods: device.methods,
     }))
   }
 
   function status() {
-    const active = pick()
     return {
       extension_connected: devices.size > 0,
       pending_requests: pending.size,
-      methods: active?.methods ?? [],
       devices: listDevices(),
     }
   }
 
-  function pick(deviceId?: string): Device | undefined {
+  function serves(device: Device, method: string): boolean {
+    return allows(device.level, method) && (!device.methods.length || device.methods.includes(method))
+  }
+
+  function pick(method: string, deviceId?: string): Device {
     if (deviceId) {
-      const exact = devices.get(deviceId)
-      if (exact) return exact
       const labeled = [...devices.values()].filter(device => device.label === deviceId)
-      return labeled.length === 1 ? labeled[0] : undefined
+      const device = devices.get(deviceId) ?? (labeled.length === 1 ? labeled[0] : undefined)
+      if (!device) throw new RelayCallError(503, 'no_device', 'extension not connected', { device: deviceId })
+      if (!allows(device.level, method)) {
+        throw new RelayCallError(403, 'forbidden', `${device.label} is set to ${device.level}; ${method} needs ${methodLevel(method)}`, { device: device.id })
+      }
+      return device
     }
     let best: Device | undefined
     for (const device of devices.values()) {
+      if (!serves(device, method)) continue
       if (!best || device.lastActive > best.lastActive) best = device
     }
-    return best
+    if (best) return best
+    if (devices.size) throw new RelayCallError(503, 'no_device', `no connected browser accepts ${method} (needs level ${methodLevel(method)})`)
+    throw new RelayCallError(503, 'no_device', 'extension not connected')
   }
 
-  function register(socket: WebSocket, id: string, label: string) {
-    const device: Device = {
-      id,
-      label: label.slice(0, 64) || id,
-      socket,
-      lastActive: Date.now(),
-      methods: [],
-    }
+  function register(socket: WebSocket, id: string, label: string, level: Level) {
+    const device: Device = { id, label: label.slice(0, 64) || id, level, socket, lastActive: Date.now(), methods: [] }
     const prev = devices.get(id)
     devices.set(id, device)
     if (prev && prev.socket !== socket) prev.socket.close(4000, 'replaced')
@@ -125,11 +156,14 @@ export function createHub(store: RelayStore) {
       } catch {
         return
       }
-      onMessage(device, msg)
+      void onMessage(device, msg).catch(error => {
+        console.error(`[iris-server] ${msg.method ?? 'message'} from ${device.id} failed:`, (error as Error).message)
+        if (typeof msg.id === 'number' && msg.id < 0) send(device.socket, { v: 1, id: msg.id, error: { code: 'internal', message: 'internal error' } })
+      })
     })
   }
 
-  function onMessage(device: Device, msg: Inbound) {
+  async function onMessage(device: Device, msg: Inbound) {
     if (msg.action === 'ping' || msg.method === 'ping') {
       send(device.socket, { action: 'pong' })
       return
@@ -139,26 +173,29 @@ export function createHub(store: RelayStore) {
     if (msg.method === 'hello') {
       const methods = msg.params?.methods
       device.methods = Array.isArray(methods) ? methods.filter((name): name is string => typeof name === 'string') : []
+      if (msg.params?.level !== undefined) device.level = asLevel(msg.params.level)
       device.lastActive = Date.now()
       return
     }
 
-    if (msg.method === 'sync.push') {
+    if (msg.method === 'sync.push' && typeof msg.id === 'number') {
       device.lastActive = Date.now()
-      const conversations = Array.isArray(msg.params?.conversations) ? msg.params.conversations : []
-      const tombstones = asTombstones(msg.params?.tombstones)
-      const rejected = store.push(conversations, tombstones)
-      if (typeof msg.id === 'number') send(device.socket, { v: 1, id: msg.id, result: { rejected } })
-      console.log(`[iris-relay] sync.push device=${device.id} conversations=${conversations.length} tombstones=${tombstones.length} rejected=${rejected.length}`)
+      const records = asRecords(msg.params?.records)
+      const results = await store.push(DEFAULT_USER, records)
+      send(device.socket, { v: 1, id: msg.id, result: { results } })
+      if (results.some(r => !r.error)) {
+        for (const other of devices.values()) if (other !== device) send(other.socket, { v: 1, method: 'sync.changed' })
+      }
+      const failed = results.filter(r => r.error).length
+      console.log(`[iris-server] sync.push device=${device.id} records=${records.length} failed=${failed}`)
       return
     }
 
-    if (msg.method === 'sync.reconcile' && typeof msg.id === 'number') {
-      const conversations = asIndex(msg.params?.conversations)
-      const tombstones = asTombstones(msg.params?.tombstones)
-      const result = store.reconcile(conversations, tombstones)
+    if (msg.method === 'sync.pull' && typeof msg.id === 'number') {
+      const since = Number(msg.params?.since ?? 0)
+      const limit = Number(msg.params?.limit ?? 50)
+      const result = await store.pull(DEFAULT_USER, Number.isFinite(since) ? since : 0, Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 50)
       send(device.socket, { v: 1, id: msg.id, result })
-      console.log(`[iris-relay] sync.reconcile device=${device.id} push=${result.push.length} send=${result.conversations.length}`)
       return
     }
 
@@ -177,7 +214,7 @@ export function createHub(store: RelayStore) {
         const message = typeof error === 'object' && error && 'message' in error
           ? String((error as { message: unknown }).message)
           : String(error)
-        const status = code === 'method_not_found' || code === 'invalid_params' ? 400 : 502
+        const status = code === 'method_not_found' || code === 'invalid_params' ? 400 : code === 'forbidden' ? 403 : 502
         call.reject(new RelayCallError(status, code, message, { device: device.id, details: publicError(error, code, message) }))
         return
       }
@@ -190,9 +227,11 @@ export function createHub(store: RelayStore) {
   }
 
   function callDevice(deviceId: string | undefined, method: string, params: unknown, timeoutSec: number) {
-    const device = pick(deviceId)
-    if (!device) {
-      return Promise.reject(new RelayCallError(503, 'no_device', 'extension not connected', deviceId ? { device: deviceId } : undefined))
+    let device: Device
+    try {
+      device = pick(method, deviceId)
+    } catch (error) {
+      return Promise.reject(error)
     }
     const id = nextId++
     const seconds = callSeconds(timeoutSec)
@@ -202,7 +241,7 @@ export function createHub(store: RelayStore) {
         reject(new RelayCallError(504, 'timeout', 'timeout waiting for extension response', { device: device.id }))
       }, seconds * 1000)
       pending.set(id, { deviceId: device.id, socket: device.socket, chunks: [], timer, resolve, reject })
-      console.log(`[iris-relay] call device=${device.id} method=${method}`)
+      console.log(`[iris-server] call device=${device.id} method=${method}`)
       send(device.socket, { v: 1, id, method, params: params ?? {} })
     })
   }
@@ -231,7 +270,6 @@ export function relayErrorPayload(error: unknown): { status: number; body: unkno
   if (!(error instanceof RelayCallError)) {
     return { status: 500, body: { error: { code: 'internal', message: 'internal error' } } }
   }
-  if (error.status === 503) return { status: 503, body: { error: 'extension not connected' }, device: error.device }
   if (error.status === 504) return { status: 504, body: { error: 'timeout waiting for extension response' }, device: error.device }
   const details = error.details && typeof error.details === 'object'
     ? error.details
@@ -239,22 +277,20 @@ export function relayErrorPayload(error: unknown): { status: number; body: unkno
   return { status: error.status, body: { error: details }, device: error.device }
 }
 
-function asIndex(value: unknown): SyncIndexEntry[] {
+function asRecords(value: unknown): PushRecord[] {
   if (!Array.isArray(value)) return []
   return value.flatMap(entry => {
     if (!entry || typeof entry !== 'object') return []
-    const row = entry as { id?: unknown; lastUpdated?: unknown }
-    if (typeof row.id !== 'string' || typeof row.lastUpdated !== 'number') return []
-    return [{ id: row.id, lastUpdated: row.lastUpdated }]
-  })
-}
-
-function asTombstones(value: unknown): SyncTombstone[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap(entry => {
-    if (!entry || typeof entry !== 'object') return []
-    const row = entry as { id?: unknown; deletedAt?: unknown }
-    if (typeof row.id !== 'string' || typeof row.deletedAt !== 'number') return []
-    return [{ id: row.id, deletedAt: row.deletedAt }]
+    const row = entry as Record<string, unknown>
+    if (typeof row.kind !== 'string' || typeof row.id !== 'string') return []
+    if (typeof row.updatedAt !== 'number' || !Number.isFinite(row.updatedAt)) return []
+    return [{
+      kind: row.kind,
+      id: row.id,
+      baseRev: typeof row.baseRev === 'number' ? row.baseRev : 0,
+      updatedAt: row.updatedAt,
+      deleted: row.deleted === true,
+      body: row.body,
+    }]
   })
 }

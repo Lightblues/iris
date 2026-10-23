@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, Upload, Plus, FolderOpen, RefreshCw, Unlink, Star, Loader2 } from 'lucide-react'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings, maskApiKey } from '@/lib/sidepanelSettings'
-import { remoteHttpOrigin } from '@/lib/remoteRelayUrl'
 import type { RemoteRelayState } from '@/background/remoteRelay'
 import {
   getChatExportDirectoryHandle,
@@ -48,26 +47,12 @@ async function probeRelay(port: number, token: string): Promise<{ kind: RelaySta
   }
 }
 
-async function probeRemote(url: string, token: string, deviceId: string): Promise<{ kind: RelayStatusKind; text: string }> {
-  const origin = remoteHttpOrigin(url)
-  if (!origin) return { kind: 'disconnected', text: 'Enter a wss:// or https:// URL' }
-  if (!token) return { kind: 'disconnected', text: 'Token is required' }
-  try {
-    const resp = await fetch(`${origin}/status`, { headers: { Authorization: `Bearer ${token}` } })
-    if (!resp.ok) {
-      return {
-        kind: 'disconnected',
-        text: resp.status === 401 ? 'Auth failed — token mismatch' : `Server error: ${resp.status}`,
-      }
-    }
-    const data = await resp.json() as { devices?: { id: string; label: string }[] }
-    const mine = data.devices?.find(device => device.id === deviceId)
-    return mine
-      ? { kind: 'connected', text: `Connected as ${mine.label}` }
-      : { kind: 'disconnected', text: 'Server running, this browser not connected' }
-  } catch {
-    return { kind: 'disconnected', text: 'Cannot reach remote relay' }
-  }
+function describeRemote(state: RemoteRelayState | null): { kind: RelayStatusKind; text: string } {
+  if (!state?.url) return { kind: 'disconnected', text: 'Enter a wss:// or https:// URL' }
+  if (!state.connected) return { kind: 'disconnected', text: state.syncError ? `Not connected: ${state.syncError}` : 'Not connected' }
+  const synced = state.lastSync ? `, synced ${new Date(state.lastSync).toLocaleTimeString()}` : ''
+  const text = `Connected as ${state.label || state.deviceId} (${state.level})${synced}`
+  return { kind: 'connected', text: state.syncError ? `${text}. Sync: ${state.syncError}` : text }
 }
 
 export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) {
@@ -235,9 +220,9 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
       await new Promise(resolve => setTimeout(resolve, 800))
       const state = await chrome.runtime.sendMessage({ type: 'remote_relay_status' }) as RemoteRelayState
       setRemoteState(state)
-      const probed = await probeRemote(settings.remoteRelayUrl || '', settings.remoteRelayToken || '', state?.deviceId || '')
-      setRemoteStatusKind(probed.kind)
-      setRemoteStatus(state?.syncError ? `${probed.text}. Sync: ${state.syncError}` : probed.text)
+      const described = describeRemote(state)
+      setRemoteStatusKind(described.kind)
+      setRemoteStatus(described.text)
     } catch {
       setRemoteStatusKind('disconnected')
       setRemoteStatus('Cannot reach the extension')
@@ -588,7 +573,7 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
             checked={settings.remoteRelayEnabled === true}
             onChange={(e) => onSettingsChange({ remoteRelayEnabled: e.target.checked })}
           />
-          Sync history and expose tools through your relay
+          Sync with your Iris server and accept remote calls
         </label>
 
         <div className="space-y-1">
@@ -624,6 +609,24 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
           {remoteState?.deviceId && (
             <p className="text-xs text-muted-foreground font-mono">device {remoteState.deviceId}</p>
           )}
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium">Remote calls</label>
+          <Select
+            value={settings.remoteRelayLevel ?? 'read'}
+            onValueChange={(level) => onSettingsChange({ remoteRelayLevel: level as 'off' | 'read' | 'control' })}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="off" className="text-xs">Off: sync only</SelectItem>
+              <SelectItem value="read" className="text-xs">Read: open pages and AI chats with my login</SelectItem>
+              <SelectItem value="control" className="text-xs">Control: agents may drive this browser</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">Use Control only on a browser set aside for agents.</p>
         </div>
 
         {remoteStatus && (

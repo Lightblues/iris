@@ -1,6 +1,6 @@
 import { initSidePanel, toggleForTab, openForTab, noteDerivedGesture } from './sidePanel';
 import { initBrowserRelay, isRelayTab, getRelayState, reconnectRelay } from './browserRelay';
-import { getRemoteRelayState, initRemoteRelay, queueRemoteSync, reconnectRemoteRelay } from './remoteRelay';
+import { getRemoteRelayState, initRemoteRelay, reconnectRemoteRelay } from './remoteRelay';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -250,12 +250,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 // Handle messages from content scripts, popup, or sidepanel
 chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-  if (message?.type === 'iris_remote_sync_push') {
-    queueRemoteSync(message.conversations, message.tombstones)
-    sendResponse({ ok: true })
-    return true
-  }
-
   console.log('[Iris] Message received:', message);
 
   // Open native side panel for in-page entry points such as the FAB.

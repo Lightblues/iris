@@ -23,7 +23,7 @@ New work must answer at least one: *does this help act on the current browsing c
 
 Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page is announced with a short card (url and title). The agent reads the page with `read_page` and acts on it with `eval`. Cmd+click from an Iris tab joins the same session. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent. Site scripts keep running after the panel closes.
 
-The one background actuator that *is* in scope: **browser relay**. External agents call `browser_*` tools and `iris_call` for Iris methods (chat export, notes, conversations, tracing, settings). The service worker executes them and returns. No LLM loop runs in the background. Spec: [browser-relay.md](browser-relay.md). Relay methods are not WebMCP. WebMCP tools live on the page and are specified in [scripts.md](scripts.md).
+The one background actuator that *is* in scope: **browser relay**. External agents reach it through sonar (`browser_read`, `browser_call`, `ai_chat_*`), within the level each browser allows. The service worker executes them and returns. No LLM loop runs in the background. Spec: [browser-relay.md](browser-relay.md). Relay methods are not WebMCP. WebMCP tools live on the page and are specified in [scripts.md](scripts.md).
 
 ## Scope
 
@@ -34,11 +34,11 @@ The one background actuator that *is* in scope: **browser relay**. External agen
 | **Scripts** | Core | Standard userscripts and WebMCP AgentScripts. Agent-authored, persisted, imported and exported. | [scripts.md](scripts.md) |
 | **Page enhancements** | Maintain | FAB and command menu. Entry points only. Do not expand unless they serve Agent or Knowledge. | [page-enhancements.md](page-enhancements.md) |
 | **Browser relay** | Core-adjacent | WS client. Page/tab tools plus `iris.*` methods for external agents. | [browser-relay.md](browser-relay.md) |
-| **Remote relay** | Optional | History sync and public tool calls through a server you run. Off by default. | [remote-relay.md](remote-relay.md) |
+| **Iris server** | Optional | Sync (chats, skills, scripts, reports, settings), relay calls by device level, and the conversation export. Off by default. | [server.md](server.md) |
 
 Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
 
-**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. A later zip export can be added when asked. Cross-browser history sync is the optional remote relay.
+**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. A later zip export can be added when asked. Cross-browser sync is the optional Iris server.
 
 ## Architecture
 
@@ -95,7 +95,7 @@ Chrome may leave a newly opened side panel blank until a second UI gesture (shor
 | Web Search | Exa API key (`exaApiKey`, default empty). Used by `web_search`. Stored in `chrome.storage.local` only |
 | MCP | Endpoint (default `http://localhost:8765/mcp`). Not connected when the side-panel agent is created; those tools are not in its schema |
 | Browser relay | Enabled, port (33007), token (`ea-browser-relay-local`). Must match ea-tools `browser_relay.*` |
-| Remote relay | Off by default. URL, token, device name. See [remote-relay.md](remote-relay.md) |
+| Remote Relay | Off by default. URL, token, device name, remote-call level. See [server.md](server.md) |
 | Per-chat model | Searchable combobox in the chat header; favourites pinned |
 
 Other settings (FAB patterns, chat-export directory) are documented in the layer that owns them. Skills are in [agent.md](agent.md).
@@ -105,4 +105,4 @@ Other settings (FAB patterns, chat-export directory) are documented in the layer
 1. This file — what Iris is, and what not to build.
 2. [agent.md](agent.md) — how the core surface actually runs.
 3. [scripts.md](scripts.md) — userscripts, WebMCP, and why they do not own the FAB.
-4. [knowledge.md](knowledge.md) / [page-enhancements.md](page-enhancements.md) / [browser-relay.md](browser-relay.md) / [remote-relay.md](remote-relay.md) — only when touching those layers.
+4. [knowledge.md](knowledge.md) / [page-enhancements.md](page-enhancements.md) / [browser-relay.md](browser-relay.md) / [server.md](server.md) — only when touching those layers.

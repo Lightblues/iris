@@ -26,4 +26,4 @@ dist-ssr
 # custom
 .tmp
 src/agent/builtinSkills.json
-services/relay/data
+services/server/.env

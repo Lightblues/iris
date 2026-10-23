@@ -1,5 +1,5 @@
 {
-  "name": "iris-relay",
+  "name": "iris-server",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,10 +7,13 @@
     "test": "node --test src/server.test.ts"
   },
   "dependencies": {
+    "pg": "^8.23.1",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@types/node": "^24.10.1",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1"
   }
 }

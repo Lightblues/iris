@@ -13,7 +13,7 @@
     "test": "tsx --test 'src/**/*.test.ts'",
     "typecheck": "pnpm bundle-skills && tsc -b",
     "preview": "vite preview",
-    "relay": "pnpm --dir services/relay start"
+    "server": "pnpm --dir services/server start"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.21",
