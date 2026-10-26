@@ -34,3 +34,4 @@ src/agent/builtinSkills.json
 *.gate.lock*
 
 services/server/.env
+.ea/issues/

@@ -7,7 +7,7 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 - **Build**: `pnpm build` → `dist/` (load unpacked in Chrome)
 - **Test**: `pnpm test` (Node test runner via tsx)
 - **Typecheck**: `pnpm typecheck` (`bundle-skills` then `tsc -b`)
-- **Spec / Docs**: @.ea/spec/spec.md
+- **Spec / Docs**: @.ea/docs/spec.md
 
 ## Coding Style
 - Compact and type-hinted
@@ -20,8 +20,8 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 - Run scripts via `pnpm <script>`
 
 ## Git
-- NEVER commit unreviewed work. Commit only after the user confirms the result (for forge issues: when they say "done" / "完成", close it with forge-close, one commit per issue)
-- Never push unless the user or `.ea/forge.yaml` asks for it
+- Commit finished work yourself once its checks pass (tests, typecheck, build as relevant), one commit per logical change in the repository's commit style, then push `main`. No separate review step is needed. This overrides the Beads block's conservative git default below.
+- Forge issues: `.ea/issues/` is synced by the forge server and is not committed; a finished issue goes through forge-run / forge-close as usual.
 - Only use `gh` CLI tools after user approval
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:46cd31e7 -->

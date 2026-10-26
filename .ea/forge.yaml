@@ -1,5 +1,6 @@
 # forge repository defaults. Issue frontmatter overrides these; CLI flags override both.
 prefix: iris
+sync: server     # server: issues sync through the forge server and stay out of git | git: issue files are committed
 delivery: commit # applied when an issue reaches done: none | commit (current branch) | push (commit, then push)
 review: true     # true: a finished issue waits in review/ until you confirm; the agent then closes it (forge-close)
 provider: cursor/grok-4.7

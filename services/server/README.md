@@ -2,7 +2,7 @@
 
 Sync, relay, and export for Iris. Browsers connect out over `WSS /extension`; sonar calls the HTTP side.
 
-Spec (records, sync protocol, levels, HTTP, deploy): [`.ea/spec/server.md`](../../.ea/spec/server.md).
+Spec (records, sync protocol, levels, HTTP, deploy): [`.ea/docs/server.md`](../../.ea/docs/server.md).
 
 ```bash
 pnpm install --ignore-workspace
