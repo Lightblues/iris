@@ -8,7 +8,8 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 - **Install / update a release**: `curl -fsSL https://raw.githubusercontent.com/Lightblues/iris/main/scripts/install.sh | bash` → `~/.iris/extension`; load unpacked once, later runs replace it and Iris reloads itself (`src/background/selfUpdate.ts`)
 - **Test**: `pnpm test` (Node test runner via tsx)
 - **Typecheck**: `pnpm typecheck` (`bundle-skills` then `tsc -b`)
-- **Spec / Docs**: @.ea/docs/spec.md
+- **Spec / Docs**: @.ea/docs/spec.md, index `.ea/docs/README.md`; plan `.ea/roadmap.md`; decisions `.ea/log/decisions.md`
+- **Versions**: fixes are patches on the current minor; a minor is one planned roadmap round (D001). UI layout changes are agreed as ASCII in `.ea/docs/ui.md` or a `.ea/log/` proposal first
 
 ## Coding Style
 - Compact and type-hinted

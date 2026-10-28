@@ -4,7 +4,7 @@ Browser-side **sensor and actuator**. It acts on the current browsing context an
 
 | Item | Detail |
 |------|--------|
-| Repo | `packages/iris` (easons_agent) |
+| Repo | `Lightblues/iris` (public) |
 | Form | Chrome extension, Manifest V3 |
 | Stack | React + TypeScript + Tailwind v4 + Shadcn/ui |
 | Build | Vite + `@crxjs/vite-plugin` |
