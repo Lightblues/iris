@@ -5,6 +5,7 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 ## Quick Reference
 - **Dev**: `pnpm dev` (Vite + crxjs hot reload)
 - **Build**: `pnpm build` → `dist/` (load unpacked in Chrome)
+- **Install / update a release**: `curl -fsSL https://raw.githubusercontent.com/Lightblues/iris/main/scripts/install.sh | bash` → `~/.iris/extension`; load unpacked once, later runs replace it and Iris reloads itself (`src/background/selfUpdate.ts`)
 - **Test**: `pnpm test` (Node test runner via tsx)
 - **Typecheck**: `pnpm typecheck` (`bundle-skills` then `tsc -b`)
 - **Spec / Docs**: @.ea/docs/spec.md

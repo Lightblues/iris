@@ -1,6 +1,7 @@
 import { initSidePanel, toggleForTab, openForTab, noteDerivedGesture } from './sidePanel';
 import { initBrowserRelay, isRelayTab, getRelayState, reconnectRelay } from './browserRelay';
 import { getRemoteRelayState, initRemoteRelay, reconnectRemoteRelay } from './remoteRelay';
+import { initSelfUpdate } from './selfUpdate';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -36,6 +37,7 @@ chrome.alarms.clear('vesta-sync');
 initSidePanel();
 initBrowserRelay();
 initRemoteRelay();
+initSelfUpdate();
 ensureSeedScripts().then(() => syncUserScripts()).catch(err => console.warn('[Iris] scripts:', err));
 
 // Listen for extension installation
