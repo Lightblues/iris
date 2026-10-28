@@ -29,6 +29,7 @@ export interface DeviceInfo {
   level: Level
   lastSeen: number
   methods: string[]
+  version?: string
 }
 
 export class RelayCallError extends Error {
@@ -53,6 +54,7 @@ interface Device {
   socket: WebSocket
   lastActive: number
   methods: string[]
+  version?: string
 }
 
 interface Pending {
@@ -104,6 +106,7 @@ export function createHub(store: Store) {
       level: device.level,
       lastSeen: device.lastActive,
       methods: device.methods,
+      version: device.version,
     }))
   }
 
@@ -174,6 +177,7 @@ export function createHub(store: Store) {
       const methods = msg.params?.methods
       device.methods = Array.isArray(methods) ? methods.filter((name): name is string => typeof name === 'string') : []
       if (msg.params?.level !== undefined) device.level = asLevel(msg.params.level)
+      if (typeof msg.params?.version === 'string') device.version = msg.params.version.slice(0, 32)
       device.lastActive = Date.now()
       return
     }

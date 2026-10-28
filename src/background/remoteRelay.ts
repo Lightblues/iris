@@ -201,7 +201,7 @@ async function onFrame(raw: string): Promise<void> {
       reconnectDelay = RECONNECT_BASE_MS
       lastPongTime = Date.now()
       chrome.alarms.clear(RECONNECT_ALARM)
-      send({ v: 1, method: 'hello', params: { methods: listRelayMethods(), level: currentLevel } })
+      send({ v: 1, method: 'hello', params: { methods: listRelayMethods(), level: currentLevel, version: chrome.runtime.getManifest().version } })
       void runSync()
     }
     return
