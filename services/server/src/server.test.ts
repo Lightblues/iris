@@ -159,7 +159,7 @@ test('control calls are off when no control key is set', async () => {
   }
 })
 
-type Results = { results: { kind: string; id: string; rev?: number; error?: string; record?: { body: { messages: { id: string }[]; title?: string } | null; deleted: boolean } }[] }
+type Results = { results: { kind: string; id: string; rev?: number; error?: string; unchanged?: boolean; record?: { body: { messages: { id: string }[]; title?: string } | null; deleted: boolean } }[] }
 type Pulled = { records: { kind: string; id: string; rev: number; deleted: boolean; body: unknown }[]; cursor: number; more: boolean }
 
 const conv = (id: string, updatedAt: number, messages: string[], title = id) => ({
@@ -191,7 +191,10 @@ test('sync: fast-forward replaces, a stale base merges conversations by message 
     const lost = await rpc<Results>(mini, 'sync.push', { records: [{ kind: 'setting', id: 'model', updatedAt: 5, body: { value: 'y' }, baseRev: 0 }] })
     assert.deepEqual(lost.results[0].record!.body, { value: 'x' })
 
-    const deleted = await rpc<Results>(mbp, 'sync.push', { records: [{ kind: 'skill', id: 's1', updatedAt: 4, body: { name: 's1' }, baseRev: 0 }] })
+    const deleted = await rpc<Results>(mbp, 'sync.push', { records: [{ kind: 'skill', id: 's1', updatedAt: 4, body: { name: 's1', files: { a: 1 } }, baseRev: 0 }] })
+    const same = await rpc<Results>(mini, 'sync.push', { records: [{ kind: 'skill', id: 's1', updatedAt: 99, body: { files: { a: 1 }, name: 's1' }, baseRev: 0 }] })
+    assert.equal(same.results[0].unchanged, true)
+    assert.equal(same.results[0].rev, deleted.results[0].rev)
     await rpc(mbp, 'sync.push', { records: [{ kind: 'skill', id: 's1', updatedAt: 6, deleted: true, baseRev: deleted.results[0].rev }] })
 
     const bad = await rpc<Results>(mbp, 'sync.push', { records: [

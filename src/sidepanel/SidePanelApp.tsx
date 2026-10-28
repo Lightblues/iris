@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { SidebarHeader } from './components/SidebarHeader'
 import { type TabType } from './components/TabSwitcher'
-import { loadSettings, saveSettings, type SidePanelSettings, type ModelConfig, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
+import { loadSettings, saveSettings, SETTINGS_KEY, type SidePanelSettings, type ModelConfig, DEFAULT_SETTINGS } from '@/lib/sidepanelSettings'
 import {
   loadAllConversations as loadAgentConversations,
   setActiveConversation as setAgentActiveConversation,
@@ -81,6 +81,7 @@ export default function SidePanelApp() {
     refreshSkills()
     const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === 'local' && changes.iris_skills) refreshSkills()
+      if (area === 'local' && changes[SETTINGS_KEY]) loadSettings().then(setSettings)
     }
     chrome.storage.onChanged.addListener(onStorage)
     chrome.storage.local.get(TAB_STORAGE_KEY).then((result) => {
@@ -176,7 +177,8 @@ export default function SidePanelApp() {
   }, [patchSession])
 
   const handleSettingsChange = async (newSettings: Partial<SidePanelSettings>) => {
-    const updated = { ...settings, ...newSettings }
+    // Sync may have written storage since this panel loaded; patch the stored copy, not the stale state.
+    const updated = { ...(await loadSettings()), ...newSettings }
     setSettings(updated)
     await saveSettings(updated)
     if ('phoenixEndpoint' in newSettings) {

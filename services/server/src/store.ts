@@ -67,6 +67,14 @@ export interface PushResult {
   error?: string
   /** Present when the stored record is not what the device sent (merged, or the server's copy won). */
   record?: StoredRecord
+  /** The stored copy already equals what was sent; nothing was written. */
+  unchanged?: boolean
+}
+
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, (v as Record<string, unknown>)[k]]))
+    : v) ?? ''
 }
 
 export interface ExportItem {
@@ -129,6 +137,10 @@ export function openStore(db: Db) {
       await query('SELECT pg_advisory_xact_lock(hashtext($1))', [user])
       const { rows } = await query<Row>(`SELECT ${COLUMNS} FROM records WHERE user_id = $1 AND kind = $2 AND id = $3 FOR UPDATE`, [user, rec.kind, rec.id])
       const current = rows[0] ? toRecord(rows[0]) : undefined
+      // A push that changes nothing keeps the rev, so devices do not wake each other in a loop.
+      if (current && current.deleted === incoming.deleted && canonicalJson(current.body) === canonicalJson(incoming.body)) {
+        return { ...head, rev: current.rev, unchanged: true }
+      }
       const next = !current || current.rev === rec.baseRev ? incoming : resolve(rec.kind, current, incoming)
       if (current && next === current) return { ...head, rev: current.rev, record: current }
       const body = next === incoming ? json : next.deleted ? null : JSON.stringify(next.body)

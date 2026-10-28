@@ -74,8 +74,15 @@ export const DEVICE_SETTINGS: (keyof SidePanelSettings)[] = [
   'browserRelayEnabled', 'browserRelayPort', 'browserRelayToken', 'mcpEndpoint', 'models',
 ]
 
+/** JSON with object keys sorted: the server's jsonb and chrome.storage each reorder keys their own way. */
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, (v as Record<string, unknown>)[k]]))
+    : v) ?? ''
+}
+
 export function hashJson(value: unknown): string {
-  const text = JSON.stringify(value) ?? ''
+  const text = canonicalJson(value)
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i)

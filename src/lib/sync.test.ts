@@ -129,3 +129,27 @@ test('push batches split by count and by size, and an oversized item goes alone'
   assert.deepEqual(batchBySize([item(100), item(100), item(500), item(100)], 20, 300).map(b => b.map(x => x.text.length)), [[100, 100], [500], [100]])
   assert.deepEqual(batchBySize([], 20, 300), [])
 })
+
+test('a pulled record whose keys come back in another order is not pushed again', async () => {
+  const server = fakeServer()
+  const a = device(server, { iris_skills: [skill('mine', 'agent')] })
+  await a.sync.run()
+  const reversed = (o: object) => Object.fromEntries(Object.entries(o).reverse())
+  for (const rec of server.records.values()) rec.body = reversed(rec.body as object)
+  const b = device(server)
+  await b.sync.run()
+  b.storage.data.iris_skills = (b.storage.data.iris_skills as object[]).map(reversed)
+  server.pushes.length = 0
+  await b.sync.run()
+  await a.sync.run()
+  assert.deepEqual(server.pushes, [])
+})
+
+test('a new device takes the server settings over its defaults', async () => {
+  const server = fakeServer()
+  const a = device(server, { [SETTINGS]: { apiKey: 'k', baseUrl: 'u' } })
+  await a.sync.run()
+  const b = device(server, { [SETTINGS]: { apiKey: '', baseUrl: 'default' } })
+  await b.sync.run()
+  assert.deepEqual(b.storage.data[SETTINGS], { apiKey: 'k', baseUrl: 'u' })
+})

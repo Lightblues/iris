@@ -187,11 +187,12 @@ export function createHub(store: Store) {
       const records = asRecords(msg.params?.records)
       const results = await store.push(DEFAULT_USER, records)
       send(device.socket, { v: 1, id: msg.id, result: { results } })
-      if (results.some(r => !r.error)) {
+      if (results.some(r => !r.error && !r.unchanged)) {
         for (const other of devices.values()) if (other !== device) send(other.socket, { v: 1, method: 'sync.changed' })
       }
       const failed = results.filter(r => r.error).length
-      console.log(`[iris-server] sync.push device=${device.id} records=${records.length} failed=${failed}`)
+      const unchanged = results.filter(r => r.unchanged).length
+      console.log(`[iris-server] sync.push device=${device.id} records=${records.length} unchanged=${unchanged} failed=${failed}`)
       return
     }
 
