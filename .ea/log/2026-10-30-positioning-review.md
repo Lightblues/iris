@@ -1,6 +1,6 @@
 # Positioning review: agent-native (2026-10-30)
 
-Status: proposed
+Status: accepted (D006, 2026-10-30)
 
 Roadmap 0.7 item 2 (issue iris-024). One question for every item: does it serve the **side-panel agent on the current page**, or the **relay** that outside agents use? Verdicts:
 

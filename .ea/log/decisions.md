@@ -32,6 +32,12 @@ Status: accepted
 
 Settings follow `log/2026-10-29-settings-layout.md`: a status strip, then Model, Tools, This browser (not synced), Pages, and a collapsed Developer section. The localhost ea-tools relay and the MCP endpoint move to Developer and stay unused; they are tested and improved only when a need appears. Alternative rejected: deleting them now, which would have to be rebuilt if a local agent needs them.
 
+## D006 Two jobs: the page agent and the relay (2026-10-30)
+
+Status: accepted
+
+Iris has two jobs: the side-panel agent on the current page, and the relay through which outside agents use the same tool catalog. Everything else is an entry point or a thin tool kept working (D003). Capture is no longer a pillar of its own; it stays local and leaves through the relay exports. The keep / fold / drop verdicts in `log/2026-10-30-positioning-review.md` are accepted as written: drops go to iris-025, folds and the agent-experience items (AX-1 to AX-10) become 0.7 item 4 issues. Alternative rejected: keeping "sensor" as a second product line, which justified surfaces (Tabs, tab heuristics, duplicate relay methods) that neither job needs.
+
 ## D006 Settings resolve by per-field edit time (2026-10-30)
 
 Status: accepted
