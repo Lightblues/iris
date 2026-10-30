@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { WebSocket } from 'ws'
 import type { Liveness } from './hub.ts'
+import { addToken, addUser, listTokens, seedEnv } from './users.ts'
 import { startServer } from './index.ts'
 import { DEFAULT_USER, MAX_RECORD_BYTES, migrate, openStore, type Db } from './store.ts'
 
@@ -24,11 +25,12 @@ function pgliteDb(): Db {
   }
 }
 
-async function boot(controlKey = CONTROL, liveness?: Liveness) {
-  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db: pgliteDb(), liveness })
+async function boot(controlKey = CONTROL, liveness?: Liveness, db = pgliteDb()) {
+  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db, liveness })
   const base = `http://127.0.0.1:${server.port}`
   return {
     port: server.port,
+    db,
     get: (path: string, key = READ) => fetch(`${base}${path}`, { headers: headers(key) }),
     call: (body: unknown, key = READ) => fetch(`${base}/call`, { method: 'POST', headers: headers(key), body: JSON.stringify(body) }),
     stop: () => server.close(),
@@ -41,7 +43,7 @@ function headers(key: string): Record<string, string> {
 
 type Call = { id: number; method?: string; params?: unknown }
 
-function connectDevice(port: number, deviceId: string, level: string, onCall?: (msg: Call, ws: WebSocket) => void, label = deviceId, autoPong = true) {
+function connectDevice(port: number, deviceId: string, level: string, onCall?: (msg: Call, ws: WebSocket) => void, label = deviceId, autoPong = true, token = DEVICE) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}/extension`, { autoPong })
   return new Promise<WebSocket>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('connect timeout')), 3000)
@@ -57,7 +59,7 @@ function connectDevice(port: number, deviceId: string, level: string, onCall?: (
       if (typeof msg.id === 'number' && msg.id > 0) onCall?.(msg, ws)
     })
     ws.on('open', () => {
-      ws.send(JSON.stringify({ v: 1, method: 'auth', params: { token: DEVICE, deviceId, label, level } }))
+      ws.send(JSON.stringify({ v: 1, method: 'auth', params: { token, deviceId, label, level } }))
     })
   })
 }
@@ -313,5 +315,66 @@ test('a pull page stops at the byte cap but always carries one record', async ()
   assert.equal(second.more, false)
   const tiny = await store.pull(DEFAULT_USER, 0, 50, 10)
   assert.deepEqual(tiny.records.map(r => r.id), ['a'])
+  await db.close()
+})
+
+test('two users never see each other\'s records, devices, or export', async () => {
+  const server = await boot()
+  try {
+    await addUser(server.db, 'bob', 'Bob')
+    const bobDevice = await addToken(server.db, 'bob', 'device')
+    const bobRead = await addToken(server.db, 'bob', 'read')
+    const bobControl = await addToken(server.db, 'bob', 'control')
+    await assert.rejects(addUser(server.db, 'bob'))
+    await assert.rejects(addToken(server.db, 'nobody', 'read'))
+
+    const mine = await connectDevice(server.port, 'shared-id', 'control', echo('me'))
+    const bobs = await connectDevice(server.port, 'shared-id', 'control', echo('bob'), 'bob-laptop', true, bobDevice)
+    let woken = false
+    mine.on('message', data => { if (String(data).includes('sync.changed')) woken = true })
+
+    await rpc(mine, 'sync.push', { records: [{ ...conv('mine', 1, ['a']), baseRev: 0 }] })
+    await rpc(bobs, 'sync.push', { records: [{ ...conv('bobs', 1, ['b']), baseRev: 0 }] })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    assert.equal(woken, false)
+
+    const pulledMine = await rpc<Pulled>(mine, 'sync.pull', { since: 0 })
+    const pulledBob = await rpc<Pulled>(bobs, 'sync.pull', { since: 0 })
+    assert.deepEqual(pulledMine.records.map(r => r.id), ['mine'])
+    assert.deepEqual(pulledBob.records.map(r => r.id), ['bobs'])
+
+    const exportOf = async (key: string) => ((await (await server.get('/export/changes', key)).json()) as { items: { id: string }[] }).items.map(i => i.id)
+    assert.deepEqual(await exportOf(READ), ['mine'])
+    assert.deepEqual(await exportOf(bobRead), ['bobs'])
+
+    const devicesOf = async (key: string) => ((await (await server.get('/devices', key)).json()) as { devices: { label: string }[] }).devices.map(d => d.label)
+    assert.deepEqual(await devicesOf(READ), ['shared-id'])
+    assert.deepEqual(await devicesOf(bobRead), ['bob-laptop'])
+
+    const call = async (key: string, device?: string) => {
+      const res = await server.call({ method: 'browser.list_tabs', device }, key)
+      return res.status === 200 ? (await res.json() as { at: string }).at : res.status
+    }
+    assert.equal(await call(CONTROL), 'me')
+    assert.equal(await call(bobControl), 'bob')
+    assert.equal(await call(bobControl, 'shared-id'), 'bob')
+    assert.equal(await call(CONTROL, 'bob-laptop'), 503)
+    assert.equal((await server.call({ method: 'browser.list_tabs' }, bobRead)).status, 403)
+    mine.close()
+    bobs.close()
+  } finally {
+    await server.stop()
+  }
+})
+
+test('env credentials follow the env on every start', async () => {
+  const db = pgliteDb()
+  await migrate(db)
+  await seedEnv(db, { device: 'd1', read: 'r1', control: 'c1' })
+  await seedEnv(db, { device: 'd1', read: 'r1', control: 'c1' })
+  await seedEnv(db, { device: 'd1', read: 'r2' })
+  const live = (await listTokens(db, DEFAULT_USER)).filter(c => !c.revokedAt).map(c => c.kind).sort()
+  assert.deepEqual(live, ['device', 'read'])
+  assert.equal((await listTokens(db)).length, 4)
   await db.close()
 })

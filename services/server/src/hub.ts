@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws'
-import { DEFAULT_USER, type PushRecord, type Store } from './store.ts'
+import type { PushRecord, Store } from './store.ts'
 
 /** What a device lets callers do through it. Set per device in Iris settings. */
 export type Level = 'off' | 'read' | 'control'
@@ -48,6 +48,7 @@ export class RelayCallError extends Error {
 }
 
 interface Device {
+  user: string
   id: string
   label: string
   level: Level
@@ -69,6 +70,7 @@ export interface Liveness {
 const LIVENESS: Liveness = { pingMs: 30_000, deadMs: 90_000 }
 
 interface Pending {
+  user: string
   deviceId: string
   socket: WebSocket
   chunks: unknown[]
@@ -93,7 +95,10 @@ export function asLevel(value: unknown): Level {
 }
 
 export function createHub(store: Store, liveness: Liveness = LIVENESS) {
+  /** Keyed by user and device id; device ids are only unique within a user. */
   const devices = new Map<string, Device>()
+  const key = (user: string, id: string) => `${user}\n${id}`
+  const own = (user: string) => [...devices.values()].filter(device => device.user === user)
   const pending = new Map<number, Pending>()
   let nextId = 1
 
@@ -112,7 +117,7 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
   sweep.unref()
 
   function drop(device: Device) {
-    if (devices.get(device.id) === device) devices.delete(device.id)
+    if (devices.get(key(device.user, device.id)) === device) devices.delete(key(device.user, device.id))
     failSocket(device.socket, 'disconnected', 'browser disconnected')
     device.socket.terminate()
   }
@@ -130,8 +135,8 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     }
   }
 
-  function listDevices(): DeviceInfo[] {
-    return [...devices.values()].map(device => ({
+  function listDevices(user: string): DeviceInfo[] {
+    return own(user).map(device => ({
       id: device.id,
       label: device.label,
       level: device.level,
@@ -141,11 +146,12 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     }))
   }
 
-  function status() {
+  function status(user: string) {
+    const mine = listDevices(user)
     return {
-      extension_connected: devices.size > 0,
-      pending_requests: pending.size,
-      devices: listDevices(),
+      extension_connected: mine.length > 0,
+      pending_requests: [...pending.values()].filter(call => call.user === user).length,
+      devices: mine,
     }
   }
 
@@ -153,10 +159,11 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     return allows(device.level, method) && (!device.methods.length || device.methods.includes(method))
   }
 
-  function pick(method: string, deviceId?: string): Device {
+  function pick(user: string, method: string, deviceId?: string): Device {
+    const mine = own(user)
     if (deviceId) {
-      const labeled = [...devices.values()].filter(device => device.label === deviceId)
-      const device = devices.get(deviceId) ?? (labeled.length === 1 ? labeled[0] : undefined)
+      const labeled = mine.filter(device => device.label === deviceId)
+      const device = devices.get(key(user, deviceId)) ?? (labeled.length === 1 ? labeled[0] : undefined)
       if (!device) throw new RelayCallError(503, 'no_device', 'extension not connected', { device: deviceId })
       if (!allows(device.level, method)) {
         throw new RelayCallError(403, 'forbidden', `${device.label} is set to ${device.level}; ${method} needs ${methodLevel(method)}`, { device: device.id })
@@ -164,27 +171,27 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
       return device
     }
     let best: Device | undefined
-    for (const device of devices.values()) {
+    for (const device of mine) {
       if (!serves(device, method)) continue
       if (!best || device.lastActive > best.lastActive) best = device
     }
     if (best) return best
-    if (devices.size) throw new RelayCallError(503, 'no_device', `no connected browser accepts ${method} (needs level ${methodLevel(method)})`)
+    if (mine.length) throw new RelayCallError(503, 'no_device', `no connected browser accepts ${method} (needs level ${methodLevel(method)})`)
     throw new RelayCallError(503, 'no_device', 'extension not connected')
   }
 
-  function register(socket: WebSocket, id: string, label: string, level: Level) {
+  function register(socket: WebSocket, user: string, id: string, label: string, level: Level) {
     const now = Date.now()
-    const device: Device = { id, label: label.slice(0, 64) || id, level, socket, lastActive: now, lastSeen: now, methods: [] }
-    const prev = devices.get(id)
-    devices.set(id, device)
+    const device: Device = { user, id, label: label.slice(0, 64) || id, level, socket, lastActive: now, lastSeen: now, methods: [] }
+    const prev = devices.get(key(user, id))
+    devices.set(key(user, id), device)
     if (prev && prev.socket !== socket) {
       failSocket(prev.socket, 'disconnected', 'browser reconnected')
       prev.socket.terminate()
     }
 
     socket.on('close', () => {
-      if (devices.get(id)?.socket === socket) devices.delete(id)
+      if (devices.get(key(user, id))?.socket === socket) devices.delete(key(user, id))
       failSocket(socket, 'disconnected', 'browser disconnected')
     })
     socket.on('pong', () => { device.lastSeen = Date.now() })
@@ -222,21 +229,21 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     if (msg.method === 'sync.push' && typeof msg.id === 'number') {
       device.lastActive = Date.now()
       const records = asRecords(msg.params?.records)
-      const results = await store.push(DEFAULT_USER, records)
+      const results = await store.push(device.user, records)
       send(device.socket, { v: 1, id: msg.id, result: { results } })
       if (results.some(r => !r.error && !r.unchanged)) {
-        for (const other of devices.values()) if (other !== device) send(other.socket, { v: 1, method: 'sync.changed' })
+        for (const other of own(device.user)) if (other !== device) send(other.socket, { v: 1, method: 'sync.changed' })
       }
       const failed = results.filter(r => r.error).length
       const unchanged = results.filter(r => r.unchanged).length
-      console.log(`[iris-server] sync.push device=${device.id} records=${records.length} unchanged=${unchanged} failed=${failed}`)
+      console.log(`[iris-server] sync.push user=${device.user} device=${device.id} records=${records.length} unchanged=${unchanged} failed=${failed}`)
       return
     }
 
     if (msg.method === 'sync.pull' && typeof msg.id === 'number') {
       const since = Number(msg.params?.since ?? 0)
       const limit = Number(msg.params?.limit ?? 50)
-      const result = await store.pull(DEFAULT_USER, Number.isFinite(since) ? since : 0, Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 50)
+      const result = await store.pull(device.user, Number.isFinite(since) ? since : 0, Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 50)
       send(device.socket, { v: 1, id: msg.id, result })
       return
     }
@@ -268,10 +275,10 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     }
   }
 
-  function callDevice(deviceId: string | undefined, method: string, params: unknown, timeoutSec: number) {
+  function callDevice(user: string, deviceId: string | undefined, method: string, params: unknown, timeoutSec: number) {
     let device: Device
     try {
-      device = pick(method, deviceId)
+      device = pick(user, method, deviceId)
     } catch (error) {
       return Promise.reject(error)
     }
@@ -282,8 +289,8 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
         pending.delete(id)
         reject(new RelayCallError(504, 'timeout', 'timeout waiting for extension response', { device: device.id }))
       }, seconds * 1000)
-      pending.set(id, { deviceId: device.id, socket: device.socket, chunks: [], timer, resolve, reject })
-      console.log(`[iris-server] call device=${device.id} method=${method}`)
+      pending.set(id, { user, deviceId: device.id, socket: device.socket, chunks: [], timer, resolve, reject })
+      console.log(`[iris-server] call user=${user} device=${device.id} method=${method}`)
       send(device.socket, { v: 1, id, method, params: params ?? {} })
     })
   }

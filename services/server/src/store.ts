@@ -8,7 +8,7 @@ export type Kind = typeof KINDS[number]
 export const EXPORT_KINDS: Record<string, string> = {
   conversation: 'One Iris agent chat: title, messages (user, assistant, tool calls and results), pages it read, skills it loaded, model.',
 }
-/** Accounts are not built yet; every row belongs to this user. */
+/** The owner of the env credentials and of every row written before users existed. */
 export const DEFAULT_USER = 'me'
 
 type Query = <R = Record<string, unknown>>(text: string, params?: unknown[]) => Promise<{ rows: R[] }>
@@ -116,6 +116,20 @@ export async function migrate(db: Db): Promise<void> {
       PRIMARY KEY (user_id, kind, id)
     );
     CREATE INDEX IF NOT EXISTS records_user_rev ON records (user_id, rev);
+    CREATE TABLE IF NOT EXISTS users (
+      id text PRIMARY KEY,
+      name text NOT NULL,
+      created_at bigint NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS credentials (
+      id serial PRIMARY KEY,
+      user_id text NOT NULL REFERENCES users (id),
+      kind text NOT NULL CHECK (kind IN ('device', 'read', 'control')),
+      hash text NOT NULL UNIQUE,
+      label text NOT NULL DEFAULT '',
+      created_at bigint NOT NULL,
+      revoked_at bigint
+    );
   `)
 }
 

@@ -1,19 +1,20 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { asLevel, createHub, methodLevel, relayErrorPayload, type Liveness } from './hub.ts'
-import { DEFAULT_USER, EXPORT_KINDS, migrate, openStore, pgDb, type Db } from './store.ts'
+import { EXPORT_KINDS, migrate, openStore, pgDb, type Db } from './store.ts'
+import { resolveToken, seedEnv } from './users.ts'
 
 const MAX_BODY = 32 * 1024 * 1024
 
+/** The env credentials belong to user `me`; other users' credentials live in the database. */
 export interface ServerOptions {
   /** What extensions send in the WebSocket auth frame. */
-  deviceToken: string
+  deviceToken?: string
   /** Read-level relay calls, device status, and /export. */
-  readKey: string
-  /** Every relay method. Empty turns control calls off. */
+  readKey?: string
+  /** Every relay method. Empty turns control calls off for `me`. */
   controlKey?: string
   host: string
   port: number
@@ -25,6 +26,7 @@ type KeyLevel = 'read' | 'control'
 
 export async function startServer(options: ServerOptions) {
   await migrate(options.db)
+  await seedEnv(options.db, { device: options.deviceToken, read: options.readKey, control: options.controlKey })
   const store = openStore(options.db)
   const hub = createHub(store, options.liveness)
   const hits = new Map<string, { n: number; reset: number }>()
@@ -39,7 +41,11 @@ export async function startServer(options: ServerOptions) {
   const wss = new WebSocketServer({ server, path: '/extension', maxPayload: MAX_BODY })
   wss.on('connection', socket => {
     const timer = setTimeout(() => socket.close(4001, 'auth timeout'), 5000)
-    socket.once('message', data => {
+    socket.once('message', data => void onAuth(data).catch(error => {
+      console.error('[iris-server] auth failed:', (error as Error).message)
+      socket.close(1011, 'internal error')
+    }))
+    async function onAuth(data: unknown) {
       clearTimeout(timer)
       let msg: { method?: string; params?: { token?: unknown; deviceId?: unknown; label?: unknown; level?: unknown } }
       try {
@@ -51,14 +57,16 @@ export async function startServer(options: ServerOptions) {
       const token = typeof msg.params?.token === 'string' ? msg.params.token : ''
       const deviceId = typeof msg.params?.deviceId === 'string' ? msg.params.deviceId : ''
       const label = typeof msg.params?.label === 'string' ? msg.params.label : ''
-      if (msg.method !== 'auth' || !tokenOk(token, options.deviceToken) || !deviceId || deviceId.length > 80) {
+      const auth = msg.method === 'auth' && deviceId && deviceId.length <= 80 ? await resolveToken(options.db, token, ['device']) : null
+      if (!auth) {
         socket.close(4001, 'unauthorized')
         return
       }
+      if (socket.readyState !== socket.OPEN) return
       socket.send(JSON.stringify({ v: 1, method: 'auth', result: { ok: true } }))
-      hub.register(socket, deviceId, label, asLevel(msg.params?.level))
-      console.log(`[iris-server] device connected ${deviceId}`)
-    })
+      hub.register(socket, auth.userId, deviceId, label, asLevel(msg.params?.level))
+      console.log(`[iris-server] device connected user=${auth.userId} ${deviceId}`)
+    }
   })
 
   await new Promise<void>((resolveListen, reject) => {
@@ -72,11 +80,9 @@ export async function startServer(options: ServerOptions) {
   const address = server.address()
   const port = typeof address === 'object' && address ? address.port : options.port
 
-  function keyLevel(req: IncomingMessage): KeyLevel | null {
-    const got = bearer(req)
-    if (options.controlKey && tokenOk(got, options.controlKey)) return 'control'
-    if (tokenOk(got, options.readKey)) return 'read'
-    return null
+  async function caller(req: IncomingMessage): Promise<{ user: string; level: KeyLevel } | null> {
+    const auth = await resolveToken(options.db, bearer(req), ['read', 'control'])
+    return auth ? { user: auth.userId, level: auth.kind as KeyLevel } : null
   }
 
   async function onRequest(req: IncomingMessage, res: ServerResponse) {
@@ -89,14 +95,14 @@ export async function startServer(options: ServerOptions) {
       sendJson(res, 429, { error: { code: 'rate_limited', message: 'too many requests' } })
       return
     }
-    const level = keyLevel(req)
-    if (!level) {
+    const auth = await caller(req)
+    if (!auth) {
       sendJson(res, 401, { error: { code: 'unauthorized', message: 'unauthorized' } })
       return
     }
 
     if (req.method === 'GET' && (url.pathname === '/status' || url.pathname === '/devices')) {
-      sendJson(res, 200, hub.status())
+      sendJson(res, 200, hub.status(auth.user))
       return
     }
 
@@ -113,7 +119,7 @@ export async function startServer(options: ServerOptions) {
       }
       const kinds = (url.searchParams.get('kinds') || '').split(',').map(kind => kind.trim()).filter(Boolean)
       const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 100) || 100, 1), 500)
-      sendJson(res, 200, await store.exportChanges(DEFAULT_USER, since, kinds, limit))
+      sendJson(res, 200, await store.exportChanges(auth.user, since, kinds, limit))
       return
     }
 
@@ -123,12 +129,13 @@ export async function startServer(options: ServerOptions) {
         sendJson(res, 400, { error: { code: 'invalid_params', message: 'method is required' } })
         return
       }
-      if (methodLevel(body.method) === 'control' && level !== 'control') {
+      if (methodLevel(body.method) === 'control' && auth.level !== 'control') {
         sendJson(res, 403, { error: { code: 'forbidden', message: `${body.method} needs the control key` } })
         return
       }
       try {
         const result = await hub.callDevice(
+          auth.user,
           typeof body.device === 'string' ? body.device : undefined,
           body.method,
           body.params ?? {},
@@ -163,13 +170,6 @@ function bearer(req: IncomingMessage): string {
   const header = req.headers.authorization || ''
   const match = /^Bearer\s+(.+)$/i.exec(header)
   return match?.[1] ?? ''
-}
-
-function tokenOk(got: string, expected: string): boolean {
-  if (!got || !expected) return false
-  const a = createHash('sha256').update(got).digest()
-  const b = createHash('sha256').update(expected).digest()
-  return timingSafeEqual(a, b)
 }
 
 function limited(hits: Map<string, { n: number; reset: number }>, ip: string): boolean {
@@ -222,8 +222,8 @@ if (isMain) {
   const host = process.env.IRIS_HOST || '127.0.0.1'
   const port = Number(process.env.IRIS_PORT || 33030)
   startServer({
-    deviceToken: need('IRIS_DEVICE_TOKEN'),
-    readKey: need('IRIS_READ_KEY'),
+    deviceToken: process.env.IRIS_DEVICE_TOKEN || '',
+    readKey: process.env.IRIS_READ_KEY || '',
     controlKey: process.env.IRIS_CONTROL_KEY || '',
     host,
     port,

@@ -32,19 +32,39 @@ IRIS_DATABASE_URL=postgres://iris:…@127.0.0.1:5432/iris pnpm start
 
 | Env | Default | Notes |
 |-----|---------|--|
-| `IRIS_DEVICE_TOKEN` | required | What each browser sends in the auth frame (Settings → Remote Relay → Token) |
-| `IRIS_READ_KEY` | required | Bearer for read-level calls, `/status`, and `/export/*` |
-| `IRIS_CONTROL_KEY` | empty | Bearer for every method. Empty turns control calls off |
+| `IRIS_DEVICE_TOKEN` | empty | User `me`'s browser token: what each browser sends in the auth frame (Settings → Remote Relay → Token) |
+| `IRIS_READ_KEY` | empty | User `me`'s bearer for read-level calls, `/status`, and `/export/*` |
+| `IRIS_CONTROL_KEY` | empty | User `me`'s bearer for every method. Empty turns `me`'s control calls off |
 | `IRIS_DATABASE_URL` | required | Postgres. The schema is created on start |
 | `IRIS_HOST` / `IRIS_PORT` | `127.0.0.1` / `33030` | Put TLS in front |
 
-The three credentials are separate on purpose: a browser token cannot call browsers, and the read key cannot drive one. `--ignore-workspace` matters inside this repo, where the parent workspace would otherwise skip the directory.
+The three credentials are separate on purpose: a browser token cannot call browsers, and the read key cannot drive one. The env ones belong to user `me` (see Users); other users' credentials are created with the CLI. `--ignore-workspace` matters inside this repo, where the parent workspace would otherwise skip the directory.
 
 Logs include method names, device ids, and record counts, never params or bodies. More than 600 requests per minute from one IP is 429. Bodies and WebSocket frames are capped at 32MB.
 
+## Users and credentials
+
+Schema only (D004): no sign-up, no login. `users (id, name, created_at)` and `credentials (id, user_id, kind, hash, label, created_at, revoked_at)`, where `kind` is `device`, `read`, or `control` and `hash` is the SHA-256 of the token; tokens are never stored.
+
+- On start the server creates user `me` and imports the three env credentials for it with label `env`. A changed or removed env value revokes the old one, so the env stays the source of truth for `me`.
+- Every token resolves to its user. Sync, relay calls, `/devices`, `/status`, and export only see that user's records and browsers; `sync.changed` only wakes that user's browsers. Device ids are unique per user.
+- Rows written before users existed have `user_id = 'me'`; the migration only adds tables.
+
+CLI, in `services/server` (reads `.env` for `IRIS_DATABASE_URL`). `pnpm token` is a pnpm builtin, so both use `pnpm run`:
+
+```bash
+pnpm run user add <id> [name]                          # id: a-z 0-9 _ -, at most 32
+pnpm run user list
+pnpm run token add <user> <device|read|control> [label] # prints the token once
+pnpm run token list [user]
+pnpm run token revoke <credential id>
+```
+
+A second user's browser puts its device token in Settings → Remote Relay → Token; its sonar uses that user's read and control keys.
+
 ## Records
 
-One table, `records (user_id, kind, id, rev, updated_at, deleted, body jsonb)`. `rev` comes from one sequence and only grows; every write takes the next one. Writes for a user are serialized, so revs commit in order and a reader that has passed rev N never misses a lower one. `user_id` is `me` until accounts exist.
+One table, `records (user_id, kind, id, rev, updated_at, deleted, body jsonb)`. `rev` comes from one sequence and only grows; every write takes the next one. Writes for a user are serialized, so revs commit in order and a reader that has passed rev N never misses a lower one. `user_id` is the owner (see Users).
 
 | Kind | Id | Body | Conflict rule |
 |---|---|---|---|
@@ -97,7 +117,7 @@ A socket can die without a close (a sleeping laptop, a dropped tunnel), and call
 
 ## HTTP
 
-Every route except `GET /health` needs `Authorization: Bearer <read or control key>`.
+Every route except `GET /health` needs `Authorization: Bearer <read or control key>`, and answers for that key's user only.
 
 - `POST /call { method, params, timeout?, device? }`. `timeout` is in seconds (default 120, max 300).
   - Without `device`, the call goes to the most recently active browser whose level allows the method. `device` is an id, or a label when exactly one connected browser uses it.
@@ -120,5 +140,5 @@ Every route except `GET /health` needs `Authorization: Bearer <read or control k
 
 - End-to-end encryption
 - An Iris agent loop on the server
-- Accounts and login (planned: `user_id` is in place; per-device tokens and a sign-in come later)
+- Sign-up and login (users and per-user credentials exist; an invite-only Google sign-in may come later)
 - Replacing the localhost ea-tools relay
