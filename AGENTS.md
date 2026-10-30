@@ -7,6 +7,8 @@ Browser-side sensor and actuator of the ea system — Agent first, knowledge cap
 - **Build**: `pnpm build` → `dist/` (load unpacked in Chrome)
 - **Install / update a release**: `curl -fsSL https://raw.githubusercontent.com/Lightblues/iris/main/scripts/install.sh | bash` → `~/.iris/extension`; load unpacked once, later runs replace it and Iris reloads itself (`src/background/selfUpdate.ts`)
 - **Test**: `pnpm test` (Node test runner via tsx)
+- **E2E (headless)**: `pnpm test:e2e` builds `dist/`, starts a local Iris server on PGlite (`services/server/src`, in-process, random port), and loads the extension into Playwright Chromium with a fresh profile (`e2e/smoke.test.ts`). It checks that the side panel renders, an API key typed in Settings is saved and stamped, and the extension connects to that server and completes one sync both ways. Never point it at the real server: its first sync would pull real API keys
+- **Real-browser check**: `pnpm check-device <label> [url]` (`scripts/check-device.ts`) asks the real Iris server for that device's version, then runs `browser.list_tabs` and `browser.fetch` (default `https://example.com`) on it. It needs a control-level device (xh-mini-m1) and reads `IRIS_CONTROL_KEY`/`IRIS_HOST`/`IRIS_PORT` from `services/server/.env` (devcloud); `IRIS_URL` overrides the address. It opens and closes one tab on that browser
 - **Typecheck**: `pnpm typecheck` (`bundle-skills` then `tsc -b`)
 - **Spec / Docs**: @.ea/docs/spec.md, index `.ea/docs/README.md`; plan `.ea/roadmap.md`; decisions `.ea/log/decisions.md`
 - **Versions**: fixes are patches on the current minor; a minor is one planned roadmap round (D001). UI layout changes are agreed as ASCII in `.ea/docs/ui.md` or a `.ea/log/` proposal first

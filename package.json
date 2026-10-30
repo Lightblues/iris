@@ -11,6 +11,8 @@
     "version": "tsx scripts/sync-manifest-version.ts",
     "lint": "eslint .",
     "test": "tsx --test 'src/**/*.test.ts'",
+    "test:e2e": "pnpm build && (test -d services/server/node_modules || pnpm --dir services/server install --ignore-workspace --frozen-lockfile) && playwright install chromium && tsx --test 'e2e/*.test.ts'",
+    "check-device": "tsx scripts/check-device.ts",
     "typecheck": "pnpm bundle-skills && tsc -b",
     "preview": "vite preview",
     "server": "pnpm --dir services/server start"
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.3.0",
+    "@electric-sql/pglite": "^0.5.13",
     "@eslint/js": "^9.39.1",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.211.0",
     "@opentelemetry/sdk-trace-node": "^2.5.0",
@@ -62,6 +65,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "playwright": "^1.64.1",
     "postcss": "^8.5.6",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
