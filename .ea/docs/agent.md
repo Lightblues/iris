@@ -163,7 +163,7 @@ Four separate report tools instead of one with an `action` field: models pick Re
 
 ### Page tools and scripts
 
-`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. The rest of the catalog lives in `lib/agentToolCatalog.ts`. Page WebMCP tools are not copied into the side-panel schema. `listPageWebmcp` and `executePageWebmcp` stay for the relay: `iris.tools.list` with `tabId` returns them, and `iris.tools.call` runs them.
+`read_page` / `eval` / `open_url` / `focus_tab` live in `lib/pageTools.ts` and close over the session tab. Tool definitions live in `lib/tools/<group>.ts` (page, scripts, skills, reports, tabs, automation; shared schema helpers in `tools/shared.ts`), and `lib/agentToolCatalog.ts` is the registry (`listAgentTools`, `callAgentTool`). Page WebMCP tools are not copied into the side-panel schema. `listPageWebmcp` and `executePageWebmcp` (`lib/webmcp.ts`) stay for the relay: `iris.tools.list` with `tabId` returns them, and `iris.tools.call` runs them.
 
 ### Paper / MCP
 
