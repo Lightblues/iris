@@ -9,7 +9,6 @@ Snapshot before you click or type. After navigation or a click that loads new co
 
 ## Tools
 
-- `get_tab_info` — URL and title of the target tab
 - `navigate` — open a URL in that tab
 - `page_snapshot` — compact DOM tree
 - `click` / `type_text` — act by CSS selector

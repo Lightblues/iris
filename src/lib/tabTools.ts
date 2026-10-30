@@ -6,7 +6,6 @@ import {
   moveTab,
   createBookmarkFromTab,
   removeTabs,
-  smartOrganizeTabs,
   archiveInactiveTabs,
   formatTabsForLLM,
   type TabQueryOptions
@@ -244,41 +243,6 @@ When safe=false, tabs are permanently closed.`,
     execute: async (params: { count?: number }) => {
       const tabs = await restoreRecentTabs(params.count || 1)
       return { restored: tabs.length, message: `Restored ${tabs.length} tabs` }
-    }
-  },
-
-  smart_organize_tabs: {
-    description: `Intelligently organize all open tabs into groups.
-Strategy 'domain': Group by domain name.
-Strategy 'topic': (TODO) Use LLM to categorize by topic.
-When preview=true, returns plan without executing.`,
-    parameters: {
-      type: 'object',
-      properties: {
-        strategy: {
-          type: 'string',
-          enum: ['domain', 'topic'],
-          description: 'Organization strategy',
-          default: 'domain'
-        },
-        preview: {
-          type: 'boolean',
-          description: 'Only show plan, do not execute',
-          default: true
-        }
-      }
-    },
-    execute: async (params: { strategy?: 'domain' | 'topic'; preview?: boolean }) => {
-      const result = await smartOrganizeTabs(params.strategy, params.preview)
-      return {
-        preview: params.preview !== false,
-        groups: result.groups.map(g => ({
-          name: g.name,
-          color: g.color,
-          tabCount: g.tabs.length,
-          tabs: g.tabs.map(t => ({ id: t.id, title: t.title, url: t.url }))
-        }))
-      }
     }
   },
 

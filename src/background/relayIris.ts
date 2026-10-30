@@ -242,16 +242,10 @@ registerRelayMethod('iris.tracing.export', async () => ({ days: await loadAllEve
   params: [],
 })
 
-registerRelayMethod('iris.settings.get', async (params) => {
-  if (params.includeSecrets != null && typeof params.includeSecrets !== 'boolean') {
-    throw new RelayError('invalid_params', 'includeSecrets must be a boolean')
-  }
-  const { apiKey, browserRelayToken, exaApiKey, ...rest } = await loadSettings()
-  if (params.includeSecrets === true) return { ...rest, apiKey, browserRelayToken, exaApiKey }
+registerRelayMethod('iris.settings.get', async () => {
+  const { apiKey: _apiKey, browserRelayToken: _relayToken, remoteRelayToken: _remoteToken, exaApiKey: _exaKey, ...rest } = await loadSettings()
   return rest
 }, {
-  description: 'Read Iris settings. API key, relay token, and Exa key are omitted unless includeSecrets is true.',
-  params: [
-    { name: 'includeSecrets', type: 'boolean', description: 'Include apiKey, browserRelayToken, and exaApiKey.' },
-  ],
+  description: 'Read Iris settings. API keys and relay tokens are never returned.',
+  params: [],
 })

@@ -28,13 +28,6 @@ async function tabFor(params?: object): Promise<number> {
   return ensureAutomationTab()
 }
 
-export async function closeAutomationTab(): Promise<void> {
-  if (automationTabId !== null) {
-    try { await chrome.tabs.remove(automationTabId) } catch {}
-    automationTabId = null
-  }
-}
-
 async function executeInTab<T>(tabId: number, func: (...args: any[]) => T, args?: any[]): Promise<T> {
   const results = await chrome.scripting.executeScript({
     target: { tabId },
@@ -67,21 +60,6 @@ function waitForTabLoad(tabId: number, timeout = 15000): Promise<void> {
 // --- Tool Implementations ---
 
 export const automationTools = {
-  get_tab_info: {
-    execute: async () => {
-      if (automationTabId === null) {
-        return { active: false, message: 'No automation tab open. Use navigate to open a URL.' }
-      }
-      try {
-        const tab = await chrome.tabs.get(automationTabId)
-        return { active: true, tabId: tab.id, url: tab.url, title: tab.title }
-      } catch {
-        automationTabId = null
-        return { active: false, message: 'Automation tab was closed. Use navigate to open a URL.' }
-      }
-    }
-  },
-
   navigate: {
     execute: async (params: { url: string }) => {
       const tabId = await tabFor(params)

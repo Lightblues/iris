@@ -4,7 +4,7 @@
 
 User: "Close all tabs from github.com"
 
-1. `query_tabs` with `domain="github.com"`
+1. `list_tabs` with `domain="github.com"`
 2. Show the matches
 3. Ask whether to close them
 4. `close_tabs` with those ids (`safe=true`)
@@ -13,10 +13,10 @@ User: "Close all tabs from github.com"
 
 User: "Organize my tabs"
 
-1. `smart_organize` with `preview=true`
-2. Show the proposed groups (name, color, count)
+1. `list_tabs` with a high `limit`
+2. Propose groups by domain or topic (name, color, tab count); skip pinned tabs and singletons
 3. Ask whether to create them
-4. `smart_organize` with `preview=false`
+4. `create_tab_group` once per group
 
 ## Archive idle tabs
 

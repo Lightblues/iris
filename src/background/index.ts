@@ -482,11 +482,6 @@ async function handleExecuteCommand(message: ExecuteCommandMessage): Promise<Com
       }
     }
 
-    case 'open_options': {
-      await chrome.runtime.openOptionsPage();
-      return { success: true, message: 'Opened settings' };
-    }
-
     case 'copy_page_as_markdown':
     case 'copy_selection_as_markdown': {
       // These commands are handled directly by content script

@@ -31,7 +31,6 @@ test('createAgent attaches the catalog with no activeTools filter', async () => 
   )
   const tools = agent.tools as Record<string, unknown>
   const expected = new Set(listAgentTools().map(tool => tool.name))
-  expected.add('query_tabs')
   assert.deepEqual(new Set(Object.keys(tools)), expected)
   for (const name of ['list_reports', 'create_tab_group', 'click']) {
     assert.ok(name in tools, name)

@@ -121,7 +121,7 @@ Each change stores the files it replaced in `iris_skill_history` (16 revisions).
 
 ### Catalog tools
 
-Attached for the whole conversation. `createAgent` passes `bindAgentTools` through as the tool set and does not set `activeTools`. Page WebMCP and MCP are not in this schema. `query_tabs` is an alias of `list_tabs`.
+Attached for the whole conversation. `createAgent` passes `bindAgentTools` through as the tool set and does not set `activeTools`. Page WebMCP and MCP are not in this schema. `query_tabs` resolves to `list_tabs` for relay callers only; it is not a separate schema entry.
 
 | Tool | Description |
 |------|-------------|
@@ -129,7 +129,7 @@ Attached for the whole conversation. `createAgent` passes `bindAgentTools` throu
 | `take_screenshot` | Visible viewport of the session tab (or `tabId`). Image reaches the model as a user image part |
 | `eval` | JS on the session tab, or `tabId`, in the page's main world via `userScripts` (page JS and DOM). Async function body. If user scripts are off, CSP pages fall back to the DOM only (`domOnly`) |
 | `list_tabs` / `close_tabs` | Filter open tabs / close (`safe=true` → 7-day trash) |
-| `create_tab_group` / `smart_organize` / `archive_inactive` / `list_closed_tabs` / `restore_tab` | Group, organize, archive, and restore tabs |
+| `create_tab_group` / `archive_inactive` / `list_closed_tabs` / `restore_tab` | Group, archive, and restore tabs |
 | `open_url` | New tab. `background: true` leaves the user where they are |
 | `web_search` | Exa search for current information. Returns titles, URLs, dates, and text trimmed to ~1000 characters. Then `open_url` / `read_page` a result. Needs an Exa key in Settings → Web Search |
 | `focus_tab` | Activate a tab |
@@ -154,7 +154,6 @@ Four separate report tools instead of one with an `action` field: models pick Re
 
 | Tool | Description |
 |------|-------------|
-| `get_tab_info` | URL / title of the target tab |
 | `navigate` | Open URL in that tab, wait for load |
 | `page_snapshot` | Compact DOM tree |
 | `click` / `type_text` | Interact |

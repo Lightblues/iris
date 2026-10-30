@@ -539,24 +539,6 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
-    name: 'smart_organize',
-    group: 'tabs',
-    needsTab: false,
-    description: 'Group open tabs by domain. preview:true returns the plan without applying it.',
-    inputSchema: schema({
-      strategy: str('domain'),
-      preview: bool('Show the plan without creating groups'),
-    }),
-    async run(params) {
-      const preview = params.preview === true
-      const result = await tabs('smart_organize_tabs', { strategy: 'domain', preview })
-      if (preview) {
-        return { preview: true, groups: result.groups.map((g: any) => ({ name: g.name, color: g.color, tabCount: g.tabCount })) }
-      }
-      return { executed: true, groupsCreated: result.groups.length, message: `Created ${result.groups.length} tab groups` }
-    },
-  },
-  {
     name: 'archive_inactive',
     group: 'tabs',
     needsTab: false,
@@ -604,14 +586,6 @@ const TOOLS: ToolDef[] = [
       const result = await tabs('restore_tab', { trashItemId: params.trashItemId })
       return { success: result.success, message: result.message || 'Tab restored' }
     },
-  },
-  {
-    name: 'get_tab_info',
-    group: 'automation',
-    needsTab: false,
-    description: 'Status of the hidden automation tab (URL, title), if one is open.',
-    inputSchema: schema({}),
-    run: () => auto('get_tab_info', {}),
   },
   {
     name: 'navigate',

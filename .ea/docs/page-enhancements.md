@@ -29,7 +29,6 @@ Content-script palette, keyboard-navigable.
 | Copy Selection as Markdown | Selection → clipboard |
 | Save Page as Note | Knowledge `page-snapshot` |
 | Save Selection as Highlight | Knowledge `highlight` |
-| Open Settings | Side panel settings |
 
 Key files: `content/commandMenu.ts`, `content/commandMenu.css`.
 

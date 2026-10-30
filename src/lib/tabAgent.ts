@@ -211,61 +211,6 @@ export async function removeTabs(
   }
 }
 
-export interface OrganizeTabsPreview {
-  groups: {
-    name: string
-    color: string
-    tabIds: number[]
-    tabs: TabSummary[]
-  }[]
-}
-
-export async function smartOrganizeTabs(
-  strategy: 'domain' | 'topic' = 'domain',
-  preview: boolean = true
-): Promise<OrganizeTabsPreview> {
-  const result = await queryTabs({ limit: 1000 })
-  const tabs = result.tabs.filter(t => !t.pinned)
-
-  if (strategy === 'domain') {
-    const byDomain = new Map<string, TabSummary[]>()
-    for (const tab of tabs) {
-      const domain = tab.domain
-      if (!byDomain.has(domain)) {
-        byDomain.set(domain, [])
-      }
-      byDomain.get(domain)!.push(tab)
-    }
-
-    const colors: string[] = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange']
-    const groups: OrganizeTabsPreview['groups'] = []
-
-    let colorIdx = 0
-    for (const [domain, domainTabs] of byDomain) {
-      if (domainTabs.length > 1) {
-        groups.push({
-          name: domain,
-          color: colors[colorIdx % colors.length],
-          tabIds: domainTabs.map(t => t.id),
-          tabs: domainTabs
-        })
-        colorIdx++
-      }
-    }
-
-    if (!preview) {
-      for (const group of groups) {
-        await createTabGroup(group.tabIds, group.name, group.color)
-      }
-    }
-
-    return { groups }
-  }
-
-  // TODO: topic-based organization with LLM
-  return { groups: [] }
-}
-
 export interface ArchiveInactivePreview {
   toArchive: TabSummary[]
   groupId?: number

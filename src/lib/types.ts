@@ -47,7 +47,6 @@ export function getFaviconUrl(url: string): string {
 export type CommandId =
   | 'add_bookmark'
   | 'add_reading_list'
-  | 'open_options'
   | 'copy_page_as_markdown'
   | 'copy_selection_as_markdown'
   | 'save_page_as_note'
@@ -72,12 +71,6 @@ export const COMMANDS: CommandItem[] = [
     label: 'Add to Reading List',
     description: 'Add current page to reading list',
     icon: '📖',
-  },
-  {
-    id: 'open_options',
-    label: 'Open Settings',
-    description: 'Open extension options page',
-    icon: '⚙️',
   },
   {
     id: 'copy_page_as_markdown',

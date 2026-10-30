@@ -2,8 +2,6 @@ import { jsonSchema, tool } from 'ai'
 import { listAgentTools, callAgentTool, type ToolCtx } from './agentToolCatalog'
 import { screenshotToModelOutput } from './screenshotStore'
 
-const ALIASES: Record<string, string> = { query_tabs: 'list_tabs' }
-
 export function bindAgentTools(resolveTab: () => number): Record<string, unknown> {
   const tools: Record<string, unknown> = {}
   for (const spec of listAgentTools()) {
@@ -18,6 +16,5 @@ export function bindAgentTools(resolveTab: () => number): Record<string, unknown
     })
     tools[spec.name] = wrapped
   }
-  for (const [alias, name] of Object.entries(ALIASES)) tools[alias] = tools[name]
   return tools
 }
