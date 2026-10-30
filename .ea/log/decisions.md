@@ -38,13 +38,13 @@ Status: accepted
 
 Iris has two jobs: the side-panel agent on the current page, and the relay through which outside agents use the same tool catalog. Everything else is an entry point or a thin tool kept working (D003). Capture is no longer a pillar of its own; it stays local and leaves through the relay exports. The keep / fold / drop verdicts in `log/2026-10-30-positioning-review.md` are accepted as written: drops go to iris-025, folds and the agent-experience items (AX-1 to AX-10) become 0.7 item 4 issues. Alternative rejected: keeping "sensor" as a second product line, which justified surfaces (Tabs, tab heuristics, duplicate relay methods) that neither job needs.
 
-## D006 Settings resolve by per-field edit time (2026-10-30)
+## D007 Settings resolve by per-field edit time (2026-10-30)
 
 Status: accepted
 
 Each setting carries the time a person last edited it, and settings are always pushed without a base so the server keeps the later edit. On 2026-10-28 a stale panel wrote defaults back over the API key: its push had a matching base, so it fast-forwarded although nobody had edited the key. Trade-off: settings become last-writer-wins by device clock, so a clock far ahead can win a race; settings are edited rarely and by one person, so this is accepted. Alternative rejected: a server-side rule for settings, which would leave the client sending push time as edit time.
 
-## D007 Rolling beta for testing between releases (2026-10-30)
+## D008 Rolling beta for testing between releases (2026-10-30)
 
 Status: accepted
 
