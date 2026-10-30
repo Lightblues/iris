@@ -10,6 +10,8 @@ Patches only. 0.6.1 added the one-command install and self-reload; 0.6.2 fixed t
 
 ## 0.7: core first, docs and settings in order
 
+Status 2026-10-30: done except item 4. Done: docs (1), review accepted as D006 (2), cleanup iris-025 (3), relay hardening iris-027/028/029 (5), settings iris-026 (6), users schema iris-030 (7), web app with landing, login, and devices page iris-031 (8); beta channel D008. Left: agent experience (4), from AX-1 to AX-10 in `log/2026-10-30-positioning-review.md` (AX-7 and part of AX-1/AX-9 already done in iris-025). Then release 0.7.0.
+
 One minor for the whole round below. Order matters: positioning decides what the refactor keeps.
 
 1. **Docs and process.** Forge `.ea` layout: this roadmap, [docs/README.md](docs/README.md), [log/decisions.md](log/decisions.md). Every behavior change updates `docs/` in the same commit. Done 2026-10-29 for the skeleton.
