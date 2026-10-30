@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { WebSocketServer } from 'ws'
-import { asLevel, createHub, methodLevel, relayErrorPayload } from './hub.ts'
+import { asLevel, createHub, methodLevel, relayErrorPayload, type Liveness } from './hub.ts'
 import { DEFAULT_USER, EXPORT_KINDS, migrate, openStore, pgDb, type Db } from './store.ts'
 
 const MAX_BODY = 32 * 1024 * 1024
@@ -18,6 +18,7 @@ export interface ServerOptions {
   host: string
   port: number
   db: Db
+  liveness?: Liveness
 }
 
 type KeyLevel = 'read' | 'control'
@@ -25,7 +26,7 @@ type KeyLevel = 'read' | 'control'
 export async function startServer(options: ServerOptions) {
   await migrate(options.db)
   const store = openStore(options.db)
-  const hub = createHub(store)
+  const hub = createHub(store, options.liveness)
   const hits = new Map<string, { n: number; reset: number }>()
 
   const server = createServer((req, res) => {
@@ -147,6 +148,7 @@ export async function startServer(options: ServerOptions) {
   return {
     port,
     async close() {
+      hub.close()
       for (const client of wss.clients) client.terminate()
       wss.close()
       await new Promise<void>((resolveClose, reject) => {

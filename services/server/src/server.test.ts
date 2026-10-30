@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { WebSocket } from 'ws'
+import type { Liveness } from './hub.ts'
 import { startServer } from './index.ts'
 import { DEFAULT_USER, MAX_RECORD_BYTES, migrate, openStore, type Db } from './store.ts'
 
@@ -23,8 +24,8 @@ function pgliteDb(): Db {
   }
 }
 
-async function boot(controlKey = CONTROL) {
-  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db: pgliteDb() })
+async function boot(controlKey = CONTROL, liveness?: Liveness) {
+  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db: pgliteDb(), liveness })
   const base = `http://127.0.0.1:${server.port}`
   return {
     port: server.port,
@@ -40,8 +41,8 @@ function headers(key: string): Record<string, string> {
 
 type Call = { id: number; method?: string; params?: unknown }
 
-function connectDevice(port: number, deviceId: string, level: string, onCall?: (msg: Call, ws: WebSocket) => void, label = deviceId) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/extension`)
+function connectDevice(port: number, deviceId: string, level: string, onCall?: (msg: Call, ws: WebSocket) => void, label = deviceId, autoPong = true) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/extension`, { autoPong })
   return new Promise<WebSocket>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('connect timeout')), 3000)
     ws.on('error', reject)
@@ -154,6 +155,50 @@ test('control calls are off when no control key is set', async () => {
     await connectDevice(server.port, 'mini', 'control', echo('mini'))
     assert.equal((await server.call({ method: 'browser.list_tabs' }, '')).status, 401)
     assert.equal((await server.call({ method: 'browser.list_tabs' })).status, 403)
+  } finally {
+    await server.stop()
+  }
+})
+
+test('a device that stops answering is dropped, and calls then fail fast', async () => {
+  const server = await boot(CONTROL, { pingMs: 50, deadMs: 200 })
+  try {
+    const live = await connectDevice(server.port, 'live', 'read', echo('live'))
+    const silent = await connectDevice(server.port, 'silent', 'read', undefined, 'silent', false)
+    const hung = server.call({ method: 'browser.fetch', device: 'silent' })
+    await new Promise(resolve => setTimeout(resolve, 400))
+
+    const listed = await (await server.get('/devices')).json() as { devices: { id: string; lastSeen: number }[] }
+    assert.deepEqual(listed.devices.map(d => d.id), ['live'])
+    assert.ok(Date.now() - listed.devices[0].lastSeen < 200)
+    const failed = await hung
+    assert.equal(failed.status, 502)
+    assert.equal(((await failed.json()) as { error: { code: string } }).error.code, 'disconnected')
+    const none = await server.call({ method: 'browser.fetch', device: 'silent' })
+    assert.equal(none.status, 503)
+    assert.equal(((await none.json()) as { error: { code: string } }).error.code, 'no_device')
+    live.close()
+    silent.close()
+  } finally {
+    await server.stop()
+  }
+})
+
+test('a reconnect of the same device fails calls pending on the old socket at once', async () => {
+  const server = await boot()
+  try {
+    const old = await connectDevice(server.port, 'mini', 'read')
+    const started = Date.now()
+    const hung = server.call({ method: 'browser.fetch', device: 'mini', timeout: 30 })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const fresh = await connectDevice(server.port, 'mini', 'read', echo('fresh'))
+    const failed = await hung
+    assert.equal(failed.status, 502)
+    assert.ok(Date.now() - started < 2000)
+    const ok = await server.call({ method: 'browser.fetch', device: 'mini' })
+    assert.equal(((await ok.json()) as { at: string }).at, 'fresh')
+    old.close()
+    fresh.close()
   } finally {
     await server.stop()
   }

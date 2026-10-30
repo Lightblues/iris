@@ -52,7 +52,9 @@ One table, `records (user_id, kind, id, rev, updated_at, deleted, body jsonb)`. 
 | `skill` | name | stored skill; builtin skills are not synced | newer `updatedAt` |
 | `script` | script id | stored userscript | newer `updatedAt` |
 | `report` | report id | stored report | newer `updatedAt` |
-| `setting` | settings field | `{ value }` | newer `updatedAt` |
+| `setting` | settings field | `{ value }` | later edit time, always (no fast-forward) |
+
+A setting's `updatedAt` is when the field was last edited by a person, not when it was pushed. The browser keeps these times in `sidepanel_settings_edited` (field → ms): a settings edit stamps the fields whose value changed, and applying a pulled setting stores the record's `updatedAt`. A field never edited on that browser (defaults, or values from before 0.7) has 0, so it loses to any real edit. Settings are pushed with `baseRev` 0, so the server always compares times: a stale copy written back by an old panel cannot win just because its base matches.
 
 Settings that describe one machine stay local: the remote relay fields (enabled, URL, token, device name, level), the localhost relay fields, and `mcpEndpoint`. A record over 8MB is rejected (`too_large`) and shown as a sync error.
 
@@ -85,6 +87,14 @@ Each browser sets Settings → Remote Relay → Remote calls, sent in the auth f
 
 The server and the extension both enforce it (`READ_METHODS` in `services/server/src/hub.ts` and `src/lib/relayLevel.ts` must match). A control-level method also needs the control key.
 
+## Liveness
+
+A socket can die without a close (a sleeping laptop, a dropped tunnel), and calls to it would wait for their timeout. Both ends watch for silence:
+
+- The server sends a WebSocket ping to each browser every 30 seconds. Any frame from the browser (a message or the protocol pong) counts as alive and sets `lastSeen`. A socket with no frame for 90 seconds is terminated, so a dead browser leaves `/devices` within two minutes; calls pending on it fail with 502 `disconnected` and later calls go to another browser or get 503 `no_device`.
+- The browser sends `{ action: "ping" }` every 30 seconds and reconnects when it has had no pong for 60 seconds.
+- When a browser reconnects with the same device id, the old socket is terminated and its pending calls fail at once.
+
 ## HTTP
 
 Every route except `GET /health` needs `Authorization: Bearer <read or control key>`.
@@ -98,7 +108,7 @@ Every route except `GET /health` needs `Authorization: Bearer <read or control k
     - 503: no browser connected that accepts it;
     - 504: timeout;
     - 502: anything else.
-- `GET /status`, `GET /devices` → `{ extension_connected, pending_requests, devices: [{ id, label, level, lastSeen, methods, version }] }`. `version` is the extension's manifest version from `hello`.
+- `GET /status`, `GET /devices` → `{ extension_connected, pending_requests, devices: [{ id, label, level, lastSeen, methods, version }] }`. `version` is the extension's manifest version from `hello`. `lastSeen` is the last frame of any kind (ms); routing without `device` prefers the browser that last said `hello` or pushed.
 - `GET /export/kinds` → `{ app: "iris", kinds: [{ kind, description }] }`. Only `conversation` is exported; settings never are.
 - `GET /export/changes?since=<cursor>&kinds=&limit=` → `{ items: [{ kind, id, updatedAt, deleted, data }], cursor, more }`. The cursor is opaque (a rev today). Inline `data:` URLs over 256 characters become `[inline data omitted]`.
 

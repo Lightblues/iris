@@ -52,10 +52,21 @@ interface Device {
   label: string
   level: Level
   socket: WebSocket
+  /** Last hello or sync push; routing prefers the browser in use. */
   lastActive: number
+  /** Last frame of any kind, pongs included. */
+  lastSeen: number
   methods: string[]
   version?: string
 }
+
+export interface Liveness {
+  pingMs: number
+  /** A socket with no frame for this long is terminated. */
+  deadMs: number
+}
+
+const LIVENESS: Liveness = { pingMs: 30_000, deadMs: 90_000 }
 
 interface Pending {
   deviceId: string
@@ -81,10 +92,30 @@ export function asLevel(value: unknown): Level {
   return value === 'off' || value === 'control' ? value : 'read'
 }
 
-export function createHub(store: Store) {
+export function createHub(store: Store, liveness: Liveness = LIVENESS) {
   const devices = new Map<string, Device>()
   const pending = new Map<number, Pending>()
   let nextId = 1
+
+  // A half-open socket never fires close, so silence is the only signal.
+  const sweep = setInterval(() => {
+    const now = Date.now()
+    for (const device of devices.values()) {
+      if (now - device.lastSeen > liveness.deadMs) {
+        console.log(`[iris-server] device ${device.id} silent for ${Math.round((now - device.lastSeen) / 1000)}s, dropping`)
+        drop(device)
+      } else if (device.socket.readyState === WebSocket.OPEN) {
+        device.socket.ping()
+      }
+    }
+  }, liveness.pingMs)
+  sweep.unref()
+
+  function drop(device: Device) {
+    if (devices.get(device.id) === device) devices.delete(device.id)
+    failSocket(device.socket, 'disconnected', 'browser disconnected')
+    device.socket.terminate()
+  }
 
   function send(socket: WebSocket, msg: unknown) {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(msg))
@@ -104,7 +135,7 @@ export function createHub(store: Store) {
       id: device.id,
       label: device.label,
       level: device.level,
-      lastSeen: device.lastActive,
+      lastSeen: device.lastSeen,
       methods: device.methods,
       version: device.version,
     }))
@@ -143,16 +174,22 @@ export function createHub(store: Store) {
   }
 
   function register(socket: WebSocket, id: string, label: string, level: Level) {
-    const device: Device = { id, label: label.slice(0, 64) || id, level, socket, lastActive: Date.now(), methods: [] }
+    const now = Date.now()
+    const device: Device = { id, label: label.slice(0, 64) || id, level, socket, lastActive: now, lastSeen: now, methods: [] }
     const prev = devices.get(id)
     devices.set(id, device)
-    if (prev && prev.socket !== socket) prev.socket.close(4000, 'replaced')
+    if (prev && prev.socket !== socket) {
+      failSocket(prev.socket, 'disconnected', 'browser reconnected')
+      prev.socket.terminate()
+    }
 
     socket.on('close', () => {
       if (devices.get(id)?.socket === socket) devices.delete(id)
       failSocket(socket, 'disconnected', 'browser disconnected')
     })
+    socket.on('pong', () => { device.lastSeen = Date.now() })
     socket.on('message', (data) => {
+      device.lastSeen = Date.now()
       let msg: Inbound
       try {
         msg = JSON.parse(String(data)) as Inbound
@@ -251,7 +288,7 @@ export function createHub(store: Store) {
     })
   }
 
-  return { register, listDevices, status, callDevice }
+  return { register, listDevices, status, callDevice, close: () => clearInterval(sweep) }
 }
 
 export type RelayHub = ReturnType<typeof createHub>
