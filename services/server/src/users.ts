@@ -84,3 +84,33 @@ export async function seedEnv(db: Db, env: Partial<Record<CredentialKind, string
     )
   }
 }
+
+export const SESSION_MS = 30 * 24 * 3600_000
+
+/** A browser session for a read or control credential; it ends when the credential is revoked. */
+export async function createSession(db: Db, credentialToken: string): Promise<{ token: string; userId: string; kind: CredentialKind } | null> {
+  const { rows } = await db.query<{ id: number; user_id: string; kind: CredentialKind }>(
+    `SELECT id, user_id, kind FROM credentials WHERE hash = $1 AND kind IN ('read', 'control') AND revoked_at IS NULL`,
+    [hashToken(credentialToken)],
+  )
+  if (!credentialToken || !rows[0]) return null
+  const token = randomBytes(32).toString('base64url')
+  const now = Date.now()
+  await db.query('DELETE FROM sessions WHERE expires_at < $1', [now])
+  await db.query('INSERT INTO sessions (hash, credential_id, created_at, expires_at) VALUES ($1, $2, $3, $4)', [hashToken(token), rows[0].id, now, now + SESSION_MS])
+  return { token, userId: rows[0].user_id, kind: rows[0].kind }
+}
+
+export async function resolveSession(db: Db, token: string): Promise<{ userId: string; kind: CredentialKind } | null> {
+  if (!token) return null
+  const { rows } = await db.query<{ user_id: string; kind: CredentialKind }>(
+    `SELECT c.user_id, c.kind FROM sessions s JOIN credentials c ON c.id = s.credential_id
+     WHERE s.hash = $1 AND s.expires_at > $2 AND c.revoked_at IS NULL`,
+    [hashToken(token), Date.now()],
+  )
+  return rows[0] ? { userId: rows[0].user_id, kind: rows[0].kind } : null
+}
+
+export async function deleteSession(db: Db, token: string): Promise<void> {
+  if (token) await db.query('DELETE FROM sessions WHERE hash = $1', [hashToken(token)])
+}

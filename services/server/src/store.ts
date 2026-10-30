@@ -130,6 +130,12 @@ export async function migrate(db: Db): Promise<void> {
       created_at bigint NOT NULL,
       revoked_at bigint
     );
+    CREATE TABLE IF NOT EXISTS sessions (
+      hash text PRIMARY KEY,
+      credential_id integer NOT NULL REFERENCES credentials (id),
+      created_at bigint NOT NULL,
+      expires_at bigint NOT NULL
+    );
   `)
 }
 

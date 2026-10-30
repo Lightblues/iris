@@ -1,15 +1,22 @@
 import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { WebSocket } from 'ws'
 import type { Liveness } from './hub.ts'
-import { addToken, addUser, listTokens, seedEnv } from './users.ts'
+import { addToken, addUser, listTokens, revokeToken, seedEnv } from './users.ts'
 import { startServer } from './index.ts'
 import { DEFAULT_USER, MAX_RECORD_BYTES, migrate, openStore, type Db } from './store.ts'
 
 const DEVICE = 'device-token'
 const READ = 'read-key'
 const CONTROL = 'control-key'
+const WEB = mkdtempSync(join(tmpdir(), 'iris-web-'))
+mkdirSync(join(WEB, 'assets'))
+writeFileSync(join(WEB, 'index.html'), '<!doctype html><title>Iris</title>')
+writeFileSync(join(WEB, 'assets', 'app-x1.js'), 'export {}')
 
 function pgliteDb(): Db {
   const pg = new PGlite()
@@ -25,8 +32,8 @@ function pgliteDb(): Db {
   }
 }
 
-async function boot(controlKey = CONTROL, liveness?: Liveness, db = pgliteDb()) {
-  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db, liveness })
+async function boot(controlKey = CONTROL, liveness?: Liveness, db = pgliteDb(), webDir = WEB) {
+  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db, liveness, webDir })
   const base = `http://127.0.0.1:${server.port}`
   return {
     port: server.port,
@@ -91,6 +98,16 @@ test('each credential opens only its own door', async () => {
     assert.equal((await server.get('/status', DEVICE)).status, 401)
     assert.equal((await server.get('/status')).status, 200)
     assert.equal((await server.get('/mcp')).status, 404)
+    const open = (path: string) => fetch(`http://127.0.0.1:${server.port}${path}`)
+    for (const path of ['/', '/login', '/app', '/app/devices']) {
+      const page = await open(path)
+      assert.equal(page.status, 200, path)
+      assert.match(await page.text(), /<title>Iris/)
+    }
+    assert.match((await open('/assets/app-x1.js')).headers.get('content-type')!, /javascript/)
+    for (const path of ['/assets/missing.js', '/assets/../../src/index.ts', '/devices', '/export/kinds', '/applet']) {
+      assert.equal((await open(path)).status, 401, path)
+    }
     const ws = new WebSocket(`ws://127.0.0.1:${server.port}/extension`)
     const code = await new Promise<number>(resolve => {
       ws.on('open', () => ws.send(JSON.stringify({ v: 1, method: 'auth', params: { token: READ, deviceId: 'x' } })))
@@ -377,4 +394,72 @@ test('env credentials follow the env on every start', async () => {
   assert.deepEqual(live, ['device', 'read'])
   assert.equal((await listTokens(db)).length, 4)
   await db.close()
+})
+
+test('the web app logs in with a read key and gets a session cookie for that user', async () => {
+  const server = await boot()
+  const base = `http://127.0.0.1:${server.port}`
+  const login = (key: string, origin?: string) => fetch(`${base}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) }, body: JSON.stringify({ key }) })
+  const withCookie = (path: string, cookie: string, init: RequestInit = {}) => fetch(`${base}${path}`, { ...init, headers: { cookie, ...(init.headers as Record<string, string> | undefined) } })
+  try {
+    assert.equal((await login('nope')).status, 401)
+    assert.equal((await login(DEVICE)).status, 401)
+    assert.equal((await login('')).status, 400)
+    assert.equal((await login(READ, 'https://evil.example')).status, 403)
+
+    const ok = await login(READ)
+    assert.deepEqual(await ok.json(), { loggedIn: true, user: 'me', level: 'read' })
+    const setCookie = ok.headers.get('set-cookie')!
+    assert.match(setCookie, /HttpOnly/)
+    assert.match(setCookie, /SameSite=Strict/)
+    const cookie = setCookie.split(';')[0]
+
+    assert.deepEqual(await (await withCookie('/auth/me', cookie)).json(), { loggedIn: true, user: 'me', level: 'read' })
+    assert.equal((await withCookie('/devices?history=1', cookie)).status, 200)
+    const crossSite = await withCookie('/call', cookie, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: JSON.stringify({ method: 'iris.capabilities' }) })
+    assert.equal(crossSite.status, 401)
+
+    await addUser(server.db, 'bob')
+    const bobRead = await addToken(server.db, 'bob', 'read')
+    const bobCookie = (await login(bobRead)).headers.get('set-cookie')!.split(';')[0]
+    assert.equal(((await (await withCookie('/auth/me', bobCookie)).json()) as { user: string }).user, 'bob')
+    const bobCred = (await listTokens(server.db, 'bob'))[0]
+    await revokeToken(server.db, bobCred.id)
+    assert.deepEqual(await (await withCookie('/auth/me', bobCookie)).json(), { loggedIn: false })
+
+    const out = await withCookie('/auth/logout', cookie, { method: 'POST' })
+    assert.match(out.headers.get('set-cookie')!, /Max-Age=0/)
+    assert.deepEqual(await (await withCookie('/auth/me', cookie)).json(), { loggedIn: false })
+  } finally {
+    await server.stop()
+  }
+})
+
+test('/devices?history=1 keeps connects and disconnects, offline browsers included', async () => {
+  const server = await boot()
+  try {
+    const first = await connectDevice(server.port, 'mini', 'read')
+    first.close()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const again = await connectDevice(server.port, 'mini', 'read')
+    const gone = await connectDevice(server.port, 'mbp', 'read')
+    gone.close()
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    type History = { startedAt: number; devices: { id: string; online: boolean; connectedAt: number | null; reconnectsLastHour: number; events: { type: string; reason?: string }[] }[] }
+    const body = await (await server.get('/devices?history=1')).json() as History
+    assert.ok(body.startedAt > 0)
+    assert.deepEqual(body.devices.map(d => `${d.id}:${d.online}`), ['mini:true', 'mbp:false'])
+    const mini = body.devices[0]
+    assert.ok(mini.connectedAt)
+    assert.equal(mini.reconnectsLastHour, 1)
+    assert.deepEqual(mini.events.map(e => e.type), ['connect', 'disconnect', 'connect'])
+    assert.match(mini.events[1].reason!, /^closed /)
+    assert.equal(body.devices[1].connectedAt, null)
+    const plain = await (await server.get('/devices')).json() as { devices: { id: string }[] }
+    assert.deepEqual(plain.devices.map(d => d.id), ['mini'])
+    again.close()
+  } finally {
+    await server.stop()
+  }
 })

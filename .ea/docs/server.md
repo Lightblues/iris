@@ -17,7 +17,7 @@ Mac mini    (level control)┘        (device token)  │
 
 Traffic is plaintext on the server: HTTPS protects the network, and the stored records include API keys. End-to-end encryption and an Iris agent loop on the server are out of scope.
 
-Code: `services/server`, not part of the extension bundle. The localhost ea-tools relay (`ws://127.0.0.1:33007`) is separate and unchanged.
+Code: `services/server`, and the web app in `services/web`; neither is part of the extension bundle. The localhost ea-tools relay (`ws://127.0.0.1:33007`) is separate and unchanged.
 
 ## Run
 
@@ -44,7 +44,7 @@ Logs include method names, device ids, and record counts, never params or bodies
 
 ## Users and credentials
 
-Schema only (D004): no sign-up, no login. `users (id, name, created_at)` and `credentials (id, user_id, kind, hash, label, created_at, revoked_at)`, where `kind` is `device`, `read`, or `control` and `hash` is the SHA-256 of the token; tokens are never stored.
+Schema only (D004): no sign-up; the web app logs in with an existing key (see Web app). `users (id, name, created_at)` and `credentials (id, user_id, kind, hash, label, created_at, revoked_at)`, where `kind` is `device`, `read`, or `control` and `hash` is the SHA-256 of the token; tokens are never stored.
 
 - On start the server creates user `me` and imports the three env credentials for it with label `env`. A changed or removed env value revokes the old one, so the env stays the source of truth for `me`.
 - Every token resolves to its user. Sync, relay calls, `/devices`, `/status`, and export only see that user's records and browsers; `sync.changed` only wakes that user's browsers. Device ids are unique per user.
@@ -117,7 +117,7 @@ A socket can die without a close (a sleeping laptop, a dropped tunnel), and call
 
 ## HTTP
 
-Every route except `GET /health` needs `Authorization: Bearer <read or control key>`, and answers for that key's user only.
+Every route except `GET /health`, the web app's files, and `/auth/*` needs `Authorization: Bearer <read or control key>` or the web app's session cookie, and answers for that key's user only.
 
 - `POST /call { method, params, timeout?, device? }`. `timeout` is in seconds (default 120, max 300).
   - Without `device`, the call goes to the most recently active browser whose level allows the method. `device` is an id, or a label when exactly one connected browser uses it.
@@ -129,16 +129,28 @@ Every route except `GET /health` needs `Authorization: Bearer <read or control k
     - 504: timeout;
     - 502: anything else.
 - `GET /status`, `GET /devices` → `{ extension_connected, pending_requests, devices: [{ id, label, level, lastSeen, methods, version }] }`. `version` is the extension's manifest version from `hello`. `lastSeen` is the last frame of any kind (ms); routing without `device` prefers the browser that last said `hello` or pushed.
+- `GET /devices?history=1` adds `startedAt` (server start, ms) and lists every browser seen since then, offline ones included: `{ ..., online, connectedAt, reconnectsLastHour, events: [{ at, type: connect|disconnect, reason? }] }`, newest event first, the last 50 per browser. `reason` is `closed <code>`, `silent` (dropped by the liveness check), or `replaced` (the same device reconnected). History is in memory: it starts over when the server restarts, and an offline browser is forgotten after 24 hours. `reconnectsLastHour` counts connects in the last hour that followed an earlier connect.
 - `GET /export/kinds` → `{ app: "iris", kinds: [{ kind, description }] }`. Only `conversation` is exported; settings never are.
 - `GET /export/changes?since=<cursor>&kinds=&limit=` → `{ items: [{ kind, id, updatedAt, deleted, data }], cursor, more }`. The cursor is opaque (a rev today). Inline `data:` URLs over 256 characters become `[inline data omitted]`.
 
+## Web app
+
+`services/web` (React 19, Vite, Tailwind 4, react-router, TanStack Query; the look and stack of forge's web app). `pnpm build` writes `services/web/dist`, which the server serves:
+
+- `/`: the landing page (pitch, install command, first Load unpacked, screenshots). `/login`, `/app`, `/app/*` get the same `index.html`; any file in `dist` (hashed `assets/`, `shots/`, `icon.png`) is served as is. All without a key, before the rate limit (behind the tunnel every visitor shares one address). A missing file falls through to auth, so it is a 401, not a page. CSP is `'self'` only: fonts are bundled, nothing external is loaded, no tracking.
+- `/login`: paste a read or control key. `POST /auth/login { key }` → `{ loggedIn, user, level }` and an `iris_session` cookie (`HttpOnly`, `SameSite=Strict`, `Secure` behind HTTPS, 30 days). A device token does not log in. `GET /auth/me` → `{ loggedIn, user?, level? }`; `POST /auth/logout` ends the session.
+- Sessions are stored hashed in `sessions (hash, credential_id, created_at, expires_at)` and resolve through their credential: the session has that credential's user and level, and ends when it is revoked. The cookie is accepted on GETs and on same-origin writes only (an `Origin` from another host is rejected), and a bearer key always wins over a cookie.
+- `/app/devices`: each of the user's browsers with level, version, online or offline, connected since, last frame age, reconnects in the last hour, an hour-long online bar, and the recent connects and disconnects. It refreshes every 3 seconds from `GET /devices?history=1`. A browser that is online but has reconnected 3 times in the hour, or whose last frame is over 45 seconds old, shows as Unstable. **Test** runs `iris.capabilities` on that browser through `POST /call` and shows the round trip in ms, or the error.
+
+Dev: `pnpm --dir services/web dev` on `127.0.0.1:33031`, proxying the API to a local server on 33030.
+
 ## Deploy (this setup)
 
-`iris.service` on `devcloud_cpu`, from this repo, with `services/server/.env` (not committed). Postgres is the shared `deploy-postgres-1` container, database and role `iris`. A reverse tunnel publishes `127.0.0.1:33030` on tx04, where nginx serves `iris.easonsi.site` with TLS and WebSocket upgrade. The unit files are in `services/server/deploy/`.
+`iris.service` on `devcloud_cpu`, from this repo, with `services/server/.env` (not committed). Postgres is the shared `deploy-postgres-1` container, database and role `iris`. A reverse tunnel publishes `127.0.0.1:33030` on tx04, where nginx serves `iris.easonsi.site` with TLS and WebSocket upgrade. The unit files are in `services/server/deploy/`. After a pull: `services/server/deploy/deploy.sh` (installs, builds `services/web`, restarts `iris`; the server reads `dist` per request, so a web-only change needs no restart).
 
 ## Out of scope
 
 - End-to-end encryption
 - An Iris agent loop on the server
-- Sign-up and login (users and per-user credentials exist; an invite-only Google sign-in may come later)
+- Sign-up, and login other than with an existing key (an invite-only Google sign-in may come later)
 - Replacing the localhost ea-tools relay

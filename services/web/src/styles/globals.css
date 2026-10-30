@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-heading: var(--font-sans);
+
+  /* Shared with forge's palette; each device state takes one. */
+  --color-ok: var(--ok);
+  --color-straw: var(--straw);
+  --color-bronze: var(--bronze);
+  --color-purple: var(--purple);
+  --color-temper-blue: var(--temper-blue);
+  --color-cold: var(--cold);
+  /* The tone of the nearest `data-state` element. */
+  --color-tone: var(--tone);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  --steel: oklch(0.975 0.004 247);
+  --steel-raised: oklch(0.996 0.002 247);
+  --ink: oklch(0.255 0.032 260);
+  --ink-muted: oklch(0.48 0.025 258);
+  --ink-faint: oklch(0.66 0.018 255);
+  --straw: oklch(0.79 0.13 84);
+  --bronze: oklch(0.62 0.13 50);
+  --purple: oklch(0.5 0.14 318);
+  --temper-blue: oklch(0.5 0.13 258);
+  --cold: oklch(0.6 0.015 250);
+  --ok: oklch(0.6 0.13 155);
+  --tone: var(--ink-faint);
+
+  --background: var(--steel);
+  --foreground: var(--ink);
+  --card: var(--steel-raised);
+  --card-foreground: var(--ink);
+  --popover: var(--steel-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--steel-raised);
+  --secondary: oklch(0.935 0.008 250);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.94 0.007 250);
+  --muted-foreground: var(--ink-muted);
+  --accent: oklch(0.935 0.008 250);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.55 0.2 27);
+  --border: oklch(0.9 0.009 250);
+  --input: oklch(0.87 0.01 250);
+  --ring: oklch(0.6 0.08 258);
+  --radius: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --steel: oklch(0.2 0.014 258);
+    --steel-raised: oklch(0.245 0.016 258);
+    --ink: oklch(0.94 0.006 250);
+    --ink-muted: oklch(0.74 0.014 252);
+    --ink-faint: oklch(0.56 0.014 252);
+    --straw: oklch(0.83 0.12 86);
+    --bronze: oklch(0.72 0.12 52);
+    --purple: oklch(0.7 0.13 318);
+    --temper-blue: oklch(0.72 0.12 258);
+    --cold: oklch(0.62 0.014 250);
+    --ok: oklch(0.72 0.13 155);
+
+    --secondary: oklch(0.3 0.016 258);
+    --muted: oklch(0.29 0.016 258);
+    --accent: oklch(0.3 0.016 258);
+    --destructive: oklch(0.7 0.18 24);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: oklch(0.65 0.08 258);
+  }
+}
+
+[data-state="online"] { --tone: var(--ok); }
+[data-state="unstable"] { --tone: var(--bronze); }
+[data-state="offline"] { --tone: var(--cold); }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: "ss02";
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--temper-blue) 22%, transparent);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

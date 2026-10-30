@@ -32,6 +32,36 @@ export interface DeviceInfo {
   version?: string
 }
 
+export interface DeviceEvent {
+  at: number
+  type: 'connect' | 'disconnect'
+  /** Why a socket ended: `closed <code>`, `silent` (liveness), or `replaced` (the same device reconnected). */
+  reason?: string
+}
+
+/** A browser seen since the server started, online or not, with its recent connects and disconnects. */
+export interface DeviceHistory extends DeviceInfo {
+  online: boolean
+  connectedAt: number | null
+  reconnectsLastHour: number
+  events: DeviceEvent[]
+}
+
+const MAX_EVENTS = 50
+const FORGET_MS = 24 * 3600_000
+const HOUR_MS = 3600_000
+
+interface Known {
+  user: string
+  id: string
+  label: string
+  level: Level
+  version?: string
+  lastSeen: number
+  connectedAt: number | null
+  events: DeviceEvent[]
+}
+
 export class RelayCallError extends Error {
   status: number
   code: string
@@ -99,8 +129,22 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
   const devices = new Map<string, Device>()
   const key = (user: string, id: string) => `${user}\n${id}`
   const own = (user: string) => [...devices.values()].filter(device => device.user === user)
+  /** In memory only: history starts again when the server restarts. */
+  const known = new Map<string, Known>()
+  const startedAt = Date.now()
   const pending = new Map<number, Pending>()
   let nextId = 1
+
+  function note(device: Device, event: DeviceEvent) {
+    const k = key(device.user, device.id)
+    const entry = known.get(k) ?? { user: device.user, id: device.id, label: device.label, level: device.level, lastSeen: device.lastSeen, connectedAt: null, events: [] }
+    Object.assign(entry, { label: device.label, level: device.level, version: device.version, lastSeen: device.lastSeen })
+    entry.connectedAt = event.type === 'connect' ? event.at : null
+    entry.events.push(event)
+    if (entry.events.length > MAX_EVENTS) entry.events.splice(0, entry.events.length - MAX_EVENTS)
+    known.set(k, entry)
+    for (const [k2, other] of known) if (!other.connectedAt && event.at - other.lastSeen > FORGET_MS) known.delete(k2)
+  }
 
   // A half-open socket never fires close, so silence is the only signal.
   const sweep = setInterval(() => {
@@ -117,7 +161,10 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
   sweep.unref()
 
   function drop(device: Device) {
-    if (devices.get(key(device.user, device.id)) === device) devices.delete(key(device.user, device.id))
+    if (devices.get(key(device.user, device.id)) === device) {
+      devices.delete(key(device.user, device.id))
+      note(device, { at: Date.now(), type: 'disconnect', reason: 'silent' })
+    }
     failSocket(device.socket, 'disconnected', 'browser disconnected')
     device.socket.terminate()
   }
@@ -144,6 +191,29 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
       methods: device.methods,
       version: device.version,
     }))
+  }
+
+  function history(user: string): { startedAt: number; devices: DeviceHistory[] } {
+    const now = Date.now()
+    const list = [...known.values()].filter(entry => entry.user === user).map(entry => {
+      const live = devices.get(key(user, entry.id))
+      const events = entry.events
+      const reconnectsLastHour = events.filter((e, i) => e.type === 'connect' && now - e.at < HOUR_MS && i > 0).length
+      return {
+        id: entry.id,
+        label: live?.label ?? entry.label,
+        level: live?.level ?? entry.level,
+        lastSeen: live?.lastSeen ?? entry.lastSeen,
+        methods: live?.methods ?? [],
+        version: live?.version ?? entry.version,
+        online: !!live,
+        connectedAt: live ? entry.connectedAt : null,
+        reconnectsLastHour,
+        events: [...events].reverse(),
+      }
+    })
+    list.sort((a, b) => Number(b.online) - Number(a.online) || a.label.localeCompare(b.label))
+    return { startedAt, devices: list }
   }
 
   function status(user: string) {
@@ -186,12 +256,17 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     const prev = devices.get(key(user, id))
     devices.set(key(user, id), device)
     if (prev && prev.socket !== socket) {
+      note(prev, { at: now, type: 'disconnect', reason: 'replaced' })
       failSocket(prev.socket, 'disconnected', 'browser reconnected')
       prev.socket.terminate()
     }
+    note(device, { at: now, type: 'connect' })
 
-    socket.on('close', () => {
-      if (devices.get(key(user, id))?.socket === socket) devices.delete(key(user, id))
+    socket.on('close', (code: number) => {
+      if (devices.get(key(user, id))?.socket === socket) {
+        devices.delete(key(user, id))
+        note(device, { at: Date.now(), type: 'disconnect', reason: `closed ${code}` })
+      }
       failSocket(socket, 'disconnected', 'browser disconnected')
     })
     socket.on('pong', () => { device.lastSeen = Date.now() })
@@ -222,6 +297,8 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
       device.methods = Array.isArray(methods) ? methods.filter((name): name is string => typeof name === 'string') : []
       if (msg.params?.level !== undefined) device.level = asLevel(msg.params.level)
       if (typeof msg.params?.version === 'string') device.version = msg.params.version.slice(0, 32)
+      const entry = known.get(key(device.user, device.id))
+      if (entry) Object.assign(entry, { level: device.level, version: device.version })
       device.lastActive = Date.now()
       return
     }
@@ -295,7 +372,7 @@ export function createHub(store: Store, liveness: Liveness = LIVENESS) {
     })
   }
 
-  return { register, listDevices, status, callDevice, close: () => clearInterval(sweep) }
+  return { register, listDevices, history, status, callDevice, close: () => clearInterval(sweep) }
 }
 
 export type RelayHub = ReturnType<typeof createHub>
