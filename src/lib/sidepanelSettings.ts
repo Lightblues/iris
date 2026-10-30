@@ -1,3 +1,5 @@
+import { canonicalJson, editTimesKey } from './sync'
+
 export interface ModelConfig {
   id: string
   name: string
@@ -123,6 +125,19 @@ export async function loadSettings(): Promise<SidePanelSettings> {
 
 export async function saveSettings(settings: SidePanelSettings): Promise<void> {
   await chrome.storage.local.set({ [SETTINGS_KEY]: settings })
+}
+
+/** A user edit: patches the stored copy and stamps each changed field, so sync resolves conflicts by edit time. */
+export async function updateSettings(patch: Partial<SidePanelSettings>, at = Date.now()): Promise<SidePanelSettings> {
+  const current = await loadSettings()
+  const timesKey = editTimesKey(SETTINGS_KEY)
+  const times = { ...((await chrome.storage.local.get(timesKey))[timesKey] as Record<string, number> | undefined) }
+  for (const [field, value] of Object.entries(patch)) {
+    if (canonicalJson(value) !== canonicalJson(current[field as keyof SidePanelSettings])) times[field] = at
+  }
+  const updated = { ...current, ...patch }
+  await chrome.storage.local.set({ [SETTINGS_KEY]: updated, [timesKey]: times })
+  return updated
 }
 
 export function maskApiKey(key: string): string {

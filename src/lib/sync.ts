@@ -54,12 +54,14 @@ export interface Collection {
   kind: SyncKind
   keys: string[]
   read(bag: Bag): Map<string, Local>
-  /** Writes remote changes (null body = delete) and returns the storage items to set. */
-  write(bag: Bag, changes: Map<string, unknown | null>): Bag
+  /** Writes remote changes (null body = delete) with their `updatedAt`, and returns the storage items to set. */
+  write(bag: Bag, changes: Map<string, unknown | null>, times: Map<string, number>): Bag
   version(body: unknown): string
   /** A record gone from storage is a delete only when this says so; otherwise it was evicted locally. */
   deleted(bag: Bag, id: string): boolean
   mergeOnFirstSync?: boolean
+  /** Pushes carry no base, so the server keeps whichever copy has the later `updatedAt`. */
+  byEditTime?: boolean
   afterWrite?(): Promise<void>
 }
 
@@ -147,30 +149,39 @@ export function conversationCollection(): Collection {
   }
 }
 
+/** Storage key of the per-field edit times kept next to a settings key: field → ms of the edit that set its value. */
+export const editTimesKey = (settingsKey: string) => `${settingsKey}_edited`
+
 export function settingsCollection(key: string): Collection {
   const local = new Set<string>(DEVICE_SETTINGS)
+  const timesKey = editTimesKey(key)
   return {
     kind: 'setting',
-    keys: [key],
+    keys: [key, timesKey],
     read(bag) {
       const settings = (bag[key] ?? {}) as Record<string, unknown>
+      const times = (bag[timesKey] ?? {}) as Record<string, number>
       const out = new Map<string, Local>()
       for (const [field, value] of Object.entries(settings)) {
         if (local.has(field) || value === undefined) continue
-        out.set(field, { body: { value } })
+        // A field never edited here (defaults, values from before edit times) loses to any edit elsewhere.
+        out.set(field, { body: { value }, updatedAt: times[field] ?? 0 })
       }
       return out
     },
-    write(bag, changes) {
+    write(bag, changes, updatedAt) {
       const settings = { ...((bag[key] ?? {}) as Record<string, unknown>) }
+      const times = { ...((bag[timesKey] ?? {}) as Record<string, number>) }
       for (const [field, body] of changes) {
         if (local.has(field) || body === null) continue
         settings[field] = (body as { value: unknown }).value
+        times[field] = updatedAt.get(field) ?? 0
       }
-      return { [key]: settings }
+      return { [key]: settings, [timesKey]: times }
     },
     version: hashJson,
     deleted: () => false,
+    byEditTime: true,
   }
 }
 
@@ -236,6 +247,7 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
       const bag = await storage.get(collection.keys)
       const local = collection.read(bag)
       const changes = new Map<string, unknown | null>()
+      const times = new Map<string, number>()
       for (const rec of recs) {
         const key = `${rec.kind}/${rec.id}`
         const seen = state.seen[key]
@@ -244,10 +256,11 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
         // First contact: the server's copy wins, except a conversation, which is pushed and merged by message.
         if (seen ? localV !== seen.v : !!mine && collection.mergeOnFirstSync) continue
         changes.set(rec.id, rec.deleted ? null : rec.body)
+        times.set(rec.id, rec.updatedAt)
         state.seen[key] = { rev: rec.rev, v: rec.deleted ? '' : collection.version(rec.body) }
       }
       if (!changes.size) continue
-      await storage.set(collection.write(bag, changes))
+      await storage.set(collection.write(bag, changes, times))
       await collection.afterWrite?.()
     }
   }
@@ -269,7 +282,8 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
       for (const [id, row] of local) {
         const seen = state.seen[`${collection.kind}/${id}`]
         if (seen && seen.v === collection.version(row.body)) continue
-        outgoing.push({ kind: collection.kind, id, baseRev: seen?.rev ?? 0, updatedAt: row.updatedAt ?? now(), body: row.body })
+        const baseRev = collection.byEditTime ? 0 : seen?.rev ?? 0
+        outgoing.push({ kind: collection.kind, id, baseRev, updatedAt: row.updatedAt ?? now(), body: row.body })
       }
       const prefix = `${collection.kind}/`
       for (const [key, seen] of Object.entries(state.seen)) {

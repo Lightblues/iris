@@ -1,13 +1,25 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  batchBySize, CONVERSATIONS_KEY, CONVERSATION_TOMBSTONES_KEY, createSync, defaultCollections,
+  batchBySize, canonicalJson, CONVERSATIONS_KEY, CONVERSATION_TOMBSTONES_KEY, createSync, defaultCollections, editTimesKey,
   type PushRecord, type ServerRecord, type SyncStorage, type SyncTransport,
 } from './sync'
+import { DEFAULT_SETTINGS, SETTINGS_KEY as SETTINGS, saveSettings, updateSettings } from './sidepanelSettings'
 
-const SETTINGS = 'sidepanel_settings'
+const EDITED = editTimesKey(SETTINGS)
 
-/** Fast-forward on a matching base; otherwise the server's copy wins and is returned. */
+/** Points chrome.storage at one device's memory storage, for the settings helpers. */
+function useChrome(storage: { data: Record<string, unknown> }) {
+  const area = {
+    async get(keys: string | string[]) {
+      return Object.fromEntries([keys].flat().filter(k => k in storage.data).map(k => [k, structuredClone(storage.data[k])]))
+    },
+    async set(items: Record<string, unknown>) { Object.assign(storage.data, structuredClone(items)) },
+  }
+  ;(globalThis as any).chrome = { storage: { local: area, sync: area } }
+}
+
+/** Like the real server: fast-forward on a matching base; otherwise the later `updatedAt` wins and a losing push gets the stored copy. */
 function fakeServer() {
   const records = new Map<string, ServerRecord>()
   let rev = 0
@@ -18,7 +30,8 @@ function fakeServer() {
       return batch.map(rec => {
         const key = `${rec.kind}/${rec.id}`
         const cur = records.get(key)
-        if (cur && cur.rev !== rec.baseRev) return { kind: rec.kind, id: rec.id, rev: cur.rev, record: cur }
+        if (cur && canonicalJson(cur.body) === canonicalJson(rec.deleted ? null : rec.body)) return { kind: rec.kind, id: rec.id, rev: cur.rev }
+        if (cur && cur.rev !== rec.baseRev && rec.updatedAt <= cur.updatedAt) return { kind: rec.kind, id: rec.id, rev: cur.rev, record: cur }
         const next: ServerRecord = { kind: rec.kind, id: rec.id, rev: ++rev, updatedAt: rec.updatedAt, deleted: rec.deleted === true, body: rec.deleted ? null : rec.body }
         records.set(key, next)
         return { kind: rec.kind, id: rec.id, rev: next.rev }
@@ -105,8 +118,8 @@ test('a conflicting push takes the server copy back into storage', async () => {
   await a.sync.run()
   const b = device(server)
   await b.sync.run()
-  a.storage.data.iris_reports = [{ id: 'r1', name: 'r.md', content: 'from a', updated: 2 }]
-  b.storage.data.iris_reports = [{ id: 'r1', name: 'r.md', content: 'from b', updated: 3 }]
+  a.storage.data.iris_reports = [{ id: 'r1', name: 'r.md', content: 'from a', updated: 3 }]
+  b.storage.data.iris_reports = [{ id: 'r1', name: 'r.md', content: 'from b', updated: 2 }]
   await a.sync.run()
   await b.sync.run()
   assert.equal((b.storage.data.iris_reports as { content: string }[])[0].content, 'from a')
@@ -152,4 +165,72 @@ test('a new device takes the server settings over its defaults', async () => {
   const b = device(server, { [SETTINGS]: { apiKey: '', baseUrl: 'default' } })
   await b.sync.run()
   assert.deepEqual(b.storage.data[SETTINGS], { apiKey: 'k', baseUrl: 'u' })
+})
+
+test('a stale device saving defaults after its first sync does not overwrite a newer edit (2026-10-28)', async () => {
+  const server = fakeServer()
+  const a = device(server)
+  useChrome(a.storage)
+  await updateSettings({ apiKey: 'k' }, 100)
+  await a.sync.run()
+
+  const b = device(server)
+  useChrome(b.storage)
+  await saveSettings({ ...DEFAULT_SETTINGS })
+  await b.sync.run()
+  assert.equal((b.storage.data[SETTINGS] as { apiKey: string }).apiKey, 'k')
+  assert.equal((b.storage.data[EDITED] as Record<string, number>).apiKey, 100, 'an applied value keeps its edit time')
+
+  // A panel opened before that sync writes its whole stale copy back.
+  await saveSettings({ ...DEFAULT_SETTINGS })
+  await updateSettings({ model: 'other' }, 150)
+  await b.sync.run()
+  assert.equal((server.records.get('setting/apiKey')!.body as { value: string }).value, 'k')
+  assert.equal((b.storage.data[SETTINGS] as { apiKey: string }).apiKey, 'k', 'the server copy comes back')
+  await a.sync.run()
+  assert.equal((a.storage.data[SETTINGS] as { apiKey: string; model: string }).apiKey, 'k')
+  assert.equal((a.storage.data[SETTINGS] as { model: string }).model, 'other', 'the real edit in that save still syncs')
+})
+
+test('a later edit on another device wins; an older one loses', async () => {
+  const server = fakeServer()
+  const a = device(server)
+  useChrome(a.storage)
+  await updateSettings({ apiKey: 'k' }, 100)
+  await a.sync.run()
+  const b = device(server)
+  await b.sync.run()
+
+  useChrome(b.storage)
+  await updateSettings({ apiKey: 'k2' }, 200)
+  useChrome(a.storage)
+  await updateSettings({ apiKey: 'offline' }, 150)
+  await b.sync.run()
+  await a.sync.run()
+  assert.equal((server.records.get('setting/apiKey')!.body as { value: string }).value, 'k2')
+  assert.equal((a.storage.data[SETTINGS] as { apiKey: string }).apiKey, 'k2')
+  assert.equal((a.storage.data[EDITED] as Record<string, number>).apiKey, 200)
+
+  useChrome(a.storage)
+  await updateSettings({ apiKey: 'k3' }, 300)
+  await a.sync.run()
+  await b.sync.run()
+  assert.equal((b.storage.data[SETTINGS] as { apiKey: string }).apiKey, 'k3')
+})
+
+test('an install from before edit times keeps its values and its next edit still wins', async () => {
+  const server = fakeServer()
+  const a = device(server, { [SETTINGS]: { apiKey: 'k', model: 'm' } })
+  await a.sync.run()
+  delete a.storage.data[EDITED]
+  for (const rec of server.records.values()) rec.updatedAt = 5000 // push times, as older versions sent
+  server.pushes.length = 0
+  await a.sync.run()
+  assert.deepEqual(server.pushes, [])
+  assert.deepEqual(a.storage.data[SETTINGS], { apiKey: 'k', model: 'm' })
+
+  useChrome(a.storage)
+  await updateSettings({ apiKey: 'k2' })
+  await a.sync.run()
+  assert.equal((server.records.get('setting/apiKey')!.body as { value: string }).value, 'k2')
 })
