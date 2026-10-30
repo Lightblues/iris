@@ -43,3 +43,9 @@ Iris has two jobs: the side-panel agent on the current page, and the relay throu
 Status: accepted
 
 Each setting carries the time a person last edited it, and settings are always pushed without a base so the server keeps the later edit. On 2026-10-28 a stale panel wrote defaults back over the API key: its push had a matching base, so it fast-forwarded although nobody had edited the key. Trade-off: settings become last-writer-wins by device clock, so a clock far ahead can win a race; settings are edited rarely and by one person, so this is accepted. Alternative rejected: a server-side rule for settings, which would leave the client sending push time as edit time.
+
+## D007 Rolling beta for testing between releases (2026-10-30)
+
+Status: accepted
+
+Every extension change pushed to `main` is built by CI into a rolling `beta` pre-release (manifest version `<package version>.<run number>`, `version_name` `<version>-beta.<run> (<sha>)`). The user's Mac runs `install.sh beta --watch`: a launchd job installs a new beta within five minutes and Iris reloads itself, so agents change code and the user tests the same build a release would ship, with no setup per change. Releases stay as D001 says. Alternatives not taken now: a browser sandbox (AGS) or headless runs for UI judgement, which cannot replace the user's own logged-in browser; they remain for automated checks (iris-029).

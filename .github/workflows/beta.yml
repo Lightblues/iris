@@ -1,0 +1,64 @@
+name: Beta
+
+# Every extension change on main becomes a rolling "beta" pre-release that `scripts/install.sh beta` installs.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['.ea/**', 'services/**', '**/*.md', '.github/workflows/release.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beta
+  cancel-in-progress: true
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Stamp beta version
+        id: ver
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          VERSION="${BASE}.${GITHUB_RUN_NUMBER}"
+          NAME="${BASE}-beta.${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
+          node -e '
+            const fs = require("fs"); const m = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+            m.version = process.argv[1]; m.version_name = process.argv[2];
+            fs.writeFileSync("manifest.json", JSON.stringify(m, null, 2) + "\n");
+          ' "$VERSION" "$NAME"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package
+        run: |
+          (cd dist && zip -qr ../iris-beta.zip . -x "*.DS_Store")
+          echo "${{ steps.ver.outputs.version }}" > version.txt
+
+      - name: Publish rolling beta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete beta --cleanup-tag -y || true
+          gh release create beta iris-beta.zip version.txt --prerelease --target "$GITHUB_SHA" \
+            --title "Iris beta ${{ steps.ver.outputs.name }}" \
+            --notes "Rolling build of main at ${GITHUB_SHA::7}. Install: \`curl -fsSL https://raw.githubusercontent.com/Lightblues/iris/main/scripts/install.sh | bash -s -- beta --watch\`"
