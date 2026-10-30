@@ -1,4 +1,4 @@
-import { isRelayTab } from './browserRelay';
+import { isRelayTab } from './browserMethods';
 import { recordEvent, detectSearchQuery } from '../lib/tracing';
 import { loadSettings } from '../lib/sidepanelSettings';
 
