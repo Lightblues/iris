@@ -25,7 +25,7 @@ Entry points into it: toolbar icon, `Cmd+Shift+Y`, the FAB on allowlisted sites,
 
 ## Settings
 
-One scrolling page (`src/sidepanel/components/SettingsPage.tsx`), sections in this order:
+One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component per section in `components/settings/`), sections in this order:
 
 ```
 ┌ Settings ────────────────────────────────┐
