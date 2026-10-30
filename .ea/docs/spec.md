@@ -68,6 +68,8 @@ SidePanel ──sendMessage──▶ Background ──executeScript / sendMessag
          ◀──response──────           ◀──response──────────────────
 ```
 
+Background files: `background/index.ts` only wires modules together. `messages.ts` is the message router, `commands.ts` the shortcuts and palette commands, `contextMenus.ts`, `alarms.ts`, `tracing.ts` (tab visits), `keepalive.ts` (export keepalive port), plus `sidePanel.ts`, `browserRelay.ts` / `remoteRelay.ts` (relay clients) and `selfUpdate.ts`.
+
 Key messages: `tab_agent_action`, `automation_action`, `get-page-context`, `get-selection-context`, `execute-command`, `create-highlight`, `tracing-event`.
 
 Permissions: `storage`, `activeTab`, `readingList`, `contextMenus`, `clipboardWrite`, `sidePanel`, `tabs`, `tabGroups`, `windows`, `unlimitedStorage`, `alarms`, `scripting`, `userScripts` + `host_permissions: <all_urls>`. Unpacked builds also need Allow user scripts on the extension's card.
