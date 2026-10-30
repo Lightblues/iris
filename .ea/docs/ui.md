@@ -25,37 +25,37 @@ Entry points into it: toolbar icon, `Cmd+Shift+Y`, the FAB on allowlisted sites,
 
 ## Settings
 
-One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component per section in `components/settings/`), sections in this order:
+One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component per block in `components/settings/`), laid out per [log/2026-10-29-settings-layout.md](../log/2026-10-29-settings-layout.md) (D005):
 
 ```
 ┌ Settings ────────────────────────────────┐
-│ LLM / Agent                              │
-│   API Key            [••••••••]          │
-│   Base URL           [https://…] [fetch] │
-│   Default Model      [model ▾]           │
-│   Models             [search] ☆ list     │
-│   Temperature        [0.7]               │
-│   Max Output Tokens  [ ]                 │
-│   Agent Max Steps    [ ]                 │
-│   Phoenix Endpoint   [ ]   (tracing)     │
-│ Web Search                               │
-│   Exa API Key        [ ]                 │
-│ MCP Server (Paper Agent)                 │
-│   Endpoint URL       [ ]   (not wired)   │
-│ Browser Relay  (localhost, ea-tools)     │
-│   [x] Connect   Port [33007] Token [ ]   │
-│   status                                 │
-│ Remote Relay  (Iris server)              │
-│   [x] Enable  URL [ ]  Token [ ]         │
-│   Device name [ ]  Remote calls [read ▾] │
-│   status, sync errors                    │
-│ Chat Export                              │
-│   directory  [link] [reconnect] [unlink] │
-│ Content Script                           │
-│   FAB Hidden Patterns (blocklist) [ ]    │
-│ Import / Export                          │
-│   [Export Settings] [Import Settings]    │
+│ ● Connected to <host> as <device> (read) │  StatusStrip: server, sync time or error,
+│   Synced 12:04            v0.6.2  [⟳]    │  extension version, reconnect (polls 5s)
+├ Model ───────────────────────────────────┤
+│   Base URL   [https://…]  [fetch]        │
+│   API Key    [••••••••]                  │
+│   Default model [model ▾]                │
+│   Models     [filter / add] ☆ list       │
+│   ▸ Advanced: temperature, max output    │  <details>, collapsed
+│     tokens, max steps                    │
+├ Tools ───────────────────────────────────┤
+│   Web search (Exa)  API Key [ ]          │
+├ This browser ───────────── not synced ───┤
+│   [x] Connect to my Iris server          │
+│   Server URL [ ]  Token [ ]              │
+│   Device name [ ]   device <id>          │
+│   Agents may ( ) Nothing, sync only      │
+│              (•) Read pages              │
+│              ( ) Control this browser    │
+├ Pages ───────────────────────────────────┤
+│   Floating button: hide on [patterns]    │
+│   Chat export directory [choose] [⟳] [x] │
+├ ▸ Developer ─────────────────────────────┤  <details>, collapsed
+│   Phoenix endpoint                       │
+│   Localhost relay (ea-tools)  not synced │  port, token, status, check
+│   MCP endpoint                not synced │  unused for now
+│   Import / export settings JSON          │
 └──────────────────────────────────────────┘
 ```
 
-Synced across browsers: everything except the Browser Relay and Remote Relay fields and the MCP endpoint, which describe one machine ([server.md](server.md)).
+Synced across browsers: everything except the fields marked "not synced" (This browser, the localhost relay, the MCP endpoint), which describe one machine (`DEVICE_SETTINGS` in `lib/sync.ts`, [server.md](server.md)).

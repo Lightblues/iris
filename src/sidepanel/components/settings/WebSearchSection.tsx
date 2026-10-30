@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import { SectionHeader } from './shared'
+import { SubHeader } from './shared'
 
 interface Props {
   settings: SidePanelSettings
@@ -9,8 +9,8 @@ interface Props {
 
 export function WebSearchSection({ settings, onSettingsChange }: Props) {
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Web Search" />
+    <div className="space-y-3">
+      <SubHeader title="Web search (Exa)" />
 
       <div className="space-y-1">
         <label className="text-xs font-medium">Exa API Key</label>
@@ -34,6 +34,6 @@ export function WebSearchSection({ settings, onSettingsChange }: Props) {
           </a>
         </p>
       </div>
-    </section>
+    </div>
   )
 }

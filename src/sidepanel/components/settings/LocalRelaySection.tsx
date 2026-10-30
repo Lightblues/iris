@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import { SectionHeader, type RelayStatusKind } from './shared'
+import { NOT_SYNCED, SubHeader, type RelayStatusKind } from './shared'
 
 async function probeRelay(port: number, token: string): Promise<{ kind: RelayStatusKind; text: string }> {
   try {
@@ -60,8 +60,8 @@ export function LocalRelaySection({ settings, onSettingsChange }: Props) {
   }
 
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Browser Relay" />
+    <div className="space-y-3">
+      <SubHeader title="Localhost relay (ea-tools)" note={`${NOT_SYNCED} · unused for now`} />
 
       <label className="flex items-center gap-2 text-xs">
         <input
@@ -128,6 +128,6 @@ export function LocalRelaySection({ settings, onSettingsChange }: Props) {
         Exposes this browser to ea-tools agents (<code className="font-mono">browser_fetch</code>, tab tools).
         Start the server with <code className="font-mono">ea-tools browser-relay serve</code>.
       </p>
-    </section>
+    </div>
   )
 }

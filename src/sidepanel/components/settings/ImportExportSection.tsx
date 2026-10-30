@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Download, Upload } from 'lucide-react'
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
 import { exportSettings, importSettings } from '@/lib/sidepanelSettings'
-import { SectionHeader } from './shared'
+import { SubHeader } from './shared'
 
 interface Props {
   settings: SidePanelSettings
@@ -47,8 +47,8 @@ export function ImportExportSection({ settings, onSettingsChange, onError }: Pro
   }
 
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Import / Export" />
+    <div className="space-y-3">
+      <SubHeader title="Import / export settings JSON" />
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={handleExport} className="h-7 text-xs flex-1">
           <Download className="h-3 w-3 mr-1" /> Export Settings
@@ -58,6 +58,6 @@ export function ImportExportSection({ settings, onSettingsChange, onError }: Pro
         </Button>
         <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImport} className="hidden" />
       </div>
-    </section>
+    </div>
   )
 }

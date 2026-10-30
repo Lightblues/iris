@@ -1,5 +1,5 @@
 import type { SidePanelSettings } from '@/lib/sidepanelSettings'
-import { SectionHeader } from './shared'
+import { SubHeader } from './shared'
 
 interface Props {
   settings: SidePanelSettings
@@ -8,8 +8,8 @@ interface Props {
 
 export function FabSection({ settings, onSettingsChange }: Props) {
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Content Script" />
+    <div className="space-y-3">
+      <SubHeader title="Floating button" />
       <div className="space-y-1">
         <label className="text-xs font-medium">FAB Hidden Patterns (Blocklist)</label>
         <textarea
@@ -27,6 +27,6 @@ export function FabSection({ settings, onSettingsChange }: Props) {
           The X button only hides FAB for the current page session.
         </p>
       </div>
-    </section>
+    </div>
   )
 }

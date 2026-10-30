@@ -8,7 +8,7 @@ import {
   queryDirectoryPermission,
   verifyDirectoryPermission,
 } from '@/lib/fileSystemAccess'
-import { SectionHeader } from './shared'
+import { SubHeader } from './shared'
 
 interface Props {
   onError: (message: string | null) => void
@@ -57,8 +57,8 @@ export function ChatExportSection({ onError }: Props) {
   }
 
   return (
-    <section className="space-y-3">
-      <SectionHeader title="Chat Export" />
+    <div className="space-y-3">
+      <SubHeader title="Chat export directory" />
 
       <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground">Directory:</span>
@@ -97,6 +97,6 @@ export function ChatExportSection({ onError }: Props) {
         Export ChatGPT / DeepSeek / Gemini conversations as raw JSON via the on-page FAB.
         Files land in <span className="font-mono">&lt;dir&gt;/&lt;platform&gt;/&lt;id&gt;.json</span>.
       </p>
-    </section>
+    </div>
   )
 }

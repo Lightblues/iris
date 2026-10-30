@@ -64,29 +64,7 @@ export function ModelSection({ settings, onSettingsChange }: Props) {
 
   return (
     <section className="space-y-3">
-      <SectionHeader title="LLM / Agent" />
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium">API Key</label>
-        {apiKeyFocused ? (
-          <Input
-            type="text"
-            value={settings.apiKey}
-            onChange={(e) => onSettingsChange({ apiKey: e.target.value })}
-            onBlur={() => setApiKeyFocused(false)}
-            autoFocus
-            placeholder="sk-or-... or sk-..."
-            className="h-8 text-sm font-mono"
-          />
-        ) : (
-          <div
-            onClick={() => setApiKeyFocused(true)}
-            className="h-8 flex items-center px-3 text-sm font-mono bg-background border rounded cursor-text text-muted-foreground hover:border-ring transition-colors"
-          >
-            {settings.apiKey ? maskApiKey(settings.apiKey) : <span className="text-muted-foreground/50">sk-or-... or sk-...</span>}
-          </div>
-        )}
-      </div>
+      <SectionHeader title="Model" />
 
       <div className="space-y-1">
         <label className="text-xs font-medium">Base URL</label>
@@ -113,6 +91,28 @@ export function ModelSection({ settings, onSettingsChange }: Props) {
           {availableModels.length > 0 && <span className="ml-1 text-primary">· {availableModels.length} models available</span>}
         </p>
         {modelsError && <p className="text-xs text-destructive">{modelsError}</p>}
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium">API Key</label>
+        {apiKeyFocused ? (
+          <Input
+            type="text"
+            value={settings.apiKey}
+            onChange={(e) => onSettingsChange({ apiKey: e.target.value })}
+            onBlur={() => setApiKeyFocused(false)}
+            autoFocus
+            placeholder="sk-or-... or sk-..."
+            className="h-8 text-sm font-mono"
+          />
+        ) : (
+          <div
+            onClick={() => setApiKeyFocused(true)}
+            className="h-8 flex items-center px-3 text-sm font-mono bg-background border rounded cursor-text text-muted-foreground hover:border-ring transition-colors"
+          >
+            {settings.apiKey ? maskApiKey(settings.apiKey) : <span className="text-muted-foreground/50">sk-or-... or sk-...</span>}
+          </div>
+        )}
       </div>
 
       <div className="space-y-1">
@@ -205,68 +205,61 @@ export function ModelSection({ settings, onSettingsChange }: Props) {
         </div>
       </div>
 
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Temperature</label>
-          <span className="text-xs text-muted-foreground font-mono">{settings.temperature ?? 'default'}</span>
-        </div>
-        <input
-          type="range" min="0" max="2" step="0.1"
-          value={settings.temperature ?? 1}
-          onChange={(e) => {
-            const val = parseFloat(e.target.value)
-            onSettingsChange({ temperature: val === 1 ? undefined : val })
-          }}
-          className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-        />
-        <div className="flex justify-between text-[10px] text-muted-foreground">
-          <span>Precise (0)</span>
-          <span>Creative (2)</span>
-        </div>
-      </div>
+      <details className="group">
+        <summary className="text-xs font-medium cursor-pointer select-none text-muted-foreground hover:text-foreground">Advanced: temperature, max output tokens, max steps</summary>
+        <div className="space-y-3 pt-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium">Temperature</label>
+              <span className="text-xs text-muted-foreground font-mono">{settings.temperature ?? 'default'}</span>
+            </div>
+            <input
+              type="range" min="0" max="2" step="0.1"
+              value={settings.temperature ?? 1}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value)
+                onSettingsChange({ temperature: val === 1 ? undefined : val })
+              }}
+              className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>Precise (0)</span>
+              <span>Creative (2)</span>
+            </div>
+          </div>
 
-      <div className="space-y-1">
-        <label className="text-xs font-medium">Max Output Tokens (Optional)</label>
-        <Input
-          type="number" min="1" max="200000"
-          value={settings.maxOutputTokens || ''}
-          onChange={(e) => {
-            const val = e.target.value ? parseInt(e.target.value, 10) : undefined
-            onSettingsChange({ maxOutputTokens: val })
-          }}
-          placeholder="default (model limit)"
-          className="h-8 text-sm font-mono"
-        />
-      </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Max Output Tokens (Optional)</label>
+            <Input
+              type="number" min="1" max="200000"
+              value={settings.maxOutputTokens || ''}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value, 10) : undefined
+                onSettingsChange({ maxOutputTokens: val })
+              }}
+              placeholder="default (model limit)"
+              className="h-8 text-sm font-mono"
+            />
+          </div>
 
-      <div className="space-y-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Agent Max Steps</label>
-          <span className="text-xs text-muted-foreground font-mono">{settings.maxSteps ?? 20}</span>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium">Agent Max Steps</label>
+              <span className="text-xs text-muted-foreground font-mono">{settings.maxSteps ?? 20}</span>
+            </div>
+            <Input
+              type="number" min="1" max="50"
+              value={settings.maxSteps ?? 20}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value, 10) : undefined
+                onSettingsChange({ maxSteps: val })
+              }}
+              className="h-8 text-sm font-mono"
+            />
+            <p className="text-xs text-muted-foreground">Max tool-calling iterations per reply</p>
+          </div>
         </div>
-        <Input
-          type="number" min="1" max="50"
-          value={settings.maxSteps ?? 20}
-          onChange={(e) => {
-            const val = e.target.value ? parseInt(e.target.value, 10) : undefined
-            onSettingsChange({ maxSteps: val })
-          }}
-          className="h-8 text-sm font-mono"
-        />
-        <p className="text-xs text-muted-foreground">Max tool-calling iterations per reply</p>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs font-medium">Phoenix Endpoint (Optional)</label>
-        <Input
-          type="text"
-          value={settings.phoenixEndpoint || ''}
-          onChange={(e) => onSettingsChange({ phoenixEndpoint: e.target.value })}
-          placeholder="http://localhost:6006"
-          className="h-8 text-sm font-mono"
-        />
-        <p className="text-xs text-muted-foreground">Arize Phoenix tracing endpoint for observability</p>
-      </div>
+      </details>
     </section>
   )
 }
