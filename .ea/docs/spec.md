@@ -78,7 +78,7 @@ The agent runtime lives in the side panel, not the service worker. Lifecycle imp
 
 ## Side panel
 
-Toggle: toolbar icon or `Cmd+Shift+Y`. `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click / Shift+click / middle-click / right-click “open in new tab” from an Iris tab joins that session and opens the panel on the child; closing the child unlinks that tab but leaves already-injected page messages in the thread. New Chat unlinks the current tab.
+Toggle: toolbar icon or `Cmd+Shift+O` (Chrome's `_execute_action`; an extension command cannot open the panel, because `sidePanel.open` must run inside the gesture and the handler awaits first). `openPanelOnActionClick: false`. Background disables the global panel (`setOptions({ enabled: false })`) and enables it per tab via `setOptions({ tabId, enabled })` + `open/close({ tabId })`. Unrelated tabs and Cmd+T do not show the panel. Cmd+click / Shift+click / middle-click / right-click “open in new tab” from an Iris tab joins that session and opens the panel on the child; closing the child unlinks that tab but leaves already-injected page messages in the thread. New Chat unlinks the current tab.
 
 | Tab | Status | Notes |
 |-----|--------|-------|

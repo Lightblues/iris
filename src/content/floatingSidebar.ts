@@ -102,13 +102,13 @@ function createFabButton(): void {
   fabButton = document.createElement('button')
   fabButton.id = 'iris-floating-fab'
   fabButton.innerHTML = irisIcon
-  fabButton.title = 'Iris (Cmd+Shift+Y)'
+  fabButton.title = 'Iris (Cmd+Shift+O)'
   fabButton.addEventListener('click', openSidePanel)
 
   fabHideButton = document.createElement('button')
   fabHideButton.id = 'iris-floating-fab-hide'
   fabHideButton.innerHTML = hideIcon
-  fabHideButton.title = 'Hide on this page (Cmd+Shift+Y to restore)'
+  fabHideButton.title = 'Hide on this page'
   fabHideButton.addEventListener('click', (e) => {
     e.stopPropagation()
     hideFab()
@@ -132,7 +132,7 @@ function rebuildMenu(): void {
   const chatAction = document.createElement('button')
   chatAction.className = 'iris-fab-menu-item iris-fab-menu-chat'
   chatAction.innerHTML = `<span class="iris-fab-menu-icon">${chatIcon}</span><span>Chat</span>`
-  chatAction.title = 'Open Chat (Cmd+Shift+Y)'
+  chatAction.title = 'Open Chat (Cmd+Shift+O)'
   chatAction.addEventListener('click', (e) => {
     e.stopPropagation()
     openSidePanel()
@@ -191,14 +191,6 @@ async function openSidePanel(): Promise<void> {
   } catch (err) {
     console.warn('[Iris] Failed to open side panel:', err)
   }
-}
-
-/**
- * Keep the legacy command/message name so existing shortcut wiring keeps
- * routing to the same side-panel open path.
- */
-export function toggleFloatingSidebar(): void {
-  openSidePanel()
 }
 
 export function cleanupFloatingSidebar(): void {

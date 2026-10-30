@@ -21,7 +21,7 @@ The side panel as it is now. Layout changes are agreed as ASCII here (or in a `l
 └──────────────────────────────────────────┘
 ```
 
-Entry points into it: toolbar icon, `Cmd+Shift+Y`, the FAB on allowlisted sites, the command palette (`Cmd+Shift+P`).
+Entry points into it: toolbar icon or `Cmd+Shift+O`, the FAB on allowlisted sites, the command palette (`Cmd+Shift+P`).
 
 ## Settings
 

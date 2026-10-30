@@ -5,7 +5,7 @@ import './floatingSidebar.css'
 import { readGmLogs } from './gmBridge'
 import { initDerivedTabOpens } from './derivedTabs'
 import { showCommandMenu } from './commandMenu'
-import { initFloatingSidebar, toggleFloatingSidebar, refreshFab, setFabCustomActions } from './floatingSidebar'
+import { initFloatingSidebar, refreshFab, setFabCustomActions } from './floatingSidebar'
 import { getAdapterForUrl } from './chatExport'
 import { handleIrisChatApi } from './chatExport/relayApi'
 import { exportCurrent, exportAll } from './chatExport/runExport'
@@ -18,9 +18,6 @@ import type { MarkdownConvertMessage } from '../lib/types'
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open-command-menu') {
     showCommandMenu()
-    sendResponse({ success: true })
-  } else if (message.type === 'toggle-floating-sidebar') {
-    toggleFloatingSidebar()
     sendResponse({ success: true })
   } else if (message.type === 'convert-to-markdown') {
     handleMarkdownConvert(message as MarkdownConvertMessage).then(sendResponse)

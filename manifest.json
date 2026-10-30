@@ -39,19 +39,11 @@
       },
       "description": "Open command menu"
     },
-    "toggle-floating-sidebar": {
+    "_execute_action": {
       "suggested_key": {
-        "default": "Ctrl+Shift+Y",
-        "mac": "Command+Shift+Y"
-      },
-      "description": "Toggle Iris sidebar"
-    },
-    "save-highlight": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+H",
-        "mac": "Command+Shift+H"
-      },
-      "description": "Save selection as highlight"
+        "default": "Ctrl+Shift+O",
+        "mac": "Command+Shift+O"
+      }
     }
   },
   "web_accessible_resources": [

@@ -1,4 +1,3 @@
-import { toggleForTab } from './sidePanel';
 import { addBookmark, getBookmarks } from '../lib/storage';
 import { addToReadingList } from '../lib/readingList';
 import { createEntry } from '../lib/knowledge';
@@ -16,19 +15,6 @@ export function initShortcuts(): void {
         await chrome.tabs.sendMessage(tab.id, { type: 'open-command-menu' });
       } catch (error) {
         console.log('[Iris] Could not send message to tab:', error);
-      }
-    } else if (command === 'toggle-floating-sidebar') {
-      try {
-        await toggleForTab(tab);
-      } catch (error) {
-        console.log('[Iris] Could not toggle side panel:', error);
-      }
-    } else if (command === 'save-highlight') {
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'save-highlight' });
-        console.log('[Iris] Highlight save triggered via shortcut');
-      } catch (error) {
-        console.log('[Iris] Could not save highlight:', error);
       }
     }
   });

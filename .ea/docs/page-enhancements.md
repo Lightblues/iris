@@ -11,7 +11,7 @@ In-page button, bottom-right. It opens the side panel. It is compiled into the c
 - Click → toggle native side panel (content → background → `sidePanel.open`)
 - Hover → Chat, plus chat export on origins that have an adapter
 - Close → hide for this page session
-- `Cmd+Shift+Y` opens the side panel without the FAB
+- `Cmd+Shift+O` (the toolbar action) opens the side panel without the FAB
 
 Visibility is an allowlist, not "this URL has a script". Default origins: arXiv and the paper hosts, GitHub, DeepWiki, ChatGPT, DeepSeek, Gemini. `fabSitePatterns` is a glob **blocklist** checked after the allowlist. A matching userscript neither shows nor hides the button.
 

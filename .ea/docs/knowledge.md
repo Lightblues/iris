@@ -17,7 +17,7 @@ Four entry types, all `KnowledgeEntry` in `chrome.storage.local` (`iris_knowledg
 
 Entry points:
 
-- Selection → context menu / `Cmd+Shift+H` / FAB → `highlight`
+- Selection → context menu / FAB → `highlight`
 - Command menu → “Save Page as Note” → `page-snapshot`
 - Agent message → “Save” → `highlight` | `page-snapshot` | `chat-save`
 
