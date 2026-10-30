@@ -25,3 +25,9 @@ Bookmarks, Reading list, Notes, and Tracing stay behind the "More" menu: kept wo
 Status: accepted
 
 0.7 adds a `users` table and per-user credentials on the server, with every record already keyed by `user_id`. No sign-up, no billing; a Google sign-in, invite only, may come later on the same schema. Alternative rejected: building login now, for a tool that is personal and shared privately at most.
+
+## D005 Settings grouped by task; localhost relay and MCP parked under Developer (2026-10-30)
+
+Status: accepted
+
+Settings follow `log/2026-10-29-settings-layout.md`: a status strip, then Model, Tools, This browser (not synced), Pages, and a collapsed Developer section. The localhost ea-tools relay and the MCP endpoint move to Developer and stay unused; they are tested and improved only when a need appears. Alternative rejected: deleting them now, which would have to be rebuilt if a local agent needs them.
