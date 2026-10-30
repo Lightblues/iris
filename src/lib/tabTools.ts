@@ -312,31 +312,3 @@ When preview=true, shows plan without executing.`,
     }
   }
 } as const
-
-export const TAB_AGENT_SYSTEM_PROMPT = `
-## Tab Management Tools
-
-You have access to powerful tab management tools. Follow these guidelines:
-
-### Query Strategy
-- query_tabs returns max 30 tabs by default
-- Use filters to narrow results before processing
-- For 100+ tabs: first call query_tabs to see total, then filter by domain/keyword
-- NEVER call get_tab_content on all tabs at once
-
-### Safety Rules
-- ALWAYS use safe=true when closing tabs (default behavior)
-- NEVER set safe=false unless user explicitly says "permanently close"
-- Before closing >5 tabs, show the list and ask for confirmation
-- For archive_inactive: always use preview=true first, show plan, then execute
-
-### Smart Operations
-- smart_organize_tabs and archive_inactive_tabs have preview mode
-- Always show preview to user before executing
-- Ask for confirmation before making bulk changes
-
-### Workflow Examples
-1. Organize tabs: query_tabs → smart_organize_tabs (preview=true) → confirm → execute (preview=false)
-2. Close old tabs: query_tabs (filter by domain) → remove_tabs (safe=true) → confirm
-3. Recover tab: list_closed_tabs → restore_tab (with specific ID)
-`

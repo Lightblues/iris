@@ -25,7 +25,6 @@ import { expandSkillSlash, listSkills, matchSkillSlash } from '@/lib/skillStore'
 import { extractArxivId } from '@/content/enhancements/arxiv'
 import { getPageContext, getSelectionContext, isInjectableUrl, waitForTabLoad } from '@/lib/context'
 import { estimateTokens } from '@/lib/tokenUtils'
-import { getMcpStatus, disconnectMcp, releaseMcp, onMcpStatus, type McpStatus } from './mcp'
 
 // -- Transport creation hook --
 
@@ -42,36 +41,27 @@ export function useAgentTransport(options: {
 
   const [transport, setTransport] = useState<DirectChatTransport | null>(null)
   const [agentReady, setAgentReady] = useState(false)
-  const [mcpStatus, setMcpStatus] = useState<McpStatus>('disconnected')
-
-  useEffect(() => onMcpStatus(setMcpStatus), [])
-
   useEffect(() => {
     let cancelled = false
     console.log('[Agent] Creating agent...', activeModel)
 
     createAgent(irisAgent, settings, activeModel, options.conversationId, tabRef)
       .then(result => {
-        if (cancelled) {
-          if (result.mcpConnected) releaseMcp()
-          return
-        }
+        if (cancelled) return
         console.log('[Agent] Agent created, setting up transport')
         setTransport(createTransport(result.agent, activeModel, result.providerMetadataRef))
         setAgentReady(true)
-        setMcpStatus(getMcpStatus())
       })
       .catch(err => {
         console.error('[Agent] Agent creation failed:', err)
         if (cancelled) return
         onError(`Failed to create agent: ${err.message}`)
-        setMcpStatus('error')
       })
 
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { transport, agentReady, mcpStatus, providerMetadataRef }
+  return { transport, agentReady, providerMetadataRef }
 }
 
 // -- Chat hook (requires ready transport) --
@@ -301,4 +291,3 @@ export function useAgentChat(
   }
 }
 
-export { disconnectMcp, releaseMcp }

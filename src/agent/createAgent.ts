@@ -17,7 +17,6 @@ export interface ProviderMetadataRef {
 export interface CreateAgentResult {
   agent: InstanceType<typeof ToolLoopAgent>
   providerMetadataRef: ProviderMetadataRef
-  mcpConnected: boolean
 }
 
 export async function createAgent(
@@ -42,7 +41,6 @@ export async function createAgent(
 
   const sessionTab: TabRef = tabRef ?? { current: 0 }
   const tools: Record<string, any> = bindAgentTools(() => sessionTab.current)
-  const mcpConnected = false
   const maxSteps = settings.maxSteps ?? config.maxSteps ?? 20
 
   const agent = new ToolLoopAgent({
@@ -80,5 +78,5 @@ export async function createAgent(
     })
 
   console.log('[Agent] Created:', agent.id, 'tools:', Object.keys(tools))
-  return { agent, providerMetadataRef, mcpConnected }
+  return { agent, providerMetadataRef }
 }

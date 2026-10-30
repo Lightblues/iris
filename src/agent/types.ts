@@ -6,8 +6,6 @@ export interface AgentConfig {
   id: string
   name: string
   systemPrompt: string
-  browserTools?: Record<string, any>  // Chrome API tools (tab, automation)
-  mcpEnabled?: boolean                // Connect to ea-tools MCP server
   maxSteps?: number
 }
 

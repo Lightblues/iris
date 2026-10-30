@@ -4,7 +4,6 @@ import { Check, Plus } from 'lucide-react'
 import { ModelCombobox } from './ModelCombobox'
 import type { IrisMessage } from '@/lib/types'
 import type { ModelConfig } from '@/lib/sidepanelSettings'
-import type { McpStatus } from '@/lib/mcpClient'
 import { getSessionUsage, formatModelShort, formatCost, formatTokenCount } from '@/lib/tokenUtils'
 
 interface ChatHeaderProps {
@@ -16,7 +15,6 @@ interface ChatHeaderProps {
   defaultModel: string
   chatModel: string | null
   onChatModelChange: (model: string | null) => void
-  mcpStatus?: McpStatus
   conversationId?: string | null
 }
 
@@ -29,7 +27,6 @@ export const ChatHeader = memo(function ChatHeader({
   defaultModel,
   chatModel,
   onChatModelChange,
-  mcpStatus,
   conversationId,
 }: ChatHeaderProps) {
   const [copied, setCopied] = useState(false)
@@ -39,16 +36,6 @@ export const ChatHeader = memo(function ChatHeader({
 
   return (
     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b bg-muted/30">
-      {mcpStatus && mcpStatus !== 'disconnected' && (
-        <div
-          className={`w-2 h-2 rounded-full shrink-0 ${
-            mcpStatus === 'connected' ? 'bg-green-500' :
-            mcpStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-            mcpStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
-          }`}
-          title={`MCP: ${mcpStatus}`}
-        />
-      )}
 
       {conversationId && (
         <button

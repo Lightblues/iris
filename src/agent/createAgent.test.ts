@@ -25,12 +25,11 @@ const settings = {
 } satisfies SidePanelSettings
 
 test('createAgent attaches the catalog with no activeTools filter', async () => {
-  const { agent, mcpConnected } = await createAgent(
+  const { agent } = await createAgent(
     { id: 'general', name: 'Iris', systemPrompt: '' },
     settings,
   )
   const tools = agent.tools as Record<string, unknown>
-  assert.equal(mcpConnected, false)
   const expected = new Set(listAgentTools().map(tool => tool.name))
   expected.add('query_tabs')
   assert.deepEqual(new Set(Object.keys(tools)), expected)

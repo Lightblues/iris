@@ -32,8 +32,6 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 console.log('[Iris] Tab tools loaded:', Object.keys(tabTools));
 
-chrome.alarms.clear('vesta-sync');
-
 initSidePanel();
 initBrowserRelay();
 initRemoteRelay();

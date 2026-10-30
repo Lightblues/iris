@@ -168,7 +168,7 @@ Four separate report tools instead of one with an `action` field: models pick Re
 
 ### Paper / MCP
 
-MCP tools are not in the side-panel schema. `createAgent` does not call `connectMcp`. `connectMcp` stays in `src/agent/mcp.ts` (`@ai-sdk/mcp`, HTTP, or SSE if the URL ends with `/sse`; default `http://localhost:8765/mcp`; schemas strip `anyOf` / `oneOf` / `additionalProperties` / `$schema` / `title` / `default`). The Settings endpoint is unchanged. The header MCP dot stays disconnected unless a later change connects. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
+MCP tools are not in the side-panel schema. `createAgent` does not call `connectMcp`. `connectMcp` stays in `src/agent/mcp.ts` (`@ai-sdk/mcp`, HTTP, or SSE if the URL ends with `/sse`; default `http://localhost:8765/mcp`; schemas strip `anyOf` / `oneOf` / `additionalProperties` / `$schema` / `title` / `default`). The Settings endpoint is parked under Developer (D005); the chat header shows no MCP state. Expected local server: `ea-tools serve --transport http -k arxiv -k sn_proxy`.
 
 ## Slash skills
 

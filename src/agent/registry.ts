@@ -5,5 +5,4 @@ export const irisAgent: AgentConfig = {
   id: 'general',
   name: 'Iris',
   systemPrompt: '',
-  mcpEnabled: true,
 }

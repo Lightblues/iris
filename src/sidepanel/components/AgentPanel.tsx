@@ -62,7 +62,7 @@ export function AgentPanel(props: AgentPanelProps) {
   const tabRef = useRef(tabId)
   tabRef.current = tabId
 
-  const { transport, mcpStatus } = useAgentTransport({
+  const { transport } = useAgentTransport({
     settings,
     chatModel,
     conversationId: conversation?.id,
@@ -94,14 +94,10 @@ export function AgentPanel(props: AgentPanelProps) {
           defaultModel={settings.model}
           chatModel={chatModel}
           onChatModelChange={onChatModelChange}
-          mcpStatus={mcpStatus}
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-muted-foreground py-8">
             <p className="text-sm">Initializing agent...</p>
-            {mcpStatus === 'connecting' && (
-              <p className="text-xs mt-2">Connecting to MCP server...</p>
-            )}
           </div>
         </div>
         {error && (
@@ -139,7 +135,6 @@ export function AgentPanel(props: AgentPanelProps) {
       onNewChat={onNewChat}
       skills={skills}
       onOpenSettings={onOpenSettings}
-      mcpStatus={mcpStatus}
       pendingMessage={pendingRef.current}
     />
   )
@@ -152,13 +147,12 @@ export function AgentPanel(props: AgentPanelProps) {
  */
 function AgentPanelReady(props: AgentPanelProps & {
   transport: import('ai').DirectChatTransport
-  mcpStatus: import('@/agent/mcp').McpStatus
   pendingMessage: { content: string; images?: any[] } | null
 }) {
   const {
     transport, tabId, memberTabIds, autoFocus, settings, chatModel, onChatModelChange,
     conversation, onConversationCreated, onNewChat,
-    skills, onOpenSettings, mcpStatus, pendingMessage,
+    skills, onOpenSettings, pendingMessage,
   } = props
 
   const [error, setError] = useState<string | null>(null)
@@ -357,8 +351,7 @@ function AgentPanelReady(props: AgentPanelProps & {
         defaultModel={settings.model}
         chatModel={chatModel}
         onChatModelChange={onChatModelChange}
-        mcpStatus={mcpStatus}
-        conversationId={conversation?.id}
+          conversationId={conversation?.id}
       />
       {memberTabIds.length > 1 && (
         <LinkedTabsBar tabIds={memberTabIds} currentTabId={tabId} />
