@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { RemoteRelayState } from '@/background/remoteRelay'
-import type { SidePanelSettings } from '@/lib/sidepanelSettings'
+import { backupSharedSettings, restoreSharedSettings, type SidePanelSettings } from '@/lib/sidepanelSettings'
 
 const POLL_MS = 5000
 
@@ -33,6 +33,19 @@ export function StatusStrip({ settings }: { settings: SidePanelSettings }) {
     return () => clearInterval(timer)
   }, [load])
 
+  const syncShared = async (which: 'backup' | 'restore') => {
+    setBusy(true)
+    try {
+      if (which === 'backup') await backupSharedSettings()
+      else await restoreSharedSettings()
+      await chrome.runtime.sendMessage({ type: 'remote_relay_sync' }).catch(() => {})
+      await new Promise(resolve => setTimeout(resolve, 800))
+      load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const reconnect = async () => {
     setBusy(true)
     try {
@@ -53,6 +66,12 @@ export function StatusStrip({ settings }: { settings: SidePanelSettings }) {
       <div className="min-w-0 flex-1">
         <div className="truncate" title={server}>{server}</div>
         {sync && <div className={`truncate text-[10px] ${tone === 'ok' ? 'text-muted-foreground' : 'text-amber-600'}`} title={sync}>{sync}</div>}
+        {settings.remoteRelayEnabled === true && (
+          <div className="mt-1 flex gap-2">
+            <button type="button" disabled={busy} onClick={() => void syncShared('restore')} className="text-[10px] text-primary hover:underline disabled:opacity-50">Load from other browsers</button>
+            <button type="button" disabled={busy} onClick={() => void syncShared('backup')} className="text-[10px] text-primary hover:underline disabled:opacity-50">Save to other browsers</button>
+          </div>
+        )}
       </div>
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground">v{version}</span>
       {settings.remoteRelayEnabled === true && (

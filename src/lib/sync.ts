@@ -163,9 +163,8 @@ export function settingsCollection(key: string): Collection {
       const times = (bag[timesKey] ?? {}) as Record<string, number>
       const out = new Map<string, Local>()
       for (const [field, value] of Object.entries(settings)) {
-        if (local.has(field) || value === undefined) continue
-        // A field never edited here (defaults, values from before edit times) loses to any edit elsewhere.
-        out.set(field, { body: { value }, updatedAt: times[field] ?? 0 })
+        if (local.has(field) || value === undefined || !times[field]) continue
+        out.set(field, { body: { value }, updatedAt: times[field] })
       }
       return out
     },
@@ -253,8 +252,10 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
         const seen = state.seen[key]
         const mine = local.get(rec.id)
         const localV = mine ? collection.version(mine.body) : ''
-        // First contact: the server's copy wins, except a conversation, which is pushed and merged by message.
-        if (seen ? localV !== seen.v : !!mine && collection.mergeOnFirstSync) continue
+        // A setting with no edit time is not an edit: the server's copy always applies.
+        // Anything else unsent stays local. On first contact the server wins, except a conversation, which is merged by message.
+        const unedited = collection.byEditTime && !mine
+        if (!unedited && (seen ? localV !== seen.v : !!mine && collection.mergeOnFirstSync)) continue
         changes.set(rec.id, rec.deleted ? null : rec.body)
         times.set(rec.id, rec.updatedAt)
         state.seen[key] = { rev: rec.rev, v: rec.deleted ? '' : collection.version(rec.body) }

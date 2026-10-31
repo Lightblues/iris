@@ -1,6 +1,6 @@
 import { openForTab, noteDerivedGesture } from './sidePanel';
 import { getRelayState, reconnectRelay } from './browserRelay';
-import { getRemoteRelayState, reconnectRemoteRelay } from './remoteRelay';
+import { getRemoteRelayState, reconnectRemoteRelay, syncRemoteRelay } from './remoteRelay';
 import { handleExecuteCommand } from './commands';
 import { SW_INSTANCE } from './keepalive';
 import { createEntry, deleteEntry } from '../lib/knowledge';
@@ -164,6 +164,12 @@ export function initMessageRouter(): void {
     if (message.type === 'remote_relay_reconnect') {
       reconnectRemoteRelay()
       getRemoteRelayState().then(sendResponse)
+      return true
+    }
+
+    if (message.type === 'remote_relay_sync') {
+      syncRemoteRelay()
+      sendResponse({ ok: true })
       return true
     }
 

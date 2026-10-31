@@ -78,6 +78,10 @@ export async function getRemoteRelayState(): Promise<RemoteRelayState> {
   }
 }
 
+export function syncRemoteRelay(): void {
+  void runSync()
+}
+
 export function reconnectRemoteRelay(): void {
   if (enabled) forceReconnect()
 }

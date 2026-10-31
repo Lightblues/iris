@@ -44,6 +44,12 @@ Status: accepted
 
 Each setting carries the time a person last edited it, and settings are always pushed without a base so the server keeps the later edit. On 2026-10-28 a stale panel wrote defaults back over the API key: its push had a matching base, so it fast-forwarded although nobody had edited the key. Trade-off: settings become last-writer-wins by device clock, so a clock far ahead can win a race; settings are edited rarely and by one person, so this is accepted. Alternative rejected: a server-side rule for settings, which would leave the client sending push time as edit time.
 
+## D009 Shared settings move by backup and restore (2026-10-31)
+
+Status: accepted
+
+A browser uploads a setting only after someone edited it there, or after Settings → "Save to other browsers". A field never edited is not uploaded, and the shared copy replaces it locally, so a new browser gets the model, key, and base URL without its defaults overwriting them. "Load from other browsers" drops the local edit times and takes the shared copy. Alternative rejected: last-write-wins on every field including untouched defaults, which is what put the OpenRouter defaults in front of the saved configuration.
+
 ## D008 Rolling beta for testing between releases (2026-10-30)
 
 Status: accepted

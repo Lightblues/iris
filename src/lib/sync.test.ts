@@ -71,6 +71,7 @@ test('records written on one device reach the other, and edits flow back', async
     iris_skills: [skill('builtin-one', 'builtin'), skill('mine', 'agent')],
     iris_scripts: [{ id: 's1', source: '// s', enabled: true }],
     [SETTINGS]: { apiKey: 'k', model: 'm', remoteRelayToken: 'device-only', remoteRelayLabel: 'mbp' },
+    [EDITED]: { apiKey: 100, model: 100 },
   })
   await a.sync.run()
   assert.deepEqual([...server.records.keys()].sort(), ['conversation/c1', 'script/s1', 'setting/apiKey', 'setting/model', 'skill/mine'])
@@ -160,7 +161,7 @@ test('a pulled record whose keys come back in another order is not pushed again'
 
 test('a new device takes the server settings over its defaults', async () => {
   const server = fakeServer()
-  const a = device(server, { [SETTINGS]: { apiKey: 'k', baseUrl: 'u' } })
+  const a = device(server, { [SETTINGS]: { apiKey: 'k', baseUrl: 'u' }, [EDITED]: { apiKey: 100, baseUrl: 100 } })
   await a.sync.run()
   const b = device(server, { [SETTINGS]: { apiKey: '', baseUrl: 'default' } })
   await b.sync.run()

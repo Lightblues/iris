@@ -1,4 +1,4 @@
-import { canonicalJson, editTimesKey } from './sync'
+import { canonicalJson, DEVICE_SETTINGS, editTimesKey, SYNC_STATE_KEY } from './sync'
 
 export interface ModelConfig {
   id: string
@@ -128,6 +128,28 @@ export async function saveSettings(settings: SidePanelSettings): Promise<void> {
 }
 
 /** A user edit: patches the stored copy and stamps each changed field, so sync resolves conflicts by edit time. */
+const syncedFields = (settings: SidePanelSettings) =>
+  (Object.keys(settings) as (keyof SidePanelSettings)[]).filter(field => !DEVICE_SETTINGS.includes(field))
+
+/** Mark every synced field as edited now, so the next sync uploads this machine's copy over the shared one. */
+export async function backupSharedSettings(at = Date.now()): Promise<void> {
+  const timesKey = editTimesKey(SETTINGS_KEY)
+  const times = { ...((await chrome.storage.local.get(timesKey))[timesKey] as Record<string, number> | undefined) }
+  for (const field of syncedFields(await loadSettings())) times[field] = at
+  await chrome.storage.local.set({ [timesKey]: times })
+}
+
+/** Drop this machine's claim on synced fields and rewind the sync cursor, so the next sync takes the shared copy. */
+export async function restoreSharedSettings(): Promise<void> {
+  const timesKey = editTimesKey(SETTINGS_KEY)
+  const bag = await chrome.storage.local.get([timesKey, SYNC_STATE_KEY])
+  const times = { ...((bag[timesKey] ?? {}) as Record<string, number>) }
+  for (const field of syncedFields(await loadSettings())) delete times[field]
+  const state = bag[SYNC_STATE_KEY] as { server: string; cursor: number; seen: Record<string, unknown> } | undefined
+  if (state) state.cursor = 0
+  await chrome.storage.local.set({ [timesKey]: times, ...(state ? { [SYNC_STATE_KEY]: state } : {}) })
+}
+
 export async function updateSettings(patch: Partial<SidePanelSettings>, at = Date.now()): Promise<SidePanelSettings> {
   const current = await loadSettings()
   const timesKey = editTimesKey(SETTINGS_KEY)

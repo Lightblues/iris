@@ -74,7 +74,7 @@ One table, `records (user_id, kind, id, rev, updated_at, deleted, body jsonb)`. 
 | `report` | report id | stored report | newer `updatedAt` |
 | `setting` | settings field | `{ value }` | later edit time, always (no fast-forward) |
 
-A setting's `updatedAt` is when the field was last edited by a person, not when it was pushed. The browser keeps these times in `sidepanel_settings_edited` (field → ms): a settings edit stamps the fields whose value changed, and applying a pulled setting stores the record's `updatedAt`. A field never edited on that browser (defaults, or values from before 0.7) has 0, so it loses to any real edit. Settings are pushed with `baseRev` 0, so the server always compares times: a stale copy written back by an old panel cannot win just because its base matches.
+A setting's `updatedAt` is when the field was last edited by a person, not when it was pushed. The browser keeps these times in `sidepanel_settings_edited` (field → ms): a settings edit stamps the fields whose value changed, and applying a pulled setting stores the record's `updatedAt`. A field never edited on that browser is not uploaded, so a new browser's defaults cannot overwrite the shared copy; the shared copy is applied locally instead. Settings → "Save to other browsers" stamps every synced field and uploads this machine's copy. "Load from other browsers" drops the local stamps and takes the shared copy. Settings are pushed with `baseRev` 0, so the server always compares times.
 
 Settings that describe one machine stay local: the remote relay fields (enabled, URL, token, device name, level), the localhost relay fields, and `mcpEndpoint`. A record over 8MB is rejected (`too_large`) and shown as a sync error.
 

@@ -61,9 +61,11 @@ export default function SidePanelApp() {
 
   useEffect(() => {
     console.log('[Iris] Initializing...')
+    let loadGen = 0
+    const takeSettings = (s: SidePanelSettings, gen: number) => { if (gen === loadGen) setSettings(s) }
     loadSettings().then((s) => {
       console.log('[Iris] Settings loaded')
-      setSettings(s)
+      takeSettings(s, ++loadGen)
       const idle = (cb: () => void) =>
         (window as any).requestIdleCallback?.(cb, { timeout: 1500 }) ?? setTimeout(cb, 200)
       idle(() => {
@@ -81,7 +83,10 @@ export default function SidePanelApp() {
     refreshSkills()
     const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
       if (area === 'local' && changes.iris_skills) refreshSkills()
-      if (area === 'local' && changes[SETTINGS_KEY]) loadSettings().then(setSettings)
+      if (area === 'local' && changes[SETTINGS_KEY]) {
+        const gen = ++loadGen
+        loadSettings().then(s => takeSettings(s, gen))
+      }
     }
     chrome.storage.onChanged.addListener(onStorage)
     chrome.storage.local.get(TAB_STORAGE_KEY).then((result) => {
