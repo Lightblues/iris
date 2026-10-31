@@ -1,8 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOutIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { Button } from '@/components/ui/button.tsx'
+import { PageMenu } from '@/components/page-menu.tsx'
 import { Skeleton } from '@/components/ui/skeleton.tsx'
 import { Wordmark } from '@/components/wordmark.tsx'
 import { logout } from '@/lib/api.ts'
@@ -30,7 +29,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+      <header className="sticky top-0 z-10 border-b pt-[env(safe-area-inset-top)] bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <Wordmark to="/app/devices" />
           <div className="flex items-center gap-1">
@@ -45,13 +44,11 @@ export function AppShell() {
                 {me.data.user} · {me.data.level}
               </span>
             ) : null}
-            <Button variant="ghost" size="icon" onClick={() => void signOut()} disabled={leaving} aria-label="Log out" title="Log out">
-              <LogOutIcon />
-            </Button>
+            <PageMenu onSignOut={() => void signOut()} leaving={leaving} account={me.data?.user ? `${me.data.user} · ${me.data.level}` : undefined} />
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 pt-6 pb-16 sm:px-6 sm:pt-8">
+      <main className="mx-auto max-w-7xl px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8">
         {me.data?.loggedIn ? (
           <Outlet />
         ) : me.isError ? (

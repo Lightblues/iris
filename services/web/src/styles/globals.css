@@ -119,6 +119,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
   ::selection {
     background: color-mix(in oklch, var(--temper-blue) 22%, transparent);

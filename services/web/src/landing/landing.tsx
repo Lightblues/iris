@@ -66,7 +66,7 @@ function Shot({ src, alt, caption, width = 672, height = 1024 }: { src: string; 
 
 export function LandingPage() {
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Wordmark />
         <nav className="flex items-center gap-1 text-sm">

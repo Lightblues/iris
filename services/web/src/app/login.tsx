@@ -43,7 +43,7 @@ export function LoginPage() {
   const error = attempt.isError ? loginErrorMessage(attempt.error) : null
 
   return (
-    <div className="flex min-h-dvh flex-col px-5 py-5 sm:px-8">
+    <div className="flex min-h-dvh flex-col px-5 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-8">
       <header className="mx-auto w-full max-w-6xl">
         <Wordmark />
       </header>

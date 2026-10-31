@@ -215,8 +215,9 @@ const SESSION_COOKIE = 'iris_session'
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff',
+  '.webmanifest': 'application/manifest+json',
 }
-const APP_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+const APP_CSP = "default-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
 
 /** The web app's routes get its index.html; any file in the build is served as is. Everything else goes on to auth. */
 async function sendStatic(res: ServerResponse, dir: string, pathname: string, head: boolean): Promise<boolean> {

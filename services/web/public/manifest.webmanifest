@@ -1,0 +1,16 @@
+{
+  "id": "/app",
+  "name": "Iris",
+  "short_name": "Iris",
+  "description": "Your browsers on the Iris relay: who is online, connection history, and a relay test.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f5f8",
+  "theme_color": "#f3f5f8",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
