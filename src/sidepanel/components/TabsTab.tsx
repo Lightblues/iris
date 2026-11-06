@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Layers as TabIcon, RefreshCw, Trash2, Loader2, X } from 'lucide-react'
+import { Layers as TabIcon, RefreshCw, Trash2, Loader2, X, MonitorSmartphone } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { Badge } from '../../components/ui/badge'
 import type { TabAgentMessage, TabAgentResponse } from '../../lib/types'
+import { OtherDevicesTabs } from './OtherDevicesTabs'
+import { useOtherDevices } from '../useOtherDevices'
 
 interface TabSummary {
   id: number
@@ -32,7 +34,8 @@ export function TabsTab() {
   const [trash, setTrash] = useState<TrashItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<'tabs' | 'trash'>('tabs')
+  const [view, setView] = useState<'tabs' | 'devices' | 'trash'>('tabs')
+  const devices = useOtherDevices()
 
   useEffect(() => {
     loadTabs()
@@ -142,6 +145,14 @@ export function TabsTab() {
               Tabs ({tabs.length})
             </Button>
             <Button
+              variant={view === 'devices' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setView('devices')}
+            >
+              <MonitorSmartphone className="w-4 h-4 mr-1" />
+              Other devices ({devices.length})
+            </Button>
+            <Button
               variant={view === 'trash' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setView('trash')}
@@ -149,9 +160,6 @@ export function TabsTab() {
               <Trash2 className="w-4 h-4 mr-1" />
               Trash ({trash.length})
             </Button>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            💡 Switch to Chat tab and select "Tab Agent" to manage tabs with AI
           </div>
         </div>
 
@@ -234,6 +242,8 @@ export function TabsTab() {
             )}
           </div>
         )}
+
+        {view === 'devices' && <OtherDevicesTabs devices={devices} />}
 
         {view === 'trash' && (
           <div className="p-4 space-y-2">

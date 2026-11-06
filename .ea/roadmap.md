@@ -41,6 +41,7 @@ Done when: the agent-experience items AX-1 to AX-10 from the [positioning review
 
 - [2026-10-29 settings layout](log/2026-10-29-settings-layout.md): Settings grouped by task, localhost relay and MCP under Developer (D005).
 - [2026-10-30 positioning review](log/2026-10-30-positioning-review.md): keep / fold / drop for every surface, tool, and relay method; AX-1 to AX-10 (D006).
+- [2026-11-06 tabs across devices](log/2026-11-06-tabs-across-devices.md): the Tabs view shows the other browsers' open tabs; built as the mirror only (D010).
 
 ## Open questions
 

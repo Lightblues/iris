@@ -1,6 +1,7 @@
 import { initSidePanel } from './sidePanel';
 import { initBrowserRelay } from './browserRelay';
 import { initRemoteRelay } from './remoteRelay';
+import { initTabMirror } from './tabMirror';
 import { initSelfUpdate } from './selfUpdate';
 import { initKeepalive } from './keepalive';
 import { initContextMenus, setupContextMenus } from './contextMenus';
@@ -17,6 +18,7 @@ initKeepalive();
 initSidePanel();
 initBrowserRelay();
 initRemoteRelay();
+initTabMirror();
 initSelfUpdate();
 ensureSeedScripts().then(() => syncUserScripts()).catch(err => console.warn('[Iris] scripts:', err));
 

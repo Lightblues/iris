@@ -235,3 +235,39 @@ test('an install from before edit times keeps its values and its next edit still
   await a.sync.run()
   assert.equal((server.records.get('setting/apiKey')!.body as { value: string }).value, 'k2')
 })
+
+test('each browser pushes only its own tab snapshot, takes the others as they are, and deletes its own when sharing stops', async () => {
+  const server = fakeServer()
+  const snap = (label: string, at: number) => ({ label, at, windows: [{ focused: true, tabs: [{ title: label, url: `https://${label}.example/` }] }] })
+  const tabsDevice = (id: string, initial: Record<string, unknown>) => {
+    const storage = memory(initial)
+    return { storage, sync: createSync({ storage, transport: server.transport, collections: defaultCollections(SETTINGS, async () => {}, id), server: 'wss://iris.test' }) }
+  }
+  const work = tabsDevice('work', { iris_device_tabs: { work: snap('work', 1) } })
+  const home = tabsDevice('home', { iris_device_tabs: { home: snap('home', 2) } })
+  await work.sync.run()
+  await home.sync.run()
+  await work.sync.run()
+  assert.deepEqual(Object.keys(work.storage.data.iris_device_tabs as object).sort(), ['home', 'work'])
+  assert.deepEqual(Object.keys(home.storage.data.iris_device_tabs as object).sort(), ['home', 'work'])
+  assert.ok(server.pushes.every(rec => rec.kind !== 'tabs' || rec.id === (rec.body as { label?: string } | undefined)?.label))
+
+  // home's copy of work's snapshot is never pushed back, even if it differs locally.
+  ;(home.storage.data.iris_device_tabs as Record<string, unknown>).work = snap('stale', 0)
+  server.pushes.length = 0
+  await home.sync.run()
+  assert.deepEqual(server.pushes, [])
+
+  await work.sync.run()
+  ;(work.storage.data.iris_device_tabs as Record<string, unknown>).work = snap('work', 3)
+  await work.sync.run()
+  await home.sync.run()
+  assert.equal(((home.storage.data.iris_device_tabs as Record<string, { at: number }>).work).at, 3)
+
+  delete (work.storage.data.iris_device_tabs as Record<string, unknown>).work
+  await work.sync.run()
+  assert.equal(server.records.get('tabs/work')!.deleted, true)
+  assert.ok(server.records.has('tabs/home') && !server.records.get('tabs/home')!.deleted)
+  await home.sync.run()
+  assert.deepEqual(Object.keys(home.storage.data.iris_device_tabs as object), ['home'])
+})

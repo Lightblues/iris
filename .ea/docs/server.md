@@ -73,10 +73,11 @@ One table, `records (user_id, kind, id, rev, updated_at, deleted, body jsonb)`. 
 | `script` | script id | stored userscript | newer `updatedAt` |
 | `report` | report id | stored report | newer `updatedAt` |
 | `setting` | settings field | `{ value }` | later edit time, always (no fast-forward) |
+| `tabs` | device id | that browser's open tabs: `{ label, at, windows: [{ focused, tabs: [{ title, url, favIconUrl?, pinned?, group?: { title, color } }] }] }` | newer `at`; only its own browser writes it |
 
 A setting's `updatedAt` is when the field was last edited by a person, not when it was pushed. The browser keeps these times in `sidepanel_settings_edited` (field → ms): a settings edit stamps the fields whose value changed, and applying a pulled setting stores the record's `updatedAt`. A field never edited on that browser is not uploaded, so a new browser's defaults cannot overwrite the shared copy; the shared copy is applied locally instead. Settings → "Save to other browsers" stamps every synced field and uploads this machine's copy. "Load from other browsers" drops the local stamps and takes the shared copy. Settings are pushed with `baseRev` 0, so the server always compares times.
 
-Settings that describe one machine stay local: the remote relay fields (enabled, URL, token, device name, level), the localhost relay fields, and `mcpEndpoint`. A record over 8MB is rejected (`too_large`) and shown as a sync error.
+Settings that describe one machine stay local: the remote relay fields (enabled, URL, token, device name, level), Share open tabs, the localhost relay fields, and `mcpEndpoint`. A record over 8MB is rejected (`too_large`) and shown as a sync error.
 
 ### Sync protocol
 
@@ -87,6 +88,7 @@ The browser's requests use negative ids on the socket; the server's relay calls 
   - `baseRev` is the rev this edit started from (0 if the browser never saw one).
   - If it equals the stored rev, or nothing is stored, the push replaces the record.
   - Otherwise someone else wrote in between and the server resolves by the table above. `record` is returned whenever the stored result differs from what was sent, and the browser writes it into its storage.
+- **Open tabs.** Each browser keeps every browser's snapshot in `iris_device_tabs` (device id → snapshot) and pushes only its own (`owns` on the collection); the others are applied as pulled and never pushed back. The background (`background/tabMirror.ts`) rewrites its own snapshot 15 seconds after a structural change (a tab opened, closed, moved, or given a new url, title, pin, or group; a group edited; a window closed), not on tab activation, and only when something besides the time changed. Only normal, non-incognito windows and http(s) tabs, at most 500. Turning Share open tabs off removes the snapshot, which is pushed as deleted. Not an export kind.
 - After a push that wrote anything, the server sends `{ method: "sync.changed" }` to the other browsers, which pull a few seconds later. Each browser also syncs on connect and about every 30 seconds.
 
 The browser keeps `iris_sync_state`: the server URL, its cursor, and for each record the rev it last saw and a version of the body it last sent or applied. A local body whose version differs is an unsent edit. A pull does not overwrite it; the next push sends it with the old base and the server merges. A different server URL starts the state over.

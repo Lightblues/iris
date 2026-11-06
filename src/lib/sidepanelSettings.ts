@@ -27,6 +27,7 @@ export interface SidePanelSettings {
   remoteRelayToken?: string
   remoteRelayLabel?: string // Device name, for example home or company
   remoteRelayLevel?: 'off' | 'read' | 'control' // What remote callers may do through this browser (default read)
+  shareTabs?: boolean // Mirror this browser's open tabs to the user's other browsers (default on; incognito never)
   exaApiKey?: string // Exa key for web_search. Stored only in chrome.storage.local
 }
 
@@ -55,6 +56,7 @@ export const DEFAULT_SETTINGS: SidePanelSettings = {
   remoteRelayToken: '',
   remoteRelayLabel: '',
   remoteRelayLevel: 'read',
+  shareTabs: true,
   exaApiKey: '',
 }
 
@@ -221,6 +223,7 @@ export function importSettings(jsonString: string): { success: true; settings: S
       remoteRelayToken: typeof parsed.remoteRelayToken === 'string' ? parsed.remoteRelayToken : DEFAULT_SETTINGS.remoteRelayToken,
       remoteRelayLabel: typeof parsed.remoteRelayLabel === 'string' ? parsed.remoteRelayLabel : DEFAULT_SETTINGS.remoteRelayLabel,
       remoteRelayLevel: ['off', 'read', 'control'].includes(parsed.remoteRelayLevel) ? parsed.remoteRelayLevel : DEFAULT_SETTINGS.remoteRelayLevel,
+      shareTabs: typeof parsed.shareTabs === 'boolean' ? parsed.shareTabs : DEFAULT_SETTINGS.shareTabs,
       exaApiKey: typeof parsed.exaApiKey === 'string' ? parsed.exaApiKey : DEFAULT_SETTINGS.exaApiKey,
     }
 

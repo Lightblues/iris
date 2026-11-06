@@ -47,6 +47,7 @@ One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component p
 │   Agents may ( ) Nothing, sync only      │
 │              (•) Read pages              │
 │              ( ) Control this browser    │
+│   [x] Share open tabs with my browsers   │  default on; incognito never
 ├ Pages ───────────────────────────────────┤
 │   Floating button: hide on [patterns]    │
 │   Chat export directory [choose] [⟳] [x] │
@@ -59,3 +60,22 @@ One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component p
 ```
 
 Synced across browsers: everything except the fields marked "not synced" (This browser, the localhost relay, the MCP endpoint), which describe one machine (`DEVICE_SETTINGS` in `lib/sync.ts`, [server.md](server.md)).
+
+## Tabs
+
+More ▾ → Tabs (`components/TabsTab.tsx`). Other devices (`components/OtherDevicesTabs.tsx`) lists the snapshots other browsers share (D010, [server.md](server.md)); clicking a tab opens its URL here in a new tab. Groups are not recreated (Chrome syncs saved groups itself); a group shows as a colored label.
+
+```
+┌──────────────────────────────────────────┐
+│ [Tabs (24)] [Other devices (2)] [Trash]  │
+├──────────────────────────────────────────┤
+│ work                     updated 2m ago  │  device name, else the id's first 8
+│ Window 1 · 12 tabs · focused             │
+│ [ic] arXiv 2410.01234 …       [Papers]   │  favicon or initial; group label in its color
+│      arxiv.org                           │
+│ [ic] Hacker News                         │
+│ Window 2 · 3 tabs                        │
+│ home                     updated 1d ago  │
+│ …                                        │
+└──────────────────────────────────────────┘
+```

@@ -8,8 +8,9 @@ import type { StoredReport } from './reportStore'
 import type { StoredScript } from './scriptStore'
 import type { StoredSkill } from './skillStore'
 import type { SidePanelSettings } from './sidepanelSettings'
+import { DEVICE_TABS_KEY, type TabSnapshot } from './tabMirror'
 
-export type SyncKind = 'conversation' | 'skill' | 'script' | 'report' | 'setting'
+export type SyncKind = 'conversation' | 'skill' | 'script' | 'report' | 'setting' | 'tabs'
 
 export interface PushRecord {
   kind: SyncKind
@@ -62,6 +63,8 @@ export interface Collection {
   mergeOnFirstSync?: boolean
   /** Pushes carry no base, so the server keeps whichever copy has the later `updatedAt`. */
   byEditTime?: boolean
+  /** When set, records it rejects are written by other browsers: always applied here, never pushed. */
+  owns?(id: string): boolean
   afterWrite?(): Promise<void>
 }
 
@@ -73,7 +76,7 @@ const MAX_LOCAL_CONVERSATIONS = 100
 /** Settings that describe this machine, not the user. */
 export const DEVICE_SETTINGS: (keyof SidePanelSettings)[] = [
   'remoteRelayEnabled', 'remoteRelayUrl', 'remoteRelayToken', 'remoteRelayLabel', 'remoteRelayLevel',
-  'browserRelayEnabled', 'browserRelayPort', 'browserRelayToken', 'mcpEndpoint', 'models',
+  'browserRelayEnabled', 'browserRelayPort', 'browserRelayToken', 'mcpEndpoint', 'models', 'shareTabs',
 ]
 
 /** JSON with object keys sorted: the server's jsonb and chrome.storage each reorder keys their own way. */
@@ -184,13 +187,40 @@ export function settingsCollection(key: string): Collection {
   }
 }
 
-export function defaultCollections(settingsKey: string, resyncScripts: () => Promise<void>): Collection[] {
+/** One record per browser, id = device id. This browser's snapshot missing from storage means sharing was turned off. */
+export function tabsCollection(deviceId: string): Collection {
+  const all = (bag: Bag) => (bag[DEVICE_TABS_KEY] ?? {}) as Record<string, TabSnapshot>
+  return {
+    kind: 'tabs',
+    keys: [DEVICE_TABS_KEY],
+    read(bag) {
+      const mine = all(bag)[deviceId]
+      return new Map(mine ? [[deviceId, { body: mine, updatedAt: mine.at }]] : [])
+    },
+    write(bag, changes) {
+      const next = { ...all(bag) }
+      for (const [id, body] of changes) {
+        if (body === null) delete next[id]
+        else next[id] = body as TabSnapshot
+      }
+      return { [DEVICE_TABS_KEY]: next }
+    },
+    version: hashJson,
+    deleted: (_bag, id) => id === deviceId,
+    owns: id => id === deviceId,
+    // A browser whose sync state was reset keeps its live snapshot over the server's older one.
+    mergeOnFirstSync: true,
+  }
+}
+
+export function defaultCollections(settingsKey: string, resyncScripts: () => Promise<void>, deviceId?: string): Collection[] {
   return [
     conversationCollection(),
     arrayCollection<StoredSkill>('skill', 'iris_skills', row => row.name, { include: row => row.author !== 'builtin', updatedAt: row => row.updatedAt }),
     arrayCollection<StoredScript>('script', 'iris_scripts', row => row.id, { afterWrite: resyncScripts }),
     arrayCollection<StoredReport>('report', 'iris_reports', row => row.id, { updatedAt: row => row.updated }),
     settingsCollection(settingsKey),
+    ...(deviceId ? [tabsCollection(deviceId)] : []),
   ]
 }
 
@@ -255,7 +285,8 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
         // A setting with no edit time is not an edit: the server's copy always applies.
         // Anything else unsent stays local. On first contact the server wins, except a conversation, which is merged by message.
         const unedited = collection.byEditTime && !mine
-        if (!unedited && (seen ? localV !== seen.v : !!mine && collection.mergeOnFirstSync)) continue
+        const theirs = collection.owns && !collection.owns(rec.id)
+        if (!unedited && !theirs && (seen ? localV !== seen.v : !!mine && collection.mergeOnFirstSync)) continue
         changes.set(rec.id, rec.deleted ? null : rec.body)
         times.set(rec.id, rec.updatedAt)
         state.seen[key] = { rev: rec.rev, v: rec.deleted ? '' : collection.version(rec.body) }
@@ -290,7 +321,7 @@ export function createSync(opts: { storage: SyncStorage; transport: SyncTranspor
       for (const [key, seen] of Object.entries(state.seen)) {
         if (!key.startsWith(prefix) || seen.v === '') continue
         const id = key.slice(prefix.length)
-        if (local.has(id)) continue
+        if (local.has(id) || (collection.owns && !collection.owns(id))) continue
         if (collection.deleted(bag, id)) outgoing.push({ kind: collection.kind, id, baseRev: seen.rev, updatedAt: now(), deleted: true })
         else delete state.seen[key]
       }

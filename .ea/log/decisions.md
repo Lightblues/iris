@@ -64,3 +64,10 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 **Status**: active
 
 **Decision**: Every extension change pushed to `main` is built by CI into a rolling `beta` pre-release (manifest version `<package version>.<run number>`, `version_name` `<version>-beta.<run> (<sha>)`). The user's Mac runs `install.sh beta --watch`: a launchd job installs a new beta within five minutes and Iris reloads itself, so agents change code and the user tests the same build a release would ship, with no setup per change. Releases stay as D001 says. Alternatives not taken now: a browser sandbox (AGS) or headless runs for UI judgement, which cannot replace the user's own logged-in browser; they remain for automated checks (iris-029).
+
+## D010. The Tabs view stays, for a mirror of the other browsers' tabs
+
+**Date**: 2026-11-06
+**Status**: active
+
+**Decision**: Amends D006, which folded the Tabs view and named it a candidate to drop. The view stays: Other devices shows the open tabs that the user's other browsers share through the Iris server, by device and window, and a click opens the tab here. Each browser shares its own snapshot by default (Settings → This browser → Share open tabs, not synced); incognito windows are never shared, and there is no intranet or never-share filter, because the user reaches the intranet from home too. Groups show only as a label: all the user's browsers are in one Google account, so Chrome already syncs saved groups. Send to device, parking tab sets, a full-page view, and access for outside agents are not built. Built as a small test of having this in Iris (iris-033). Chrome's own Tabs from other devices also works here (one Google account), but it lives in Chrome's history page. Alternative not taken now: the full model with send and park in `log/2026-11-06-tabs-across-devices.md`.

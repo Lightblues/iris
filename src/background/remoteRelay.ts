@@ -151,13 +151,13 @@ const storage = {
   set: (items: Record<string, unknown>) => chrome.storage.local.set(items),
 }
 
-function syncFor(url: string) {
+function syncFor(url: string, deviceId: string) {
   if (sync && syncServer === url) return sync
   syncServer = url
   sync = createSync({
     storage,
     server: url,
-    collections: defaultCollections(SETTINGS_KEY, async () => { await syncUserScripts() }),
+    collections: defaultCollections(SETTINGS_KEY, async () => { await syncUserScripts() }, deviceId),
     transport: {
       push: async (records: PushRecord[]) => (await request<{ results: PushResult[] }>('sync.push', { records })).results,
       pull: (since: number) => request<{ records: ServerRecord[]; cursor: number; more: boolean }>('sync.pull', { since }),
@@ -169,7 +169,7 @@ let syncServer = ''
 
 async function runSync(): Promise<void> {
   if (!authed || !isSocketOpen()) return
-  const engine = syncFor(currentUrl)
+  const engine = syncFor(currentUrl, await getDeviceId())
   try {
     await engine.run()
     const errors = engine.errors()

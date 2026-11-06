@@ -45,7 +45,10 @@ let profile: string
 before(async () => {
   db = pgliteDb()
   server = await startServer({ deviceToken: DEVICE, readKey: READ, host: '127.0.0.1', port: 0, db })
-  await openStore(db).push(DEFAULT_USER, [{ kind: 'setting', id: 'baseUrl', baseRev: 0, updatedAt: 1, body: { value: 'https://e2e.invalid/v1' } }])
+  await openStore(db).push(DEFAULT_USER, [
+    { kind: 'setting', id: 'baseUrl', baseRev: 0, updatedAt: 1, body: { value: 'https://e2e.invalid/v1' } },
+    { kind: 'tabs', id: 'home-device', baseRev: 0, updatedAt: 1, body: { label: 'home', at: 1, windows: [{ focused: true, tabs: [{ title: 'Opened at home', url: 'https://home.example/' }] }] } },
+  ])
 
   profile = mkdtempSync(join(tmpdir(), 'iris-e2e-'))
   context = await chromium.launchPersistentContext(profile, {
@@ -100,4 +103,21 @@ test('the extension connects to the local server and completes a sync', async ()
     return rows[0]?.body.value === 'e2e-key'
   })
   await until('the server baseUrl pulled into storage', async () => (await stored())?.baseUrl === 'https://e2e.invalid/v1')
+})
+
+test('open tabs are mirrored to the server, and other browsers\' tabs show under Tabs', async () => {
+  const url = `http://127.0.0.1:${server.port}/health`
+  const page = await context.newPage()
+  await page.goto(url)
+  await until('this browser\'s tabs on the server', async () => {
+    const { rows } = await db.query<{ body: { label: string; windows: { tabs: { url: string }[] }[] } }>(`SELECT body FROM records WHERE kind = 'tabs' AND id <> 'home-device' AND NOT deleted`)
+    return rows[0]?.body.label === 'e2e' && rows[0].body.windows.some(w => w.tabs.some(t => t.url === url))
+  }, 45_000)
+  await page.close()
+
+  await panel.reload()
+  await panel.getByTitle('More').first().click()
+  await panel.getByText('Tabs', { exact: true }).first().click()
+  await panel.getByText(/Other devices/).first().click()
+  await panel.getByText('Opened at home').waitFor({ timeout: 15_000 })
 })

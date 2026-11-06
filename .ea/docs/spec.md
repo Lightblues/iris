@@ -34,7 +34,7 @@ The one background actuator that *is* in scope: **browser relay**. External agen
 | **Scripts** | Core | Standard userscripts and WebMCP AgentScripts. Agent-authored, persisted, imported and exported. | [scripts.md](scripts.md) |
 | **Page enhancements** | Maintain | FAB and command menu. Entry points only. Do not expand unless they serve Agent or Knowledge. | [page-enhancements.md](page-enhancements.md) |
 | **Browser relay** | Core-adjacent | WS client. Page/tab tools plus `iris.*` methods for external agents. | [browser-relay.md](browser-relay.md) |
-| **Iris server** | Optional | Sync (chats, skills, scripts, reports, settings), relay calls by device level, and the conversation export. Off by default. | [server.md](server.md) |
+| **Iris server** | Optional | Sync (chats, skills, scripts, reports, settings, each browser's open tabs), relay calls by device level, and the conversation export. Off by default. | [server.md](server.md) |
 
 Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
 
@@ -83,7 +83,8 @@ Toggle: toolbar icon or `Cmd+Shift+O` (Chrome's `_execute_action`; an extension 
 | Tab | Status | Notes |
 |-----|--------|-------|
 | Agent, History, Skills, Scripts | Core | Primary tab bar |
-| Tabs, Bookmarks, Reading, Notes | Maintain | Secondary menu on the tab bar. Thin wrappers, not a product line |
+| Tabs | Maintain | Secondary menu. This browser's tabs, the tabs other browsers share through the Iris server (Other devices; D010), and closed-tab trash |
+| Bookmarks, Reading, Notes | Maintain | Secondary menu on the tab bar. Thin wrappers, not a product line |
 | Reports | Core | In the More menu, still core. Agent-written markdown reports: list, rendered preview, read-only revisions, download as `<name>.md`, delete. No editor. Tools in [agent.md](agent.md) |
 | Settings | Shared | Status strip, Model, Tools, This browser, Pages, Developer (D005; layout in [ui.md](ui.md)) |
 

@@ -90,6 +90,19 @@ export function ThisBrowserSection({ settings, onSettingsChange }: Props) {
         ))}
       </fieldset>
 
+      <label className="flex items-start gap-2 text-xs">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={settings.shareTabs !== false}
+          onChange={(e) => onSettingsChange({ shareTabs: e.target.checked })}
+        />
+        <span>
+          Share open tabs with my other browsers
+          <span className="block text-[10px] text-muted-foreground">They appear under Tabs → Other devices. Incognito windows are never shared.</span>
+        </span>
+      </label>
+
       <p className="text-[10px] text-muted-foreground">
         This browser connects out to your server. History and tool calls are readable there.
       </p>

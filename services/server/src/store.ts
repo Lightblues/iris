@@ -2,7 +2,7 @@ import pg from 'pg'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
 export const PULL_PAGE_BYTES = 256 * 1024
-export const KINDS = ['conversation', 'skill', 'script', 'report', 'setting'] as const
+export const KINDS = ['conversation', 'skill', 'script', 'report', 'setting', 'tabs'] as const
 export type Kind = typeof KINDS[number]
 /** Kinds other apps may read through /export. Settings carry API keys and never leave the sync path. */
 export const EXPORT_KINDS: Record<string, string> = {
