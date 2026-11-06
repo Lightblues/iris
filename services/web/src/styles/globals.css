@@ -3,8 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @theme inline {
-  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-heading: var(--font-sans);
 
   /* Shared with forge's palette; each device state takes one. */
@@ -46,11 +46,12 @@
 }
 
 :root {
-  --steel: oklch(0.975 0.004 247);
-  --steel-raised: oklch(0.996 0.002 247);
-  --ink: oklch(0.255 0.032 260);
-  --ink-muted: oklch(0.48 0.025 258);
-  --ink-faint: oklch(0.66 0.018 255);
+  --brand: #ab366e;
+  --steel: #fcf5f7;
+  --steel-raised: oklch(0.995 0.003 355);
+  --ink: oklch(0.255 0.02 355);
+  --ink-muted: oklch(0.48 0.02 355);
+  --ink-faint: oklch(0.66 0.015 355);
   --straw: oklch(0.79 0.13 84);
   --bronze: oklch(0.62 0.13 50);
   --purple: oklch(0.5 0.14 318);
@@ -65,28 +66,29 @@
   --card-foreground: var(--ink);
   --popover: var(--steel-raised);
   --popover-foreground: var(--ink);
-  --primary: var(--ink);
+  --primary: var(--brand);
   --primary-foreground: var(--steel-raised);
-  --secondary: oklch(0.935 0.008 250);
+  --secondary: oklch(0.935 0.012 355);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.94 0.007 250);
+  --muted: oklch(0.94 0.01 355);
   --muted-foreground: var(--ink-muted);
-  --accent: oklch(0.935 0.008 250);
+  --accent: oklch(0.935 0.012 355);
   --accent-foreground: var(--ink);
   --destructive: oklch(0.55 0.2 27);
-  --border: oklch(0.9 0.009 250);
-  --input: oklch(0.87 0.01 250);
-  --ring: oklch(0.6 0.08 258);
+  --border: oklch(0.9 0.01 355);
+  --input: oklch(0.87 0.012 355);
+  --ring: var(--brand);
   --radius: 0.5rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --steel: oklch(0.2 0.014 258);
-    --steel-raised: oklch(0.245 0.016 258);
-    --ink: oklch(0.94 0.006 250);
-    --ink-muted: oklch(0.74 0.014 252);
-    --ink-faint: oklch(0.56 0.014 252);
+    --brand: #f18db5;
+    --steel: #191114;
+    --steel-raised: oklch(0.23 0.016 355);
+    --ink: oklch(0.94 0.006 355);
+    --ink-muted: oklch(0.74 0.014 355);
+    --ink-faint: oklch(0.56 0.014 355);
     --straw: oklch(0.83 0.12 86);
     --bronze: oklch(0.72 0.12 52);
     --purple: oklch(0.7 0.13 318);
@@ -94,13 +96,14 @@
     --cold: oklch(0.62 0.014 250);
     --ok: oklch(0.72 0.13 155);
 
-    --secondary: oklch(0.3 0.016 258);
-    --muted: oklch(0.29 0.016 258);
-    --accent: oklch(0.3 0.016 258);
+    --primary-foreground: var(--steel);
+    --secondary: oklch(0.3 0.018 355);
+    --muted: oklch(0.29 0.018 355);
+    --accent: oklch(0.3 0.018 355);
     --destructive: oklch(0.7 0.18 24);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 16%);
-    --ring: oklch(0.65 0.08 258);
+    --ring: var(--brand);
   }
 }
 
@@ -115,7 +118,6 @@
   html {
     @apply font-sans antialiased;
     -webkit-text-size-adjust: 100%;
-    font-feature-settings: "ss02";
   }
   body {
     @apply bg-background text-foreground;
@@ -123,12 +125,12 @@
     padding-right: env(safe-area-inset-right);
   }
   ::selection {
-    background: color-mix(in oklch, var(--temper-blue) 22%, transparent);
+    background: color-mix(in oklch, var(--brand) 22%, transparent);
   }
 }
 
 @layer utilities {
-  .tabular {
+  .tabular, .font-mono, code, kbd, samp {
     font-variant-numeric: tabular-nums;
   }
 }

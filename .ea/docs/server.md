@@ -137,7 +137,7 @@ Every route except `GET /health`, the web app's files, and `/auth/*` needs `Auth
 
 ## Web app
 
-`services/web` (React 19, Vite, Tailwind 4, react-router, TanStack Query; the look and stack of forge's web app). `pnpm build` writes `services/web/dist`, which the server serves:
+`services/web` (React 19, Vite, Tailwind 4, react-router, TanStack Query; forge's stack; the look is iris's rose `--brand` `#ab366e` / `#f18db5` from the `pwa` skill's `references/design.md`, system fonts, no web fonts; the extension's `src/index.css` uses the same tokens). `pnpm build` writes `services/web/dist`, which the server serves:
 
 - `/`: the landing page (pitch, install command, first Load unpacked, screenshots). `/login`, `/app`, `/app/*` get the same `index.html`; any file in `dist` (hashed `assets/`, `shots/`, `icon.png`) is served as is. All without a key, before the rate limit (behind the tunnel every visitor shares one address). A missing file falls through to auth, so it is a 401, not a page. CSP is `'self'` only: fonts are bundled, nothing external is loaded, no tracking.
 - `/login`: paste a read or control key. `POST /auth/login { key }` → `{ loggedIn, user, level }` and an `iris_session` cookie (`HttpOnly`, `SameSite=Strict`, `Secure` behind HTTPS, 30 days). A device token does not log in. `GET /auth/me` → `{ loggedIn, user?, level? }`; `POST /auth/logout` ends the session.
