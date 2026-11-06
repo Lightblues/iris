@@ -108,3 +108,13 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/core-concepts/sync-concepts.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+<!-- forge:start -->
+## forge
+
+This repository tracks work as forge issues in `.ea/issues/` (`forge ls`); settings in `.ea/forge.yaml`. Before writing, dispatching, executing, or closing an issue, read the `forge` skill (`forge setup` installs it).
+
+- Dispatched issue agents go to this checkout's `forge` Paseo workspace, never the workspace the user works in; archive them once their issue is done.
+- Commit and push only as `delivery` says. Never create branches.
+- `.ea/docs/` describes the code as it is now; update it in the same commit as the change.
+<!-- forge:end -->

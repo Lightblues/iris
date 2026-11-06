@@ -1,4 +1,4 @@
-# Positioning review: agent-native (2026-10-30)
+# 2026-10-30: Positioning review, agent-native
 
 Status: accepted (D006, 2026-10-30)
 

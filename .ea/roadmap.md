@@ -1,32 +1,47 @@
 # Roadmap
 
-Iris is the browser-side agent of the ea system: an agent that works on the page in front of the user, and a relay through which outside agents (via sonar) read and act in the user's logged-in browsers. Everything else is an entry point to those two or a thin tool kept running. What it is today: [docs/spec.md](docs/spec.md).
+Iris is the browser-side agent of the ea system: an agent that works on the page in front of the user, and a relay through which outside agents (via sonar) read and act in the user's logged-in browsers. Everything else is an entry point to those two or a thin tool kept running. What it is today: [docs/spec.md](docs/spec.md). Stages are labelled by version because each ships as one release people install (D001): fixes and small improvements are patches on the current minor (0.6.x), and a minor version is one planned round of refactoring and new capability, released once when the round is done.
 
-Versioning (D001): fixes and small improvements are patches on the current minor (0.6.x). A minor version is one planned round of refactoring and new capability, released once when the round is done.
+## Done
 
-## 0.6.x (current)
+- 0.6.1 (2026-10-28): the one-command install and self-reload.
+- 0.6.2 (2026-10-28): fixed the settings overwrite and the sync push loop.
 
-Patches only. 0.6.1 added the one-command install and self-reload; 0.6.2 fixed the settings overwrite and the sync push loop.
+## 0.7: core first, docs and settings in order (now)
 
-## 0.7: core first, docs and settings in order
+Done when: the agent-experience items AX-1 to AX-10 from the [positioning review](log/2026-10-30-positioning-review.md) are done and 0.7.0 is released. Until then patches stay on 0.6.x. One minor for the whole round; order matters, because positioning decides what the refactor keeps. Status 2026-10-30: done except agent experience.
 
-Status 2026-10-30: done except item 4. Done: docs (1), review accepted as D006 (2), cleanup iris-025 (3), relay hardening iris-027/028/029 (5), settings iris-026 (6), users schema iris-030 (7), web app with landing, login, and devices page iris-031 (8); beta channel D008. Left: agent experience (4), from AX-1 to AX-10 in `log/2026-10-30-positioning-review.md` (AX-7 and part of AX-1/AX-9 already done in iris-025). Then release 0.7.0.
-
-One minor for the whole round below. Order matters: positioning decides what the refactor keeps.
-
-1. **Docs and process.** Forge `.ea` layout: this roadmap, [docs/README.md](docs/README.md), [log/decisions.md](log/decisions.md). Every behavior change updates `docs/` in the same commit. Done 2026-10-29 for the skeleton.
-2. **Positioning review (agent-native).** Go through every surface and tool with one question: does it serve the agent on the current page, or the relay for outside agents? Output: a log entry with keep / fold / drop per item, then a decision. Bookmarks, Reading list, Notes, Tracing are kept behind the "More" menu and not developed (D003).
-3. **Code review for legacy.** Not a rewrite (D002). Find dead code (e.g. the unused `SettingsPanel.tsx`), leftovers of retired pieces (`vesta`), oversized files (`SettingsPage.tsx`, `agentToolCatalog.ts`, `background/index.ts`), and split or delete module by module, each with tests passing.
-4. **Agent experience.** The core surface: tool set and descriptions, page reading, long-chat behavior, errors shown to the user, model switching. Concrete items come out of step 2.
-5. **Relay hardening.** Detect a half-open socket on the server (calls hung while the device looked connected, 2026-10-28); settings carry a per-field edit time instead of push time; device version and health in `/devices` (version done in 0.6.1). End-to-end checks: headless Chromium on devcloud for smoke tests, xh-mini-m1 (control level) for real-browser checks over the relay.
-6. **UI.** Layouts are agreed as ASCII in docs before code. Current layout: [docs/ui.md](docs/ui.md). Settings layout accepted: [log/2026-10-29-settings-layout.md](log/2026-10-29-settings-layout.md) (D005).
-7. **Users in the schema.** `users` table and per-user device tokens and keys; `user_id` already keys every record. One user (`me`) in practice. No sign-up, no billing (D004).
-8. **Landing page.** `iris.easonsi.site` root: what Iris is, the install command, screenshots. The API stays where it is.
+- [x] Docs and process: forge `.ea` layout (this roadmap, [docs/README.md](docs/README.md), [log/decisions.md](log/decisions.md)); every behavior change updates `docs/` in the same commit; skeleton done 2026-10-29
+- [x] Positioning review (agent-native): keep / fold / drop for every surface and tool; Bookmarks, Reading list, Notes, Tracing kept behind "More" and not developed (iris-024, D006, D003)
+- [x] Code review for legacy, not a rewrite: dead code (the unused `SettingsPanel.tsx`), `vesta` leftovers, oversized `SettingsPage.tsx`, `agentToolCatalog.ts`, `background/index.ts` split module by module with tests passing (iris-025, D002)
+- [x] Relay hardening: half-open sockets detected on the server (calls hung while the device looked connected, 2026-10-28) (iris-027); per-field edit times for settings instead of push time (iris-028, D007); device version (0.6.1) and health in `/devices`; headless Chromium smoke tests on devcloud and real-browser checks on xh-mini-m1 (control level) over the relay (iris-029)
+- [x] UI: layouts agreed as ASCII in docs before code, current layout in [docs/ui.md](docs/ui.md); Settings rebuilt to the accepted [layout](log/2026-10-29-settings-layout.md) (iris-026, D005)
+- [x] Users in the schema: `users` table, per-user device tokens and keys, `user_id` keys every record; one user (`me`) in practice, no sign-up, no billing (iris-030, D004)
+- [x] Landing page at the `iris.easonsi.site` root (what Iris is, the install command, screenshots), web app with login and devices page; the API stays where it is (iris-031)
+- [x] Rolling beta channel for testing between releases (D008)
+- [ ] Agent experience, the core surface (tool set and descriptions, page reading, long-chat behavior, errors shown to the user, model switching): the AX items below, each its own issue
+- [ ] AX-1 Tool schema size and overlap (partly done in iris-025)
+- [ ] AX-2 Descriptions that contradict behavior
+- [ ] AX-3 One page reader
+- [ ] AX-4 Long chats
+- [ ] AX-5 Errors shown to the user
+- [ ] AX-6 `web_search` without a key
+- [x] AX-7 MCP leftovers in the chat (iris-025)
+- [ ] AX-8 Entry points that skip the agent
+- [ ] AX-9 Relay overlap and focus (partly done in iris-025)
+- [ ] AX-10 Model switching
+- [ ] Release 0.7.0
 
 ## Later
 
-- Google sign-in on top of the 0.7 user schema, invite only.
+- Google sign-in on top of the 0.7 user schema, invite only (D004).
+- A zip export of Iris's own data, when asked.
+
+## Log
+
+- [2026-10-29 settings layout](log/2026-10-29-settings-layout.md): Settings grouped by task, localhost relay and MCP under Developer (D005).
+- [2026-10-30 positioning review](log/2026-10-30-positioning-review.md): keep / fold / drop for every surface, tool, and relay method; AX-1 to AX-10 (D006).
 
 ## Open questions
 
-- Settings: a "test" button next to the API key that calls `/v1/models`?
+- **API key test button**: whether Settings gets a "test" button next to the API key that calls `/v1/models`.

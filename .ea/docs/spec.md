@@ -38,7 +38,7 @@ The one background actuator that *is* in scope: **browser relay**. External agen
 
 Maintain = keep working, fix bugs, add only when a real need appears. Do not grow new product pillars.
 
-**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. A later zip export can be added when asked. Cross-browser sync is the optional Iris server.
+**Out of scope (do not position Iris as):** a sync client for a local directory or Notion, a Chrome UI replacement for bookmarks/reading list, a background browser-use agent (CDP / click-type loops), a userscript IDE, a full Tampermonkey `GM_*` clone, or a public AIO sidebar product. Cross-browser sync is the optional Iris server.
 
 ## Architecture
 

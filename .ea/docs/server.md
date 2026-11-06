@@ -153,5 +153,5 @@ Dev: `pnpm --dir services/web dev` on `127.0.0.1:33031`, proxying the API to a l
 
 - End-to-end encryption
 - An Iris agent loop on the server
-- Sign-up, and login other than with an existing key (an invite-only Google sign-in may come later)
+- Sign-up, and login other than with an existing key
 - Replacing the localhost ea-tools relay

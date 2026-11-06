@@ -1,6 +1,6 @@
-# Settings layout proposal
+# 2026-10-29: Settings layout proposal
 
-Status: accepted (2026-10-30, D005)
+Status: accepted (2026-10-30, D005); built in iris-026.
 
 The current page (see `.ea/docs/ui.md`) is one long scroll in implementation order: model tuning sits next to the tracing endpoint, two relays with similar names sit apart, and machine-only fields are mixed with synced ones without saying so. Proposal: group by what the user is doing, put the daily things first, and mark which fields stay on this machine.
 
