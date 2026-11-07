@@ -16,6 +16,8 @@ export function initShortcuts(): void {
       } catch (error) {
         console.log('[Iris] Could not send message to tab:', error);
       }
+    } else if (command === 'toggle-page-toc') {
+      await chrome.tabs.sendMessage(tab.id, { type: 'toggle-page-toc' }).catch(() => {});
     }
   });
 }

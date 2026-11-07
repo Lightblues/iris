@@ -39,6 +39,13 @@
       },
       "description": "Open command menu"
     },
+    "toggle-page-toc": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Toggle the page outline"
+    },
     "_execute_action": {
       "suggested_key": {
         "default": "Ctrl+Shift+O",

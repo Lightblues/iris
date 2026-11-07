@@ -22,6 +22,9 @@ async function runInTab<T>(tabId: number, func: (...args: any[]) => T, args: unk
 
 export async function readPage(tabId: number, mode: 'card' | 'text' | 'selector', offset: number, selector?: string): Promise<unknown> {
   if (mode === 'card') {
+    const outline = await chrome.tabs.sendMessage(tabId, { type: 'get-outline' })
+      .then((r: { items?: { tag: string; text: string }[] }) => r?.items)
+      .catch(() => undefined)
     const card = await runInTab(tabId, () => {
       const headings = Array.from(document.querySelectorAll('h1,h2,h3')).slice(0, 30).map(el => {
         const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 140)
@@ -34,7 +37,7 @@ export async function readPage(tabId: number, mode: 'card' | 'text' | 'selector'
       `# ${card.title}`,
       card.url,
       `interactive: ${card.interactive}`,
-      ...card.headings,
+      ...(outline ? outline.slice(0, 30).map(i => `${i.tag}: ${i.text}`) : card.headings),
     ].join('\n')
     return { mode, untrusted: true, ...clip(body) }
   }

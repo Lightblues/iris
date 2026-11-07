@@ -50,7 +50,8 @@ export type CommandId =
   | 'copy_page_as_markdown'
   | 'copy_selection_as_markdown'
   | 'save_page_as_note'
-  | 'save_selection_as_note';
+  | 'save_selection_as_note'
+  | 'toggle_outline';
 
 export interface CommandItem {
   id: CommandId;
@@ -95,6 +96,12 @@ export const COMMANDS: CommandItem[] = [
     label: 'Save Selection as Note',
     description: 'Save selected text to notes',
     icon: '📌',
+  },
+  {
+    id: 'toggle_outline',
+    label: 'Toggle Outline',
+    description: 'Table of contents of this page (Cmd+Shift+K)',
+    icon: '🧭',
   },
 ];
 

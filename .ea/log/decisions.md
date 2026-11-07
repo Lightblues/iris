@@ -71,3 +71,10 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 **Status**: active
 
 **Decision**: Amends D006, which folded the Tabs view and named it a candidate to drop. The view stays: Other devices shows the open tabs that the user's other browsers share through the Iris server, by device and window, and a click opens the tab here. Each browser shares its own snapshot by default (Settings → This browser → Share open tabs, not synced); incognito windows are never shared, and there is no intranet or never-share filter, because the user reaches the intranet from home too. Groups show only as a label: all the user's browsers are in one Google account, so Chrome already syncs saved groups. Send to device, parking tab sets, a full-page view, and access for outside agents are not built. Built as a small test of having this in Iris (iris-033). Chrome's own Tabs from other devices also works here (one Google account), but it lives in Chrome's history page. Alternative not taken now: the full model with send and park in `log/2026-11-06-tabs-across-devices.md`.
+
+## D011. A page outline as the one reading aid on the page
+
+**Date**: 2026-11-07
+**Status**: active
+
+**Decision**: Amends D006 and the "maintain only" rule for page enhancements. Iris draws a table of contents on long pages: a rail of ticks at the right edge, a floating card on hover or `Cmd+Shift+K`, built from the page's headings or, on ChatGPT, DeepSeek and Gemini, from the user's prompts; per-site opt-out under Settings → Pages (`log/2026-11-07-page-toc.md`). It is allowed because it shares the agent's page reading (`lib/outline.ts` also feeds `read_page`'s card) and adds no storage or sync beyond one setting; other reading aids need the same justification. Shipped as a 0.6.x patch. Alternatives rejected: a side-panel tab, which narrows the page and takes the agent's place; both surfaces, two UIs for one list.

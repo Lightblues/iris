@@ -17,6 +17,7 @@ export interface SidePanelSettings {
   maxSteps?: number // Agent loop max steps (default 20)
   phoenixEndpoint?: string // Phoenix tracing endpoint (optional)
   fabSitePatterns?: string[] // Glob blocklist; FAB is hidden except on adapted sites
+  tocSitePatterns?: string[] // Glob blocklist for the page outline rail
   tracingEnabled?: boolean // Enable/disable passive tracing (default true)
   mcpEndpoint?: string // ea-tools MCP server URL (default: http://localhost:8000/sse)
   browserRelayEnabled?: boolean // Connect to ea-tools browser relay (default true)
@@ -213,6 +214,7 @@ export function importSettings(jsonString: string): { success: true; settings: S
       maxSteps: parsed.maxSteps,
       phoenixEndpoint: parsed.phoenixEndpoint,
       fabSitePatterns: parsed.fabSitePatterns,
+      tocSitePatterns: Array.isArray(parsed.tocSitePatterns) ? parsed.tocSitePatterns : undefined,
       tracingEnabled: parsed.tracingEnabled,
       mcpEndpoint: parsed.mcpEndpoint,
       browserRelayEnabled: typeof parsed.browserRelayEnabled === 'boolean' ? parsed.browserRelayEnabled : DEFAULT_SETTINGS.browserRelayEnabled,

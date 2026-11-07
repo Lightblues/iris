@@ -6,6 +6,8 @@ import { readGmLogs } from './gmBridge'
 import { initDerivedTabOpens } from './derivedTabs'
 import { showCommandMenu } from './commandMenu'
 import { initFloatingSidebar, refreshFab, setFabCustomActions } from './floatingSidebar'
+import { initPageToc, refreshPageToc, togglePageToc } from './pageToc'
+import { extractOutline } from '../lib/outline'
 import { getAdapterForUrl } from './chatExport'
 import { handleIrisChatApi } from './chatExport/relayApi'
 import { exportCurrent, exportAll } from './chatExport/runExport'
@@ -19,6 +21,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open-command-menu') {
     showCommandMenu()
     sendResponse({ success: true })
+  } else if (message.type === 'toggle-page-toc') {
+    togglePageToc()
+    sendResponse({ success: true })
+  } else if (message.type === 'get-outline') {
+    sendResponse({ items: extractOutline().map(({ tag, level, text }) => ({ tag, level, text })) })
   } else if (message.type === 'convert-to-markdown') {
     handleMarkdownConvert(message as MarkdownConvertMessage).then(sendResponse)
     return true
@@ -95,9 +102,11 @@ async function init() {
   if (!isInitialized) {
     await initFloatingSidebar()
     initSelectionPopup()
+    void initPageToc()
     isInitialized = true
   } else {
     refreshFab()
+    refreshPageToc(true)
   }
 
   // Restore saved highlights for this page

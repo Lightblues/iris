@@ -6,6 +6,7 @@ import { ModelSection } from './settings/ModelSection'
 import { WebSearchSection } from './settings/WebSearchSection'
 import { ThisBrowserSection } from './settings/ThisBrowserSection'
 import { FabSection } from './settings/FabSection'
+import { PageTocSection } from './settings/PageTocSection'
 import { ChatExportSection } from './settings/ChatExportSection'
 import { PhoenixField } from './settings/PhoenixField'
 import { LocalRelaySection } from './settings/LocalRelaySection'
@@ -42,6 +43,7 @@ export function SettingsPage({ settings, onSettingsChange }: SettingsPageProps) 
       <section className="space-y-4">
         <SectionHeader title="Pages" />
         <FabSection {...section} />
+        <PageTocSection {...section} />
         <ChatExportSection onError={setError} />
       </section>
 

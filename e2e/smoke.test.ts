@@ -121,3 +121,34 @@ test('open tabs are mirrored to the server, and other browsers\' tabs show under
   await panel.getByText(/Other devices/).first().click()
   await panel.getByText('Opened at home').waitFor({ timeout: 15_000 })
 })
+
+test('a long page with headings gets an outline rail, and a jump lands below the sticky header', async () => {
+  const section = (t: string) => `<h2>${t}</h2>${'<p>text</p>'.repeat(60)}`
+  const long = `<html><head><title>Doc</title></head><body style="margin:0">
+    <header style="position:sticky;top:0;height:60px;background:#eee">bar</header>
+    <main><h1>Guide</h1>${['Intro', 'Method', 'Results', 'Discussion'].map(section).join('')}</main></body></html>`
+  const page = await context.newPage()
+  await page.route('https://toc.example/**', route => route.fulfill({
+    contentType: 'text/html',
+    body: route.request().url().endsWith('/short') ? '<html><body><h2>A</h2><h2>B</h2><h2>C</h2></body></html>' : long,
+  }))
+  await page.goto('https://toc.example/long')
+  const rail = page.locator('#iris-page-toc .rail')
+  await rail.waitFor({ timeout: 15_000 })
+  assert.equal(await page.locator('#iris-page-toc .tick').count(), 5)
+  await rail.hover()
+  const item = page.locator('#iris-page-toc .item', { hasText: 'Results' })
+  await item.waitFor({ timeout: 5_000 })
+  await item.click()
+  const top = await until('the jump', async () => {
+    const t = await page.evaluate(() => [...document.querySelectorAll('h2')].find(h => h.textContent === 'Results')!.getBoundingClientRect().top)
+    return t > 50 && t < 120 ? t : undefined
+  }, 5_000)
+  assert.ok(top >= 60, `heading below the sticky header (${top})`)
+  await page.locator('#iris-page-toc .card').waitFor({ state: 'hidden', timeout: 5_000 })
+
+  await page.goto('https://toc.example/short')
+  await page.waitForTimeout(1500)
+  assert.equal(await page.locator('#iris-page-toc .rail').count(), 0)
+  await page.close()
+})

@@ -53,7 +53,7 @@ Background (service worker)
   message router
 
 Content scripts (<all_urls>)
-  FAB, command menu
+  FAB, command menu, page outline (D011)
   GM_* bridge and GM_log buffer
   highlight restore, page/selection extraction
   chat-export adapters (on supported origins)

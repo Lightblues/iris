@@ -1,4 +1,5 @@
 import { COMMANDS, type CommandItem, type CommandId, type CommandResultMessage } from '../lib/types';
+import { togglePageToc } from './pageToc';
 
 let menuContainer: HTMLDivElement | null = null;
 let selectedIndex = 0;
@@ -154,6 +155,10 @@ async function executeCommand(commandId: CommandId): Promise<void> {
   // Restore selection before hiding menu (so selection-dependent commands work)
   restoreSelection();
   hideCommandMenu();
+  if (commandId === 'toggle_outline') {
+    togglePageToc();
+    return;
+  }
 
   const pageInfo = {
     url: window.location.href,
@@ -184,7 +189,7 @@ export function hideCommandMenu(): void {
   savedSelection = null;
 }
 
-function showToast(message: string, type: 'success' | 'error'): void {
+export function showToast(message: string, type: 'success' | 'error'): void {
   const toast = document.createElement('div');
   toast.className = `iris-toast iris-toast-${type}`;
   toast.textContent = message;

@@ -23,6 +23,29 @@ The side panel as it is now. Layout changes are agreed as ASCII here (or in a `l
 
 Entry points into it: toolbar icon or `Cmd+Shift+O`, the FAB on allowlisted sites, the command palette (`Cmd+Shift+P`).
 
+## Page outline
+
+On the page, not in the side panel (`content/pageToc.ts`, [page-enhancements.md](page-enhancements.md)); D011.
+
+```
+ page text …                                    ─
+ page text …                                    ──   collapsed rail: one tick per heading,
+ page text …                                    ━━   current section darker
+                                                ──
+                                                 ◎   FAB (allowlisted sites only)
+
+ hover the rail, or Cmd+Shift+K:
+                                   ┌ Outline · 12 ─── 📌 ┐
+ page text …                       │ ▸ Introduction      │  floating card, 260 px, max 70% height
+ page text …                       │ ▾ Method            │  h4+ folded under their parent
+ page text …                       │ ▌   Data            │  current section
+                                   │     Training        │
+                                   │ [Filter…]           │  only above 40 entries
+                                   └─────────────────────┘
+```
+
+On ChatGPT, DeepSeek and Gemini the card is titled Prompts and lists the user's prompts.
+
 ## Settings
 
 One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component per block in `components/settings/`), laid out per [log/2026-10-29-settings-layout.md](../log/2026-10-29-settings-layout.md) (D005):
@@ -50,6 +73,7 @@ One scrolling page (`src/sidepanel/components/SettingsPage.tsx`, one component p
 │   [x] Share open tabs with my browsers   │  default on; incognito never
 ├ Pages ───────────────────────────────────┤
 │   Floating button: hide on [patterns]    │
+│   Page outline: hide on [patterns]       │
 │   Chat export directory [choose] [⟳] [x] │
 ├ ▸ Developer ─────────────────────────────┤  <details>, collapsed
 │   Phoenix endpoint                       │
