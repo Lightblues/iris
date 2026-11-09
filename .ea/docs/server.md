@@ -145,7 +145,7 @@ Every route except `GET /health`, the web app's files, and `/auth/*` needs `Auth
 - `/app/devices`: each of the user's browsers with level, version, online or offline, connected since, last frame age, reconnects in the last hour, an hour-long online bar, and the recent connects and disconnects. It refreshes every 3 seconds from `GET /devices?history=1`. A browser that is online but has reconnected 3 times in the hour, or whose last frame is over 45 seconds old, shows as Unstable. **Test** runs `iris.capabilities` on that browser through `POST /call` and shows the round trip in ms, or the error.
 - Installable PWA (forge's pattern): `manifest.webmanifest` (`start_url /app`, standalone, 192/512 and maskable icons), `apple-touch-icon.png` (180 px, opaque, since iOS ignores the manifest icons), the iOS meta tags, and `sw.js` (network-first app pages with a 3 s cached fallback, cache-first `assets/`; it never handles the API). The /app header's ⋯ menu has Back to top (phone), Share…, Copy link, Reload, the account, and Log out, because the installed app has no browser bar. Safe-area insets pad the header, sides, and bottom. Icons are upscaled from the 96 px `icon.png`; regenerate them when a larger source exists.
 
-Dev: `pnpm --dir services/web dev` on `127.0.0.1:33031`, proxying the API to a local server on 33030.
+Dev: `pnpm --dir services/web dev` on `127.0.0.1:33093` (`$PASEO_PORT` in a worktree, else `IRIS_WEB_DEV_PORT`; it was 33031, forge's production port, until 2026-11-09), proxying the API to a local server on 33030.
 
 ## Deploy (this setup)
 

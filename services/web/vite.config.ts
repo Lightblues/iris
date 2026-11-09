@@ -12,5 +12,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   define: { __IRIS_VERSION__: JSON.stringify(version) },
-  server: { host: '127.0.0.1', port: 33031, strictPort: true, proxy },
+  server: { host: '127.0.0.1', port: Number(process.env.PASEO_PORT ?? process.env.IRIS_WEB_DEV_PORT ?? 33093), strictPort: true, proxy },
 })
