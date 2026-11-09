@@ -5,7 +5,8 @@ After=network.target docker.service
 [Service]
 Type=simple
 WorkingDirectory=/data/projects/app/iris/services/server
-EnvironmentFile=/data/projects/app/iris/services/server/.env
+# Rendered from the secrets store: secrets render env services/iris.env /etc/iris/env
+EnvironmentFile=/etc/iris/env
 ExecStart=/usr/local/bin/node src/index.ts
 Restart=always
 RestartSec=3
