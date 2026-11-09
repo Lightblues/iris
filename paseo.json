@@ -1,0 +1,20 @@
+{
+  "worktree": {
+    "setup": [
+      "pnpm install --frozen-lockfile",
+      "pnpm --dir services/server install --ignore-workspace --frozen-lockfile",
+      "pnpm --dir services/web install --ignore-workspace --frozen-lockfile"
+    ]
+  },
+  "scripts": {
+    "test": {
+      "command": "pnpm test"
+    },
+    "typecheck": {
+      "command": "pnpm typecheck"
+    },
+    "build": {
+      "command": "pnpm build"
+    }
+  }
+}
