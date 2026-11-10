@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node src/index.ts",
     "test": "node --test src/server.test.ts",
-    "user": "node --env-file-if-exists=.env src/cli.ts user",
-    "token": "node --env-file-if-exists=.env src/cli.ts token"
+    "user": "node --env-file-if-exists=/etc/iris/env src/cli.ts user",
+    "token": "node --env-file-if-exists=/etc/iris/env src/cli.ts token"
   },
   "dependencies": {
     "pg": "^8.23.1",

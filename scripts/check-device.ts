@@ -4,7 +4,7 @@
  * Usage:
  *   pnpm check-device xh-mini-m1 [url]
  *
- * Keys come from services/server/.env (IRIS_CONTROL_KEY, IRIS_HOST, IRIS_PORT) and are never printed.
+ * Keys come from /etc/iris/env (IRIS_CONTROL_KEY, IRIS_HOST, IRIS_PORT) and are never printed.
  * IRIS_URL overrides the server address, e.g. https://iris.easonsi.site from another machine.
  */
 import { existsSync, readFileSync } from 'node:fs'
@@ -22,7 +22,7 @@ function readEnv(path: string): Record<string, string> {
   return out
 }
 
-const env = { ...readEnv(resolve('services/server/.env')), ...process.env }
+const env = { ...readEnv(process.env.IRIS_ENV_FILE || '/etc/iris/env'), ...process.env }
 const key = env.IRIS_CONTROL_KEY || ''
 const host = !env.IRIS_HOST || env.IRIS_HOST === '0.0.0.0' ? '127.0.0.1' : env.IRIS_HOST
 const base = (env.IRIS_URL || `http://${host}:${env.IRIS_PORT || 33030}`).replace(/\/$/, '')
@@ -47,7 +47,7 @@ async function main() {
     process.exit(2)
   }
   if (!key) {
-    console.error('IRIS_CONTROL_KEY is not set (services/server/.env or the environment)')
+    console.error('IRIS_CONTROL_KEY is not set (/etc/iris/env or the environment)')
     process.exit(2)
   }
   console.log(`server ${base}`)

@@ -10,7 +10,7 @@ const USAGE = `usage:
 
 async function main(args: string[]) {
   const url = process.env.IRIS_DATABASE_URL
-  if (!url) throw new Error('IRIS_DATABASE_URL is required (read from .env)')
+  if (!url) throw new Error('IRIS_DATABASE_URL is required (set in /etc/iris/env)')
   const db = pgDb(url)
   try {
     await migrate(db)

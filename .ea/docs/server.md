@@ -21,7 +21,7 @@ Code: `services/server`, and the web app in `services/web`; neither is part of t
 
 ## Run
 
-Node 22.18 or newer (TypeScript strip types) and Postgres.
+Node 24 (TypeScript strip types) and Postgres.
 
 ```bash
 cd services/server
@@ -50,7 +50,7 @@ Schema only (D004): no sign-up; the web app logs in with an existing key (see We
 - Every token resolves to its user. Sync, relay calls, `/devices`, `/status`, and export only see that user's records and browsers; `sync.changed` only wakes that user's browsers. Device ids are unique per user.
 - Rows written before users existed have `user_id = 'me'`; the migration only adds tables.
 
-CLI, in `services/server` (reads `.env` for `IRIS_DATABASE_URL`). `pnpm token` is a pnpm builtin, so both use `pnpm run`:
+CLI, in `services/server` (reads `/etc/iris/env` for `IRIS_DATABASE_URL`, if present). `pnpm token` is a pnpm builtin, so both use `pnpm run`:
 
 ```bash
 pnpm run user add <id> [name]                          # id: a-z 0-9 _ -, at most 32
@@ -149,7 +149,7 @@ Dev: `pnpm --dir services/web dev` on `127.0.0.1:33093` (`$PASEO_PORT` in a work
 
 ## Deploy (this setup)
 
-`iris.service` on `devcloud_cpu`, from this repo, with `services/server/.env` (not committed). Postgres is the shared `deploy-postgres-1` container, database and role `iris`. A reverse tunnel publishes `127.0.0.1:33030` on tx04, where nginx serves `iris.easonsi.site` with TLS and WebSocket upgrade. The unit files are in `services/server/deploy/`. After a pull: `services/server/deploy/deploy.sh` (installs, builds `services/web`, restarts `iris`; the server reads `dist` per request, so a web-only change needs no restart).
+`iris.service` on `devcloud_cpu`, from this repo, with `EnvironmentFile=/etc/iris/env`, rendered from the secrets store (`secrets:services/iris.env`; change a key: `printf %s "$V" | secrets set services/iris.env KEY`, then `secrets render env services/iris.env /etc/iris/env`, then `systemctl restart iris`). Postgres is the shared `deploy-postgres-1` container, database and role `iris`. A reverse tunnel publishes `127.0.0.1:33030` on tx04, where nginx serves `iris.easonsi.site` with TLS and WebSocket upgrade. The unit files are in `services/server/deploy/`. After a pull: `services/server/deploy/deploy.sh` (installs, builds `services/web`, restarts `iris`; the server reads `dist` per request, so a web-only change needs no restart).
 
 ## Out of scope
 
