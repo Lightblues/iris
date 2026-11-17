@@ -45,4 +45,4 @@ Changes against today:
 - Model tuning (temperature, tokens, steps) folds under Advanced.
 - Phoenix, the localhost relay, the MCP endpoint, and import/export move to a collapsed Developer section. The localhost relay and MCP endpoint are kept but unused until a need appears.
 
-Open: whether the API key gets a "test" button that calls `/v1/models`.
+Closed 2026-11-17 (D012): no "test" button next to the API key. Filling the key already fetches `/v1/models`.
