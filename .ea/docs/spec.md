@@ -15,15 +15,15 @@ Browser-side **sensor and actuator**. It acts on the current browsing context an
 Iris is not a general-purpose “all-in-one browser assistant”. It has two jobs:
 
 1. **Agent on the current page.** The side-panel agent reads and acts on the tab in front of the user, writes skills, scripts, and reports, and keeps its chats.
-2. **Relay for outside agents.** Through sonar, outside agents read and act in the user's logged-in browsers with the same tool catalog (`iris.tools.*`), within each browser's level, plus exports of what Iris captured.
+2. **Relay for reading his browsers.** Through sonar, outside agents read pages in the user's logged-in browsers (`browser_*`), within each browser's level, plus exports of what Iris captured. Driving a browser set aside for agents is CDP on xh-mini-m1, not a larger relay (D013).
 
 Everything else is an entry point to those two (FAB, command palette, context menu, shortcuts) or a thin tool kept working (D003: Bookmarks, Reading, Notes, Tracing). Capture (highlights, notes, traces) is not a separate pillar: it stays local and leaves through the relay (`iris.*.export`). Personal site patches are scripts: standard userscripts, plus WebMCP tools. See [scripts.md](scripts.md).
 
-New work must answer: *does this make the page agent or the relay better?* If not, it does not belong in Iris. Per-item verdicts: [log/2026-10-30-positioning-review.md](../log/2026-10-30-positioning-review.md) (D006).
+New work must answer: *does this make the page agent or the read relay better?* If not, it does not belong in Iris. Per-item verdicts: [log/2026-10-30-positioning-review.md](../log/2026-10-30-positioning-review.md) (D006, narrowed by D013).
 
 Honest capability today: the user is present and the side panel is open on a given tab. Opening Iris enables the panel for **that tab only** — other tabs and Cmd+T stay clean. Each enabled tab has its own live agent session, and that page is announced with a short card (url and title). The agent reads the page with `read_page` and acts on it with `eval`. Cmd+click from an Iris tab joins the same session. Switching to a tab without Iris hides the panel (the document may unload; in-flight streams die). Switching back restores the conversation from session storage. Closing the panel or the tab tears that session down. Iris is not a background autonomous browser agent. Site scripts keep running after the panel closes.
 
-The one background actuator that *is* in scope: **browser relay**. External agents reach it through sonar (`browser_read`, `browser_call`, `ai_chat_*`), within the level each browser allows. The service worker executes them and returns. No LLM loop runs in the background. Spec: [browser-relay.md](browser-relay.md). Relay methods are not WebMCP. WebMCP tools live on the page and are specified in [scripts.md](scripts.md).
+The relay is how outside agents read the user's logged-in browsers (`browser_read`, and `ai_chat_*`), within the level each browser allows. The service worker executes them and returns. No LLM loop runs in the background. Driving xh-mini-m1 is CDP, not this relay (D013). Spec: [browser-relay.md](browser-relay.md). Relay methods are not WebMCP. WebMCP tools live on the page and are specified in [scripts.md](scripts.md).
 
 ## Scope
 

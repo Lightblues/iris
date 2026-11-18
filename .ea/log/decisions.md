@@ -40,7 +40,7 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 ## D006. Two jobs: the page agent and the relay
 
 **Date**: 2026-10-30
-**Status**: active
+**Status**: narrowed by D013
 
 **Decision**: Iris has two jobs: the side-panel agent on the current page, and the relay through which outside agents use the same tool catalog. Everything else is an entry point or a thin tool kept working (D003). Capture is no longer a pillar of its own; it stays local and leaves through the relay exports. The keep / fold / drop verdicts in `log/2026-10-30-positioning-review.md` are accepted as written: drops go to iris-025, folds and the agent-experience items (AX-1 to AX-10) become 0.7 item 4 issues. Alternative rejected: keeping "sensor" as a second product line, which justified surfaces (Tabs, tab heuristics, duplicate relay methods) that neither job needs.
 
@@ -51,19 +51,19 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 
 **Decision**: Each setting carries the time a person last edited it, and settings are always pushed without a base so the server keeps the later edit. On 2026-10-28 a stale panel wrote defaults back over the API key: its push had a matching base, so it fast-forwarded although nobody had edited the key. Trade-off: settings become last-writer-wins by device clock, so a clock far ahead can win a race; settings are edited rarely and by one person, so this is accepted. Alternative rejected: a server-side rule for settings, which would leave the client sending push time as edit time.
 
-## D009. Shared settings move by backup and restore
-
-**Date**: 2026-10-31
-**Status**: active
-
-**Decision**: A browser uploads a setting only after someone edited it there, or after Settings → "Save to other browsers". A field never edited is not uploaded, and the shared copy replaces it locally, so a new browser gets the model, key, and base URL without its defaults overwriting them. "Load from other browsers" drops the local edit times and takes the shared copy. Alternative rejected: last-write-wins on every field including untouched defaults, which is what put the OpenRouter defaults in front of the saved configuration.
-
 ## D008. Rolling beta for testing between releases
 
 **Date**: 2026-10-30
 **Status**: active
 
 **Decision**: Every extension change pushed to `main` is built by CI into a rolling `beta` pre-release (manifest version `<package version>.<run number>`, `version_name` `<version>-beta.<run> (<sha>)`). The user's Mac runs `install.sh beta --watch`: a launchd job installs a new beta within five minutes and Iris reloads itself, so agents change code and the user tests the same build a release would ship, with no setup per change. Releases stay as D001 says. Alternatives not taken now: a browser sandbox (AGS) or headless runs for UI judgement, which cannot replace the user's own logged-in browser; they remain for automated checks (iris-029).
+
+## D009. Shared settings move by backup and restore
+
+**Date**: 2026-10-31
+**Status**: active
+
+**Decision**: A browser uploads a setting only after someone edited it there, or after Settings → "Save to other browsers". A field never edited is not uploaded, and the shared copy replaces it locally, so a new browser gets the model, key, and base URL without its defaults overwriting them. "Load from other browsers" drops the local edit times and takes the shared copy. Alternative rejected: last-write-wins on every field including untouched defaults, which is what put the OpenRouter defaults in front of the saved configuration.
 
 ## D010. The Tabs view stays, for a mirror of the other browsers' tabs
 
@@ -85,3 +85,10 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 **Status**: active
 
 **Decision**: Settings does not get a button that tests the API key. Filling the key already fetches the model list from `/v1/models`, which is the check. Alternative rejected: a separate test button that calls the same endpoint.
+
+## D013. The relay reads logged-in browsers; an agent browser is driven over CDP
+
+**Date**: 2026-11-14
+**Status**: active
+
+**Decision**: Narrows D006. Iris is the assistant of the user's own browser. The relay stays for reading pages in his logged-in browsers (sonar `browser_*`). The browser set aside for agents, on xh-mini-m1, is driven over CDP by standard tools (Playwright, browser-use, chrome-devtools-mcp), not by growing the relay; Iris still runs there so `browser_*` keeps working. AX-9 is re-scoped to that: keep `browser.fetch` as the read path and stop it stealing focus, and drop leftover unprefixed aliases. Folding control methods into a relay that drives tabs, clicks, and typing is out of scope. Alternative rejected: one relay that both reads the user's browsers and drives the agent browser.
