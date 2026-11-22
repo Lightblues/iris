@@ -6,12 +6,7 @@ Iris is the assistant of the user's own browser, and a relay through which outsi
 
 - 0.6.1 (2026-10-28): the one-command install and self-reload.
 - 0.6.2 (2026-10-28): fixed the settings overwrite and the sync push loop.
-- 0.6.x, on beta, not yet a release (whether to cut 0.6.3 now is baton #93, waiting on the user):
-  - settings sync by backup and restore (D009)
-  - the web app as an iOS PWA
-  - Tabs view mirrors the other browsers' open tabs (iris-033, D010)
-  - a page outline on long pages (iris-034, D011)
-  - dev setup: Node 24, `paseo.json`, secrets from the store, web dev off forge's port
+- 0.6.3 (2026-11-22): the beta since 0.6.2, cut as a release (baton #93). Settings sync by backup and restore (D009); the web app as an iOS PWA; Tabs view mirrors the other browsers' open tabs (iris-033, D010); a page outline on long pages (iris-034, D011); dev setup (Node 24, `paseo.json`, secrets from the store, web dev off forge's port).
 
 ## 0.7: core first, docs and settings in order (now)
 
@@ -33,7 +28,7 @@ Done when: the agent-experience items from the [positioning review](log/2026-10-
 - [ ] AX-8 Entry points that skip the agent (not filed)
 - [ ] AX-9 Relay read path only: background `browser.fetch`, drop unprefixed aliases (D013; the control-method fold is out of scope; not filed)
 - [ ] AX-10 Model switching (not filed)
-- [ ] Release 0.7.0 (baton #93 asks whether to cut 0.6.3 from beta first; waiting on the user)
+- [ ] Release 0.7.0 once the agent-experience items above are done (0.6.3 already cut from beta)
 
 ## Later
 
