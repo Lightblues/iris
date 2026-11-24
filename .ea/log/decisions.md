@@ -92,3 +92,10 @@ Settled trade-offs, append-only, newest at the bottom. To reverse one, add an en
 **Status**: active
 
 **Decision**: Narrows D006. Iris is the assistant of the user's own browser. The relay stays for reading pages in his logged-in browsers (sonar `browser_*`). The browser set aside for agents, on xh-mini-m1, is driven over CDP by standard tools (Playwright, browser-use, chrome-devtools-mcp), not by growing the relay; Iris still runs there so `browser_*` keeps working. AX-9 is re-scoped to that: keep `browser.fetch` as the read path and stop it stealing focus, and drop leftover unprefixed aliases. Folding control methods into a relay that drives tabs, clicks, and typing is out of scope. Alternative rejected: one relay that both reads the user's browsers and drives the agent browser.
+
+## D014. A passkey assertion is a read login for the web
+
+**Date**: 2026-11-24
+**Status**: active
+
+**Decision**: On the web routes (`/auth/me`, `/devices`, `/status`, `/call`), a signed `X-Gate-Assertion` for `iris.easonsi.site` whose owner is `eason` is user `me` at read level. The installed iOS PWA keeps its own cookies, so it cannot reuse a Safari session; the gate header is on every request and nothing is stored. Control, export, and the extension keep their keys. `X-Gate-Owner` alone is not trusted. The public key is pinned in `services/iris.env`. Alternative rejected: a long-lived cookie set at the gate, which would be a second credential to store and revoke.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { generateKeyPairSync, sign } from 'node:crypto'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -32,8 +33,8 @@ function pgliteDb(): Db {
   }
 }
 
-async function boot(controlKey = CONTROL, liveness?: Liveness, db = pgliteDb(), webDir = WEB) {
-  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db, liveness, webDir })
+async function boot(controlKey = CONTROL, liveness?: Liveness, db = pgliteDb(), webDir = WEB, gate?: { publicKey: ReturnType<typeof generateKeyPairSync>['publicKey']; host: string; owners: string[] }) {
+  const server = await startServer({ deviceToken: DEVICE, readKey: READ, controlKey, host: '127.0.0.1', port: 0, db, liveness, webDir, gate })
   const base = `http://127.0.0.1:${server.port}`
   return {
     port: server.port,
@@ -459,6 +460,36 @@ test('/devices?history=1 keeps connects and disconnects, offline browsers includ
     const plain = await (await server.get('/devices')).json() as { devices: { id: string }[] }
     assert.deepEqual(plain.devices.map(d => d.id), ['mini'])
     again.close()
+  } finally {
+    await server.stop()
+  }
+})
+
+test('a signed gate assertion for the owner is a read login; a forged, expired, wrong-host or bare owner header is not', async () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519')
+  const server = await boot(CONTROL, undefined, pgliteDb(), WEB, { publicKey, host: 'iris.easonsi.site', owners: ['eason'] })
+  const base = `http://127.0.0.1:${server.port}`
+  const assertion = (over: Record<string, unknown> = {}, key = privateKey) => {
+    const now = Math.floor(Date.now() / 1000)
+    const payload = Buffer.from(JSON.stringify({ v: 1, kid: 'k', host: 'iris.easonsi.site', owner: 'eason', device: 'iphone', iat: now, exp: now + 60, ...over })).toString('base64url')
+    return `${payload}.${sign(null, Buffer.from(payload), key).toString('base64url')}`
+  }
+  const get = (path: string, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { headers })
+  try {
+    const me = await (await get('/auth/me', { 'x-gate-assertion': assertion() })).json() as { loggedIn: boolean; user: string; level: string }
+    assert.deepEqual(me, { loggedIn: true, user: 'me', level: 'read' })
+    assert.equal((await get('/devices', { 'x-gate-assertion': assertion() })).status, 200)
+    assert.equal((await get('/export/kinds', { 'x-gate-assertion': assertion() })).status, 401, 'export stays key-only')
+    const control = await fetch(`${base}/call`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-gate-assertion': assertion() }, body: JSON.stringify({ method: 'browser.list_tabs' }) })
+    assert.equal(control.status, 403, 'control stays key-only')
+    assert.equal((await get('/devices', { 'x-gate-assertion': assertion({ owner: 'bei' }) })).status, 401)
+    assert.equal((await get('/devices', { 'x-gate-assertion': assertion({ host: 'other.example' }) })).status, 401)
+    assert.equal((await get('/devices', { 'x-gate-assertion': assertion({ iat: 0, exp: 1 }) })).status, 401)
+    assert.equal((await get('/devices', { 'x-gate-assertion': assertion({}, generateKeyPairSync('ed25519').privateKey) })).status, 401)
+    assert.equal((await get('/devices', { 'x-gate-assertion': 'not-an-assertion' })).status, 401)
+    assert.equal((await get('/devices', { 'x-gate-owner': 'eason' })).status, 401)
+    assert.equal((await get('/devices')).status, 401)
+    assert.equal((await server.get('/devices')).status, 200, 'the read key still works')
   } finally {
     await server.stop()
   }

@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { asLevel, createHub, methodLevel, relayErrorPayload, type Liveness } from './hub.ts'
 import { EXPORT_KINDS, migrate, openStore, pgDb, type Db } from './store.ts'
+import { verifyGateAssertion, type GateKey } from './gate-assertion.ts'
 import { createSession, deleteSession, resolveSession, resolveToken, seedEnv, SESSION_MS } from './users.ts'
 
 const MAX_BODY = 32 * 1024 * 1024
@@ -23,6 +24,8 @@ export interface ServerOptions {
   liveness?: Liveness
   /** The built web app (services/web/dist). */
   webDir?: string
+  /** A signed X-Gate-Assertion for one of `owners` is user `me` at read level, on the web routes only. */
+  gate?: { publicKey: GateKey | GateKey[]; host: string; owners: string[] }
 }
 
 type KeyLevel = 'read' | 'control'
@@ -85,13 +88,23 @@ export async function startServer(options: ServerOptions) {
 
   const webDir = options.webDir ?? WEB_DIR
 
-  /** A bearer key, or the web app's session cookie; a cookie never authorizes a cross-origin write. */
-  async function caller(req: IncomingMessage): Promise<{ user: string; level: KeyLevel } | null> {
+  const seenPasskeys = new Set<string>()
+
+  /** A bearer key, or the web app's session cookie; a cookie never authorizes a cross-origin write. `gate` is the web routes only. */
+  async function caller(req: IncomingMessage, gate = false): Promise<{ user: string; level: KeyLevel } | null> {
     const key = bearer(req)
     const auth = key
       ? await resolveToken(options.db, key, ['read', 'control'])
       : req.method === 'GET' || sameOrigin(req) ? await resolveSession(options.db, cookie(req, SESSION_COOKIE)) : null
-    return auth ? { user: auth.userId, level: auth.kind as KeyLevel } : null
+    if (auth) return { user: auth.userId, level: auth.kind as KeyLevel }
+    if (!gate || !options.gate) return null
+    const who = verifyGateAssertion(req.headers['x-gate-assertion'], options.gate)
+    if (!who || !options.gate.owners.includes(who.owner)) return null
+    if (!seenPasskeys.has(who.device)) {
+      seenPasskeys.add(who.device)
+      console.log(`[iris-server] passkey seen device=${who.device}`)
+    }
+    return { user: 'me', level: 'read' }
   }
 
   async function onRequest(req: IncomingMessage, res: ServerResponse) {
@@ -109,7 +122,7 @@ export async function startServer(options: ServerOptions) {
       return
     }
     if (url.pathname === '/auth/me' && req.method === 'GET') {
-      const me = await caller(req)
+      const me = await caller(req, true)
       sendJson(res, 200, me ? { loggedIn: true, user: me.user, level: me.level } : { loggedIn: false })
       return
     }
@@ -138,7 +151,9 @@ export async function startServer(options: ServerOptions) {
       return
     }
 
-    const auth = await caller(req)
+    const web = req.method === 'GET' && (url.pathname === '/status' || url.pathname === '/devices')
+      || req.method === 'POST' && url.pathname === '/call'
+    const auth = await caller(req, web)
     if (!auth) {
       sendJson(res, 401, { error: { code: 'unauthorized', message: 'unauthorized' } })
       return
@@ -311,6 +326,19 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   return parsed as Record<string, unknown>
 }
 
+function gateFromEnv(): ServerOptions['gate'] {
+  const publicKey = (process.env.GATE_ASSERTION_PUBKEY ?? '').split(',').map(key => key.trim()).filter(Boolean)
+  if (!publicKey.length) {
+    console.warn('[iris-server] GATE_ASSERTION_PUBKEY unset: the web needs a key')
+    return undefined
+  }
+  return {
+    publicKey,
+    host: (process.env.IRIS_PUBLIC_HOST || 'iris.easonsi.site').toLowerCase(),
+    owners: (process.env.IRIS_GATE_OWNERS || 'eason').split(',').map(owner => owner.trim()).filter(Boolean),
+  }
+}
+
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 if (isMain) {
   const need = (name: string) => {
@@ -330,6 +358,7 @@ if (isMain) {
     host,
     port,
     db: pgDb(need('IRIS_DATABASE_URL')),
+    gate: gateFromEnv(),
   }).then(handle => {
     console.log(`[iris-server] http://${host}:${handle.port}`)
   }).catch(error => {

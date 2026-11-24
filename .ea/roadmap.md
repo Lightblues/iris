@@ -43,3 +43,4 @@ Done when: the agent-experience items from the [positioning review](log/2026-10-
 - [2026-11-07 page outline](log/2026-11-07-page-toc.md): a table of contents on long pages, prompts on chat sites; one reading aid allowed beside the entry points (D011).
 - 2026-11-17: no API key test button. Filling the key already fetches the model list (D012).
 - 2026-11-18: the relay reads logged-in browsers; xh-mini-m1 is driven over CDP (D013). AX-1+2, AX-3+4, AX-5+6 filed as iris-035, iris-036, iris-037.
+- 2026-11-24: a passkey assertion is a read login for the web, so the iOS PWA opens with nothing stored (D014). Control, export, and the extension stay key-only.
