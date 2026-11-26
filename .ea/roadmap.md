@@ -34,6 +34,7 @@ Done when: the agent-experience items from the [positioning review](log/2026-10-
 
 - Google sign-in on top of the 0.7 user schema, invite only (D004).
 - A zip export of Iris's own data, when asked.
+- Markdown rendering moves to `@lightblues/jig/markdown` (`kitBlocks` / `fillSlots`, no raw HTML) after assay-020 proves streaming. Batch (c) of jig J011 (accepted 2026-11-26). Not started; jig's lead owns the part.
 
 ## Log
 
@@ -44,3 +45,4 @@ Done when: the agent-experience items from the [positioning review](log/2026-10-
 - 2026-11-17: no API key test button. Filling the key already fetches the model list (D012).
 - 2026-11-18: the relay reads logged-in browsers; xh-mini-m1 is driven over CDP (D013). AX-1+2, AX-3+4, AX-5+6 filed as iris-035, iris-036, iris-037.
 - 2026-11-24: a passkey assertion is a read login for the web, so the iOS PWA opens with nothing stored (D014). Control, export, and the extension stay key-only.
+- 2026-11-26: jig J011 batch (c) noted. Iris's Markdown moves to `@lightblues/jig/markdown` after assay-020; not started.
